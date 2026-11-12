@@ -1,0 +1,11 @@
+# 빌드·시험 산출물
+out/
+artifacts/
+tests/results/
+tests/.sim_lock/
+
+# 비공개 자료(제품 프로필·실보드 로그·골든 캡처와 그 시나리오·옛 PowerShell 판·사내 배포 기록)
+internal/
+
+# 제품 프로필은 배포 폴더에서 exe 옆에 둔다(저장소에는 넣지 않음)
+UartHub.profile.json

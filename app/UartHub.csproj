@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>UartHub</AssemblyName>
+    <RootNamespace>UartHub.App</RootNamespace>
+    <UseWindowsForms>true</UseWindowsForms>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- 압축 끔: 일부 백신이 압축된 단일 파일 exe 를 "실행 압축 개체"로 오탐해 지운다(2026-11-05) -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- exe 아이콘(UI_COPY.md 모양: 16~256, 작은 크기는 별만). 압축 끔(위)은 그대로 — 아이콘은 apphost 리소스로만 들어간다 -->
+    <ApplicationIcon>assets/UartHub.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../src/UartHub.Core.csproj" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>self_contained</_Parameter1>
+      <_Parameter2>$(SelfContained)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Claude skills 원본(계획 T4): 설치기(SkillsDeployer)가 꺼내 환경마다 ~/.claude/skills/uart 에 넣는다 -->
+    <EmbeddedResource Include="../skill/SKILL.md" LogicalName="skill/SKILL.md" />
+    <EmbeddedResource Include="../skill/uart" LogicalName="skill/uart" />
+    <!-- X5: 사용자 전용 slash skill(disable-model-invocation) — uart 와 함께 ~/.claude/skills/{connect-uart,disconnect-uart} 에 넣는다 -->
+    <EmbeddedResource Include="../skill/connect-uart/SKILL.md" LogicalName="skill/connect-uart/SKILL.md" />
+    <EmbeddedResource Include="../skill/disconnect-uart/SKILL.md" LogicalName="skill/disconnect-uart/SKILL.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 화면(UI_COPY.md, 2026-11-06): 창 아이콘·머리띠 별·트레이 상태 아이콘(실행·정지·경고) -->
+    <EmbeddedResource Include="assets/UartHub.ico" LogicalName="UartHub.ico" />
+    <EmbeddedResource Include="assets/star.png" LogicalName="star.png" />
+    <EmbeddedResource Include="assets/tray_run.ico" LogicalName="tray_run.ico" />
+    <EmbeddedResource Include="assets/tray_stop.ico" LogicalName="tray_stop.ico" />
+    <EmbeddedResource Include="assets/tray_warn.ico" LogicalName="tray_warn.ico" />
+    <EmbeddedResource Include="assets/tray_rec.ico" LogicalName="tray_rec.ico" />
+  </ItemGroup>
+</Project>

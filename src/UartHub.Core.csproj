@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>UartHub.Core</AssemblyName>
+    <RootNamespace>UartHub</RootNamespace>
+    <NoWarn>$(NoWarn);CS0649;CS0169;CS0414;CS8981</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(BuildInfoFile)" Condition="Exists('$(BuildInfoFile)')" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- SkillsDeployer 가 wsl.exe -d <배포판> -e sh -c 로 넘기는 WSL 쪽 작업 스크립트(계획 T4) -->
+    <EmbeddedResource Include="host/skills_wsl.sh" LogicalName="skills_wsl.sh" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" Version="10.0.*" />
+    <PackageReference Include="System.Management" Version="10.0.*" />
+  </ItemGroup>
+</Project>

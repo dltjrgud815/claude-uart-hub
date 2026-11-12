@@ -1,0 +1,25 @@
+{
+  // 시뮬 시험용 가상 제품 프로필. tests/run_sim*.ps1 이 환경변수 UART_HUB_PROFILE 로 이 파일을 준다
+  // (FakeBoard 가 찍는 로더 표시·U-Boot 프롬프트·앱 오류 줄과 짝을 이룬다). 실제 보드의 값이 아니다.
+  "name": "sim-evb",
+  "loader_marker_re": "LDR>T",
+  "boot_re": "reboot: Restarting system|LDR>T|^\\[\\s+0\\.0\\d+\\]",
+  "uboot_prompt_re": "^evb: ",
+  "event_patterns": {
+    // APPFAULT(BA)(000f) = 정상 종료 서명이라 제외(대소문자 무시)
+    "app_error": [
+      "APPFAULT\\((?!(?i:BA\\)\\(000f\\)))",
+      "Encoder Error",
+      "AP-ERROR",
+      "ENC-ERROR",
+      "Panic call, app_wdt_external_set",
+      "APP_ABORT reason=",
+      "APP_EVT_ID_UI_OOM_ERROR"
+    ]
+  },
+  "app_codes": [
+    { "re": "APPFAULT\\([^)\\s]*\\)" },
+    { "re": "APP_EVT_ID_UI_OOM_ERROR", "code": "OOM" },
+    { "re": "(?i)app_wdt", "code": "WDT" }
+  ]
+}

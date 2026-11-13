@@ -1,3 +1,5 @@
+그림으로 보는 자세한 가이드: https://github.com/dltjrgud815/claude-uart-hub/blob/main/docs/GUIDE.ko.md
+
 # UART 허브 사용 가이드
 
 보드 UART를 터미널과 Claude Code가 같이 쓰게 해 주는 도구입니다. 에이징을 시작하면 그 포트의 콘솔 로그를 이름 붙인 폴더에 남기고, panic이나 앱 오류가 나면 알려 줍니다.

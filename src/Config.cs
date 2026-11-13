@@ -59,6 +59,7 @@ namespace UartHub
         public string BaseRoot;                     // ResolveLogRoot 가 정함: 설치 때 정한 log_root(기준 폴더, 트레이 "로그 폴더 열기"). 그 전엔 null
         public string HubDir;                       // null → <log_root>\hub
         public int BasePort = 7001;
+        public string Language = L.Auto;              // "language": auto|ko|en — 화면·파일·메시지 언어(src/Lang.cs, 2026-11-13)
         public int ControlPort = 7200;               // 7000 은 다른 상주 서비스(wizmchecksvc 등)가 쓰는 PC 가 있어 피한다(실보드 시험 11-03)
         public List<string> Vids = new List<string> { "VID_0403" };
         public Dictionary<string, CableConfig> Cables = new Dictionary<string, CableConfig>(StringComparer.OrdinalIgnoreCase);
@@ -132,11 +133,54 @@ namespace UartHub
 
         /// <summary>log_layout 2 의 폴더 이름(부록 C.11): 콘솔 로그(동결 DiskWriter·SpoolWatcher 가 cfg.LogRoot 로 씀)·사람이 보는 에이징 이벤트 txt.</summary>
         public const string ConsoleDirName = "콘솔로그", EventsTxtDirName = "에이징이벤트";
-        /// <summary>log_layout 3 의 폴더 이름(부록 C.12): 숨김 임시 기록(&lt;허브 폴더&gt;\임시기록 = cfg.LogRoot)·에이징 세션 폴더의 뿌리(&lt;기준&gt;\에이징).</summary>
-        public const string SpoolDirName = "임시기록", AgingDirName = "에이징";
+        /// <summary>
+        /// log_layout 3 의 폴더 이름(부록 C.12) — 언어마다(계획 §4): 숨김 임시 기록(&lt;허브 폴더&gt;\임시기록 | spool = cfg.LogRoot)·에이징 세션 폴더의 뿌리(&lt;기준&gt;\에이징 | aging).
+        /// lang null = 지금 언어.
+        /// </summary>
+        public static string SpoolDirNameFor(string lang) => AgingLang.T(lang, "임시기록", "spool");
+        public static string AgingDirNameFor(string lang) => AgingLang.T(lang, "에이징", "aging");
+        /// <summary>지금 언어의 이름(새로 만들 때). 이미 있는 폴더는 SpoolDirFor·AgingRoots 로 찾는다.</summary>
+        public static string SpoolDirName => SpoolDirNameFor(null);
+        public static string AgingDirName => AgingDirNameFor(null);
+        /// <summary>두 언어의 이름(지금 언어 먼저) — 지우기·숨기기·목록·보호는 둘 다 안다(언어를 바꿔도 옛 폴더가 남아 있다).</summary>
+        public static string[] SpoolDirNames => new[] { SpoolDirName, SpoolDirNameFor(L.IsEn ? L.Ko : L.En) };
+        public static string[] AgingDirNames => new[] { AgingDirName, AgingDirNameFor(L.IsEn ? L.Ko : L.En) };
 
-        /// <summary>에이징 세션 폴더의 뿌리(&lt;기준 폴더&gt;\에이징, 부록 C.12).</summary>
+        /// <summary>
+        /// 허브 폴더의 임시 기록 폴더: 이미 있는 것(임시기록 → spool 순)을 그대로 쓰고, 둘 다 없으면 지금 언어 이름.
+        /// 한 번 생기면 언어를 바꿔도 같은 폴더 — 동결 DiskWriter·SpoolWatcher·CLI(logpath·log)·설치기가 프로세스마다 언어가 달라도 같은 곳을 본다.
+        /// </summary>
+        public static string SpoolDirFor(string hubDir)
+        {
+            foreach (var lang in new[] { L.Ko, L.En })
+            {
+                string d = Path.Combine(hubDir ?? "", SpoolDirNameFor(lang));
+                try { if (Directory.Exists(d)) return d; } catch (Exception) { }
+            }
+            return Path.Combine(hubDir ?? "", SpoolDirName);
+        }
+
+        /// <summary>새 에이징 세션 폴더의 뿌리(&lt;기준 폴더&gt;\에이징 | aging — 지금 언어, 부록 C.12).</summary>
         public string AgingRoot => Path.Combine(BaseRoot ?? LogRoot ?? "", AgingDirName);
+        /// <summary>두 언어의 에이징 뿌리(지금 언어 먼저) — 목록·열기 허용·보호·예산은 둘 다 본다.</summary>
+        public string[] AgingRoots => AgingDirNames.Select(n => Path.Combine(BaseRoot ?? LogRoot ?? "", n)).ToArray();
+
+        /// <summary>
+        /// log_layout 3 의 임시 기록 폴더들: LogRoot 먼저, 그 옆의 다른 언어 이름 폴더(언어를 바꾸기 전에 생긴 옛 폴더 — 있을 때만 숨기고 정리한다).
+        /// 그 밖의 배치면 LogRoot 하나.
+        /// </summary>
+        public string[] SpoolDirs
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(LogRoot)) return new string[0];
+                var l = new List<string> { LogRoot };
+                string trimmed = LogRoot.TrimEnd('\\', '/'), leaf = Path.GetFileName(trimmed), parent = Path.GetDirectoryName(trimmed);
+                if (LogLayout >= 3 && !string.IsNullOrEmpty(parent) && SpoolDirNames.Contains(leaf, StringComparer.OrdinalIgnoreCase))
+                    foreach (var n in SpoolDirNames) if (!string.Equals(n, leaf, StringComparison.OrdinalIgnoreCase)) l.Add(Path.Combine(parent, n));
+                return l.ToArray();
+            }
+        }
 
         /// <summary>사건 jsonl 폴더(내부 기록, Claude·aging 용): layout 2 = &lt;허브 폴더&gt;\events, 아니면 &lt;log_root&gt;\events.</summary>
         public string EventsJsonlDir => LogLayout >= 2 ? Path.Combine(EffectiveHubDir ?? "", "events") : Path.Combine(LogRoot ?? "", "events");
@@ -146,6 +190,8 @@ namespace UartHub
         /// 아니면 jsonl 과 같은 &lt;log_root&gt;\events.
         /// </summary>
         public string EventsTxtDir => LogLayout >= 3 ? AgingRoot : LogLayout >= 2 ? Path.Combine(BaseRoot ?? LogRoot ?? "", EventsTxtDirName) : Path.Combine(LogRoot ?? "", "events");
+        /// <summary>사람이 보는 이벤트 txt 가 있을 수 있는 뿌리 모두: layout 3 = 두 언어의 에이징 뿌리(지금 언어 먼저), 아니면 EventsTxtDir 하나.</summary>
+        public string[] EventsTxtDirs => LogLayout >= 3 ? AgingRoots : new[] { EventsTxtDir };
         public long RingBytes => MbToBytes(RingMb);
         public long RotateBytes => MbToBytes(RotateMb);
         public long QueueBytes => MbToBytes(QueueMb);
@@ -169,7 +215,7 @@ namespace UartHub
             if (LogLayout >= 3)
             {
                 string hd = !string.IsNullOrEmpty(HubDir) ? HubDir : !string.IsNullOrEmpty(hubDir) ? hubDir : Path.Combine(BaseRoot, "hub");
-                LogRoot = Path.Combine(hd, SpoolDirName);
+                LogRoot = SpoolDirFor(hd);
             }
             else if (LogLayout >= 2) LogRoot = Path.Combine(BaseRoot, ConsoleDirName);
         }
@@ -208,16 +254,16 @@ namespace UartHub
             {
                 doc = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
             }
-            catch (JsonException e) { throw new ConfigException(new[] { "JSON 파싱 실패: " + e.Message }); }
+            catch (JsonException e) { throw new ConfigException(new[] { L.T("JSON 파싱 실패: " + e.Message, "JSON parse failed: " + e.Message) }); }
             using (doc)
             {
-                if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new ConfigException(new[] { "최상위가 객체가 아님" });
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new ConfigException(new[] { L.T("최상위가 객체가 아님", "top level is not an object") });
                 foreach (var p in doc.RootElement.EnumerateObject())
                 {
                     try { cfg.Apply(p, errs); }
                     catch (Exception e) when (e is InvalidOperationException || e is FormatException)
                     {
-                        errs.Add(p.Name + ": 형식 오류(" + e.Message + ")");
+                        errs.Add(L.T(p.Name + ": 형식 오류(" + e.Message + ")", p.Name + ": bad format (" + e.Message + ")"));
                     }
                 }
             }
@@ -235,6 +281,7 @@ namespace UartHub
                 case "log_layout": LogLayout = Int(v); break;
                 case "base_port": BasePort = Int(v); break;
                 case "control_port": ControlPort = Int(v); break;
+                case "language": Language = v.GetString()?.Trim().ToLowerInvariant(); break;   // "EN"·" en " 도 받는다(L 과 같은 규칙)
                 case "vids":
                     Vids = new List<string>();
                     foreach (var e in v.EnumerateArray()) Vids.Add(e.GetString());
@@ -253,10 +300,10 @@ namespace UartHub
                                 case "baud": cc.Baud = Int(f.Value); break;
                                 case "replug_clear":
                                     if (f.Value.ValueKind == JsonValueKind.True || f.Value.ValueKind == JsonValueKind.False) cc.ReplugClear = f.Value.GetBoolean();
-                                    else errs.Add("cables." + c.Name + ".replug_clear 는 true/false");
+                                    else errs.Add(L.T("cables." + c.Name + ".replug_clear 는 true/false", "cables." + c.Name + ".replug_clear must be true/false"));
                                     break;
                                 case "events": cc.Events = ParseEvents(f.Value, "cables." + c.Name + ".events", errs, false); break;
-                                default: errs.Add("cables." + c.Name + ": 알 수 없는 키 '" + f.Name + "'"); break;
+                                default: errs.Add(L.T("cables." + c.Name + ": 알 수 없는 키 '" + f.Name + "'", "cables." + c.Name + ": unknown key '" + f.Name + "'")); break;
                             }
                         }
                         Cables[c.Name] = cc;
@@ -312,7 +359,7 @@ namespace UartHub
                 case "sup_watch_s": SupWatchS = v.GetDouble(); break;
                 case "ask_new_cables":
                     if (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False) AskNewCables = v.GetBoolean();
-                    else errs.Add("ask_new_cables 는 true/false");
+                    else errs.Add(L.T("ask_new_cables 는 true/false", "ask_new_cables must be true/false"));
                     break;
                 case "holder_scan_skip":
                     HolderScanSkip = new List<string>();
@@ -320,15 +367,15 @@ namespace UartHub
                     break;
                 case "auto_nudge":
                     if (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False) AutoNudge = v.GetBoolean();
-                    else errs.Add("auto_nudge 는 true/false");
+                    else errs.Add(L.T("auto_nudge 는 true/false", "auto_nudge must be true/false"));
                     break;
                 case "auto_nudge_gap_s": AutoNudgeGapS = v.GetDouble(); break;
                 case "on_demand":
                     if (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False) OnDemand = v.GetBoolean();
-                    else errs.Add("on_demand 는 true/false");
+                    else errs.Add(L.T("on_demand 는 true/false", "on_demand must be true/false"));
                     break;
                 case "events": Events = ParseEvents(v, "events", errs, true) ?? new EventsConfig(); break;
-                default: errs.Add("알 수 없는 키 '" + p.Name + "'"); break;
+                default: errs.Add(L.T("알 수 없는 키 '" + p.Name + "'", "unknown key '" + p.Name + "'")); break;
             }
         }
 
@@ -339,50 +386,53 @@ namespace UartHub
         static EventsConfig ParseEvents(JsonElement v, string where, List<string> errs, bool top)
         {
             var ec = new EventsConfig();
-            if (v.ValueKind != JsonValueKind.Object) { errs.Add(where + " 는 객체({\"patterns\": {…}})"); return ec; }
+            if (v.ValueKind != JsonValueKind.Object) { errs.Add(L.T(where + " 는 객체({\"patterns\": {…}})", where + " must be an object ({\"patterns\": {…}})")); return ec; }
             foreach (var p in v.EnumerateObject())
             {
                 if (p.Name == "enabled")
                 {
                     if (p.Value.ValueKind == JsonValueKind.True || p.Value.ValueKind == JsonValueKind.False) ec.Enabled = p.Value.GetBoolean();
-                    else errs.Add(where + ".enabled 는 true/false");
+                    else errs.Add(L.T(where + ".enabled 는 true/false", where + ".enabled must be true/false"));
                     continue;
                 }
                 if (top && p.Name == "max_mb")
                 {
                     if (p.Value.ValueKind == JsonValueKind.Number && p.Value.GetDouble() > 0) ec.MaxMb = p.Value.GetDouble();
-                    else errs.Add(where + ".max_mb 는 양수(MB)");
+                    else errs.Add(L.T(where + ".max_mb 는 양수(MB)", where + ".max_mb must be a positive number (MB)"));
                     continue;
                 }
                 if (top && p.Name == "notify")
                 {
                     // 알릴 종류 배열(빈 배열 = 풍선 없음). 값은 CLI --kind 와 같은 이름(boot:soft·boot:hard 처럼 부팅 class 도)
-                    if (p.Value.ValueKind != JsonValueKind.Array) { errs.Add(where + ".notify 는 종류 문자열 배열(예: [\"panic\",\"oops\",\"app_error\",\"confirm\"])"); continue; }
+                    if (p.Value.ValueKind != JsonValueKind.Array) { errs.Add(L.T(where + ".notify 는 종류 문자열 배열(예: [\"panic\",\"oops\",\"app_error\",\"confirm\"])", where + ".notify must be an array of kind strings (e.g. [\"panic\",\"oops\",\"app_error\",\"confirm\"])")); continue; }
                     var n = new List<string>();
                     foreach (var e in p.Value.EnumerateArray())
                     {
                         if (e.ValueKind == JsonValueKind.String && EventKinds.IsKindFilter(e.GetString())) { if (!n.Contains(e.GetString())) n.Add(e.GetString()); }
-                        else errs.Add(where + ".notify: 알 수 없는 종류 " + (e.ValueKind == JsonValueKind.String ? "'" + e.GetString() + "'" : e.ValueKind.ToString())
-                                      + "(" + string.Join("|", EventKinds.All) + "|boot:cmd|boot:soft|boot:hard)");
+                        else errs.Add(L.T(where + ".notify: 알 수 없는 종류 " + (e.ValueKind == JsonValueKind.String ? "'" + e.GetString() + "'" : e.ValueKind.ToString())
+                                          + "(" + string.Join("|", EventKinds.All) + "|boot:cmd|boot:soft|boot:hard)",
+                                          where + ".notify: unknown kind " + (e.ValueKind == JsonValueKind.String ? "'" + e.GetString() + "'" : e.ValueKind.ToString())
+                                          + " (" + string.Join("|", EventKinds.All) + "|boot:cmd|boot:soft|boot:hard)"));
                     }
                     ec.Notify = n;
                     continue;
                 }
-                if (p.Name != "patterns") { errs.Add(where + ": 알 수 없는 키 '" + p.Name + "'(" + (top ? "enabled|max_mb|notify|patterns" : "enabled|patterns") + ")"); continue; }
-                if (p.Value.ValueKind != JsonValueKind.Object) { errs.Add(where + ".patterns 는 객체(종류 → {add, off})"); continue; }
+                if (p.Name != "patterns") { errs.Add(L.T(where + ": 알 수 없는 키 '" + p.Name + "'(" + (top ? "enabled|max_mb|notify|patterns" : "enabled|patterns") + ")",
+                                                          where + ": unknown key '" + p.Name + "' (" + (top ? "enabled|max_mb|notify|patterns" : "enabled|patterns") + ")")); continue; }
+                if (p.Value.ValueKind != JsonValueKind.Object) { errs.Add(L.T(where + ".patterns 는 객체(종류 → {add, off})", where + ".patterns must be an object (kind → {add, off})")); continue; }
                 foreach (var k in p.Value.EnumerateObject())
                 {
                     string w = where + ".patterns." + k.Name;
-                    if (Array.IndexOf(EventKinds.Errors, k.Name) < 0) { errs.Add(where + ".patterns: 알 수 없는 종류 '" + k.Name + "'(" + string.Join("|", EventKinds.Errors) + ")"); continue; }
-                    if (k.Value.ValueKind != JsonValueKind.Object) { errs.Add(w + " 는 객체({\"add\": […], \"off\": true | […]})"); continue; }
+                    if (Array.IndexOf(EventKinds.Errors, k.Name) < 0) { errs.Add(L.T(where + ".patterns: 알 수 없는 종류 '" + k.Name + "'(" + string.Join("|", EventKinds.Errors) + ")", where + ".patterns: unknown kind '" + k.Name + "' (" + string.Join("|", EventKinds.Errors) + ")")); continue; }
+                    if (k.Value.ValueKind != JsonValueKind.Object) { errs.Add(L.T(w + " 는 객체({\"add\": […], \"off\": true | […]})", w + " must be an object ({\"add\": […], \"off\": true | […]})")); continue; }
                     var r = new EventRule();
                     foreach (var f in k.Value.EnumerateObject())
                     {
                         if (f.Name == "add")
                         {
-                            if (f.Value.ValueKind != JsonValueKind.Array) { errs.Add(w + ".add 는 정규식 문자열 배열"); continue; }
+                            if (f.Value.ValueKind != JsonValueKind.Array) { errs.Add(L.T(w + ".add 는 정규식 문자열 배열", w + ".add must be an array of regex strings")); continue; }
                             foreach (var e in f.Value.EnumerateArray())
-                                if (e.ValueKind == JsonValueKind.String) r.Add.Add(e.GetString()); else errs.Add(w + ".add 는 정규식 문자열 배열");
+                                if (e.ValueKind == JsonValueKind.String) r.Add.Add(e.GetString()); else errs.Add(L.T(w + ".add 는 정규식 문자열 배열", w + ".add must be an array of regex strings"));
                         }
                         else if (f.Name == "off")
                         {
@@ -391,11 +441,11 @@ namespace UartHub
                             else if (f.Value.ValueKind == JsonValueKind.Array)
                             {
                                 foreach (var e in f.Value.EnumerateArray())
-                                    if (e.ValueKind == JsonValueKind.String) r.Off.Add(e.GetString()); else errs.Add(w + ".off 는 true 또는 기본 패턴 문자열 배열");
+                                    if (e.ValueKind == JsonValueKind.String) r.Off.Add(e.GetString()); else errs.Add(L.T(w + ".off 는 true 또는 기본 패턴 문자열 배열", w + ".off must be true or an array of default pattern strings"));
                             }
-                            else errs.Add(w + ".off 는 true 또는 기본 패턴 문자열 배열");
+                            else errs.Add(L.T(w + ".off 는 true 또는 기본 패턴 문자열 배열", w + ".off must be true or an array of default pattern strings"));
                         }
-                        else errs.Add(w + ": 알 수 없는 키 '" + f.Name + "'(add|off)");
+                        else errs.Add(L.T(w + ": 알 수 없는 키 '" + f.Name + "'(add|off)", w + ": unknown key '" + f.Name + "' (add|off)"));
                     }
                     ec.Patterns[k.Name] = r;
                 }
@@ -413,14 +463,15 @@ namespace UartHub
                 foreach (var a in kv.Value.Add) Re(e, w + ".add", a);
                 foreach (var o in kv.Value.Off)
                     if (!EventKinds.Defaults.TryGetValue(kv.Key, out var d) || Array.IndexOf(d, o) < 0)
-                        e.Add(w + ".off: 기본 패턴에 없음 '" + o + "' (기본: " + string.Join(" · ", EventKinds.Defaults[kv.Key]) + ")");
+                        e.Add(L.T(w + ".off: 기본 패턴에 없음 '" + o + "' (기본: " + string.Join(" · ", EventKinds.Defaults[kv.Key]) + ")",
+                                  w + ".off: not a default pattern '" + o + "' (defaults: " + string.Join(" · ", EventKinds.Defaults[kv.Key]) + ")"));
             }
         }
 
         static int Int(JsonElement v)
         {
             double d = v.GetDouble();
-            if (d != Math.Floor(d) || d > int.MaxValue || d < int.MinValue) throw new FormatException("정수가 아님: " + d.ToString(CultureInfo.InvariantCulture));
+            if (d != Math.Floor(d) || d > int.MaxValue || d < int.MinValue) throw new FormatException(L.T("정수가 아님: " + d.ToString(CultureInfo.InvariantCulture), "not an integer: " + d.ToString(CultureInfo.InvariantCulture)));
             return (int)d;
         }
 
@@ -428,15 +479,16 @@ namespace UartHub
         public List<string> Validate()
         {
             var e = new List<string>();
-            if (LogRootSet && string.IsNullOrWhiteSpace(LogRoot)) e.Add("log_root 비어 있음");
-            if (LogLayout < 1 || LogLayout > 3) e.Add("log_layout 은 1·2·3: " + LogLayout);
+            if (LogRootSet && string.IsNullOrWhiteSpace(LogRoot)) e.Add(L.T("log_root 비어 있음", "log_root is empty"));
+            if (LogLayout < 1 || LogLayout > 3) e.Add(L.T("log_layout 은 1·2·3: " + LogLayout, "log_layout must be 1, 2 or 3: " + LogLayout));
             Pos(e, "spool_keep_hours", SpoolKeepHours); Pos(e, "spool_max_mb", SpoolMaxMb); Pos(e, "auto_nudge_gap_s", AutoNudgeGapS);
-            if (BasePort < 1024 || BasePort > 65000) e.Add("base_port 범위(1024~65000) 밖: " + BasePort);
-            if (ControlPort < 1024 || ControlPort > 65535) e.Add("control_port 범위 밖: " + ControlPort);
-            if (ControlPort >= BasePort && ControlPort < BasePort + 100) e.Add("control_port 가 케이블 포트 범위(base_port~+99)와 겹침");
+            if (BasePort < 1024 || BasePort > 65000) e.Add(L.T("base_port 범위(1024~65000) 밖: " + BasePort, "base_port out of range (1024~65000): " + BasePort));
+            if (ControlPort < 1024 || ControlPort > 65535) e.Add(L.T("control_port 범위 밖: " + ControlPort, "control_port out of range: " + ControlPort));
+            if (!L.IsValidSetting(Language)) e.Add(L.T("language 는 auto·ko·en: " + Language, "language must be auto, ko or en: " + Language));
+            if (ControlPort >= BasePort && ControlPort < BasePort + 100) e.Add(L.T("control_port 가 케이블 포트 범위(base_port~+99)와 겹침", "control_port overlaps the cable port range (base_port~+99)"));
             Pos(e, "ring_mb", RingMb); Pos(e, "rotate_mb", RotateMb); Pos(e, "queue_mb", QueueMb); Pos(e, "client_queue_mb", ClientQueueMb);
-            if (RingChunks < 16) e.Add("ring_chunks 너무 작음");
-            if (ReadBufferBytes < 4096) e.Add("read_buffer_bytes 너무 작음");
+            if (RingChunks < 16) e.Add(L.T("ring_chunks 너무 작음", "ring_chunks too small"));
+            if (ReadBufferBytes < 4096) e.Add(L.T("read_buffer_bytes 너무 작음", "read_buffer_bytes too small"));
             Pos(e, "scan_interval_ms", ScanIntervalMs); Pos(e, "read_timeout_ms", ReadTimeoutMs); Pos(e, "writer_wait_ms", WriterWaitMs);
             Pos(e, "tail_flush_ms", TailFlushMs); Pos(e, "gap_ms", GapMs); Pos(e, "rename_window_s", RenameWindowS);
             Pos(e, "boot_merge_ms", BootMergeMs); Pos(e, "heartbeat_s", HeartbeatS);
@@ -445,17 +497,17 @@ namespace UartHub
             Pos(e, "telnet_bind_retry_ms", TelnetBindRetryMs); Pos(e, "spool_poll_ms", SpoolPollMs); Pos(e, "spool_quiet_ms", SpoolQuietMs); Pos(e, "status_interval_ms", StatusIntervalMs);
             Pos(e, "hang_s", HangS); Pos(e, "ping_interval_s", PingIntervalS); Pos(e, "restore_window_s", RestoreWindowS); Pos(e, "backoff_reset_s", BackoffResetS);
             Pos(e, "crash_loop_count", CrashLoopCount); Pos(e, "crash_loop_window_s", CrashLoopWindowS); Pos(e, "sup_watch_s", SupWatchS);
-            if (TOpenMs < 0) e.Add("t_open_ms 음수");
-            if (RestoreTailBytes < 1024) e.Add("restore_tail_bytes 너무 작음");
+            if (TOpenMs < 0) e.Add(L.T("t_open_ms 음수", "t_open_ms is negative"));
+            if (RestoreTailBytes < 1024) e.Add(L.T("restore_tail_bytes 너무 작음", "restore_tail_bytes too small"));
             if (CompressAfterDays < 1) e.Add("compress_after_days < 1");
-            if (BackoffS == null || BackoffS.Length == 0) e.Add("backoff_s 비어 있음");
-            else foreach (int b in BackoffS) if (b <= 0) { e.Add("backoff_s 값은 양수"); break; }
+            if (BackoffS == null || BackoffS.Length == 0) e.Add(L.T("backoff_s 비어 있음", "backoff_s is empty"));
+            else foreach (int b in BackoffS) if (b <= 0) { e.Add(L.T("backoff_s 값은 양수", "backoff_s values must be positive")); break; }
             Re(e, "prompt_re", PromptRe); Re(e, "uboot_prompt_re", UbootPromptRe); Re(e, "boot_re", BootRe); if (!string.IsNullOrEmpty(LoaderMarkerRe)) Re(e, "loader_marker_re", LoaderMarkerRe); Re(e, "board_re", BoardRe);
             if (Vids == null) e.Add("vids null");
             foreach (var kv in Cables)
             {
-                if (kv.Value.Mode != "auto" && kv.Value.Mode != "ignore") e.Add("cables." + kv.Key + ".mode 는 auto|ignore: " + kv.Value.Mode);
-                if (kv.Value.Baud <= 0) e.Add("cables." + kv.Key + ".baud 는 양수");
+                if (kv.Value.Mode != "auto" && kv.Value.Mode != "ignore") e.Add(L.T("cables." + kv.Key + ".mode 는 auto|ignore: " + kv.Value.Mode, "cables." + kv.Key + ".mode must be auto|ignore: " + kv.Value.Mode));
+                if (kv.Value.Baud <= 0) e.Add(L.T("cables." + kv.Key + ".baud 는 양수", "cables." + kv.Key + ".baud must be positive"));
                 ValidateEvents(e, kv.Value.Events, "cables." + kv.Key + ".events");
             }
             ValidateEvents(e, Events, "events");
@@ -499,9 +551,9 @@ namespace UartHub
                 before = doc.RootElement.EnumerateObject().Where(p => p.Name != "log_layout").Select(p => new KeyValuePair<string, string>(p.Name, p.Value.GetRawText())).ToList();
             }
             catch (JsonException) { return null; }
-            if (cur != "2") { why = "log_layout 이미 있음(" + cur + ") — 그대로 둠"; return null; }
+            if (cur != "2") { why = L.T("log_layout 이미 있음(" + cur + ") — 그대로 둠", "log_layout already set (" + cur + ") — left as is"); return null; }
             var ms = Regex.Matches(text, @"(""log_layout""\s*:\s*)2(?=\s*[,}\r\n/])", RegexOptions.CultureInvariant);
-            if (ms.Count != 1) { why = "log_layout 2 를 글자로 찾지 못함 — 그대로 둠"; return null; }
+            if (ms.Count != 1) { why = L.T("log_layout 2 를 글자로 찾지 못함 — 그대로 둠", "could not find log_layout 2 in the text — left as is"); return null; }
             var m = ms[0];
             n = text.Substring(0, m.Index) + m.Groups[1].Value + raw + text.Substring(m.Index + m.Length);
             try
@@ -509,9 +561,9 @@ namespace UartHub
                 using var doc = JsonDocument.Parse(n.TrimStart('\uFEFF'), JsoncOptions);
                 var after = doc.RootElement.EnumerateObject().Where(p => p.Name != "log_layout").Select(p => new KeyValuePair<string, string>(p.Name, p.Value.GetRawText())).ToList();
                 bool same = after.Count == before.Count && after.Zip(before, (a, b) => a.Key == b.Key && a.Value == b.Value).All(x => x);
-                if (!same || doc.RootElement.GetProperty("log_layout").GetRawText() != raw) { why = "바꾼 뒤 검증 실패(다른 키가 달라짐) — 그대로 둠"; return null; }
+                if (!same || doc.RootElement.GetProperty("log_layout").GetRawText() != raw) { why = L.T("바꾼 뒤 검증 실패(다른 키가 달라짐) — 그대로 둠", "check after the change failed (another key changed) — left as is"); return null; }
             }
-            catch (JsonException e) { why = "바꾼 뒤 파싱 실패 — 그대로 둠(" + e.Message + ")"; return null; }
+            catch (JsonException e) { why = L.T("바꾼 뒤 파싱 실패 — 그대로 둠(" + e.Message + ")", "parse after the change failed — left as is (" + e.Message + ")"); return null; }
             why = null;
             return n;
         }
@@ -520,20 +572,20 @@ namespace UartHub
         static string WithTopKey(string text, string key, string raw, out string why)
         {
             why = null;
-            if (text == null) { why = "읽지 못함 — 그대로 둠"; return null; }
+            if (text == null) { why = L.T("읽지 못함 — 그대로 둠", "could not read — left as is"); return null; }
             List<KeyValuePair<string, string>> before;
             static string NoBom(string t) => t.Length > 0 && t[0] == '\uFEFF' ? t.Substring(1) : t;   // 문자열 파서는 BOM 을 받지 않는다(출력에는 그대로 둔다)
             try
             {
                 using var doc = JsonDocument.Parse(NoBom(text), JsoncOptions);
-                if (doc.RootElement.ValueKind != JsonValueKind.Object) { why = "최상위가 객체가 아님 — 그대로 둠"; return null; }
-                if (doc.RootElement.TryGetProperty(key, out var od)) { why = key + " 이미 있음(" + od.GetRawText() + ") — 그대로 둠"; return null; }
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) { why = L.T("최상위가 객체가 아님 — 그대로 둠", "top level is not an object — left as is"); return null; }
+                if (doc.RootElement.TryGetProperty(key, out var od)) { why = L.T(key + " 이미 있음(" + od.GetRawText() + ") — 그대로 둠", key + " already set (" + od.GetRawText() + ") — left as is"); return null; }
                 before = new List<KeyValuePair<string, string>>();
                 foreach (var p in doc.RootElement.EnumerateObject()) before.Add(new KeyValuePair<string, string>(p.Name, p.Value.GetRawText()));
             }
-            catch (JsonException e) { why = "JSON 파싱 실패 — 그대로 둠(" + e.Message + ")"; return null; }
+            catch (JsonException e) { why = L.T("JSON 파싱 실패 — 그대로 둠(" + e.Message + ")", "JSON parse failed — left as is (" + e.Message + ")"); return null; }
             int i = OpeningBrace(text);
-            if (i < 0) { why = "여는 중괄호를 찾지 못함 — 그대로 둠"; return null; }
+            if (i < 0) { why = L.T("여는 중괄호를 찾지 못함 — 그대로 둠", "could not find the opening brace — left as is"); return null; }
             string nl = i + 1 < text.Length && text[i + 1] == '\r' ? "\r\n" : "\n";
             bool lineAfter = i + 1 < text.Length && (text[i + 1] == '\n' || text[i + 1] == '\r');
             string kv = Json.Str(key) + ": " + raw;
@@ -551,9 +603,9 @@ namespace UartHub
                 }
                 bool same = after.Count == before.Count;
                 for (int k = 0; same && k < after.Count; k++) same = after[k].Key == before[k].Key && after[k].Value == before[k].Value;
-                if (!on || !same) { why = "넣은 뒤 검증 실패(다른 키가 달라짐) — 그대로 둠"; return null; }
+                if (!on || !same) { why = L.T("넣은 뒤 검증 실패(다른 키가 달라짐) — 그대로 둠", "check after the insert failed (another key changed) — left as is"); return null; }
             }
-            catch (JsonException e) { why = "넣은 뒤 파싱 실패 — 그대로 둠(" + e.Message + ")"; return null; }
+            catch (JsonException e) { why = L.T("넣은 뒤 파싱 실패 — 그대로 둠(" + e.Message + ")", "parse after the insert failed — left as is (" + e.Message + ")"); return null; }
             return n;
         }
 
@@ -570,6 +622,119 @@ namespace UartHub
                 return c == '{' ? i : -1;
             }
             return -1;
+        }
+
+        // ------------------------------------------------------------------ 언어(트레이 설정 ▸ 언어 · uart hub language → Supervisor.RequestLanguage)
+        /// <summary>
+        /// config.json 텍스트의 최상위 "language" 를 lang(auto|ko|en)으로 글자 편집한 새 텍스트(C-12 — 주석·키 순서·CRLF·BOM 그대로, WithCableBaud 와 같은 방식).
+        /// ko·en: 키가 있으면 그 값만 바꾸고, 없으면 여는 중괄호 바로 뒤에 끼운다. 텍스트가 비었으면(파일 없음 = null) {"language": …} 하나.
+        /// auto: 키가 있으면 지운다(혼자 있는 줄은 줄째로, 아니면 항목과 그 쉼표) — 기본 설정의 config.json 은 "language" 를 모르는 옛 exe 도 읽게.
+        ///   키가 없으면 텍스트 그대로. 주석이 붙어 있어 깨끗이 지울 수 없으면 "auto" 를 써 넣고 why 에 그렇다고 적는다.
+        /// lang 이 auto|ko|en 이 아니거나, "language" 가 둘 이상·객체·배열이거나, JSON 이 아니거나, 다시 읽어 다른 최상위 값이 하나라도 달라지면 null 과 이유.
+        /// 바꿀 것이 없으면 받은 텍스트 그대로(null 이면 "").
+        /// </summary>
+        public static string WithLanguage(string text, string lang, out string why)
+        {
+            why = null;
+            string v = lang?.Trim().ToLowerInvariant();
+            if (!L.IsValidSetting(v)) { why = L.T("언어는 auto·ko·en 중 하나: " + lang, "the language must be auto, ko or en: " + lang); return null; }
+            text ??= "";
+            bool bom = text.Length > 0 && text[0] == '﻿';
+            string body = bom ? text.Substring(1) : text;
+            if (string.IsNullOrWhiteSpace(body)) return v == L.Auto ? text : (bom ? "﻿" : "") + "{\n  \"language\": \"" + v + "\"\n}\n";
+            var u8 = new System.Text.UTF8Encoding(false);
+            byte[] u = u8.GetBytes(body);
+            int open, keyAt = -1, valAt = -1, valEnd = -1;
+            bool empty = true;
+            try
+            {
+                var rd = new Utf8JsonReader(u, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                if (!rd.Read() || rd.TokenType != JsonTokenType.StartObject) { why = L.T("최상위가 객체가 아님 — 그대로 둠", "top level is not an object — left as is"); return null; }
+                open = (int)rd.TokenStartIndex;
+                while (rd.Read() && rd.TokenType == JsonTokenType.PropertyName)  // 값은 Skip 하므로 최상위 키만 본다
+                {
+                    empty = false;
+                    bool mine = rd.ValueTextEquals("language");
+                    int k = (int)rd.TokenStartIndex;
+                    rd.Read();
+                    if (!mine) { rd.Skip(); continue; }
+                    if (keyAt >= 0) { why = L.T("\"language\" 키가 둘 이상 — 그대로 둠", "\"language\" appears more than once — left as is"); return null; }
+                    if (rd.TokenType == JsonTokenType.StartObject || rd.TokenType == JsonTokenType.StartArray) { why = L.T("\"language\" 가 문자열이 아님 — 그대로 둠", "\"language\" is not a string — left as is"); return null; }
+                    keyAt = k; valAt = (int)rd.TokenStartIndex; valEnd = (int)rd.BytesConsumed;
+                }
+            }
+            catch (JsonException e) { why = L.T("JSON 파싱 실패 — 그대로 둠(" + e.Message + ")", "JSON parse failed — left as is (" + e.Message + ")"); return null; }
+            if (keyAt < 0 && v == L.Auto) return text;                          // auto 이고 키 없음: 그대로
+
+            string Splice(int at, int cut, string ins)
+            {
+                byte[] add = u8.GetBytes(ins);
+                var nb = new byte[u.Length - cut + add.Length];
+                Buffer.BlockCopy(u, 0, nb, 0, at);
+                Buffer.BlockCopy(add, 0, nb, at, add.Length);
+                Buffer.BlockCopy(u, at + cut, nb, at + add.Length, u.Length - at - cut);
+                return u8.GetString(nb);
+            }
+            static bool Ws(byte b) => b == (byte)' ' || b == (byte)'\t';
+            static bool Nl(byte b) => b == (byte)'\r' || b == (byte)'\n';
+            // auto 로 지울 글자 범위 [from, to). 주석이 붙어 있는 등 깨끗이 지울 수 없으면 (-1, -1)
+            (int From, int To) Removal()
+            {
+                for (int x = keyAt; x < valAt; x++) if (u[x] == (byte)'/') return (-1, -1);          // 키와 값 사이 주석
+                int i = valEnd;
+                while (i < u.Length && Ws(u[i])) i++;
+                if (i < u.Length && u[i] == (byte)',')
+                {
+                    int j = i + 1;
+                    while (j < u.Length && Ws(u[j])) j++;
+                    if (j >= u.Length || u[j] == (byte)'/') return (-1, -1);                          // 쉼표 뒤 같은 줄 주석
+                    if (!Nl(u[j])) return (keyAt, j);                                                   // 같은 줄에 다음 항목(또는 끝 쉼표 뒤 }): 항목·쉼표·뒤 공백
+                    int s = keyAt;
+                    while (s > 0 && Ws(u[s - 1])) s--;
+                    if (s == 0 || Nl(u[s - 1])) return (s, j + (u[j] == (byte)'\r' && j + 1 < u.Length && u[j + 1] == (byte)'\n' ? 2 : 1));   // 혼자 있는 줄: 줄째로
+                    return (s, j);                                                                      // 앞에 다른 것이 있는 줄: 앞 공백부터 쉼표 뒤 공백까지(줄 끝은 남김)
+                }
+                int p = i;
+                while (p < u.Length && (Ws(u[p]) || Nl(u[p]))) p++;
+                if (p >= u.Length || u[p] != (byte)'}') return (-1, -1);                                // 값 뒤에 주석 등
+                int r = keyAt;
+                while (r > 0 && (Ws(u[r - 1]) || Nl(u[r - 1]))) r--;
+                if (r > 0 && u[r - 1] == (byte)',') return (r - 1, valEnd);                             // 마지막 항목: 앞 쉼표부터
+                if (r > 0 && u[r - 1] == (byte)'{') return (r, valEnd);                                 // 하나뿐인 항목
+                return (-1, -1);                                                                        // 앞에 주석
+            }
+
+            string n, written = v;                                                                      // written = 결과의 "language"(null = 키 없음)
+            if (keyAt < 0)
+            {
+                int at = open + 1;
+                bool cr = at < u.Length && u[at] == (byte)'\r', lf = cr || (at < u.Length && u[at] == (byte)'\n');
+                string kv = "\"language\": \"" + v + "\"";
+                n = Splice(at, 0, empty ? kv : lf ? (cr ? "\r\n" : "\n") + "  " + kv + "," : " " + kv + ",");
+            }
+            else if (v != L.Auto) n = Splice(valAt, valEnd - valAt, "\"" + v + "\"");
+            else
+            {
+                var cut = Removal();
+                if (cut.From >= 0) { n = Splice(cut.From, cut.To - cut.From, ""); written = null; }
+                else
+                {
+                    n = Splice(valAt, valEnd - valAt, "\"" + L.Auto + "\"");
+                    why = L.T("\"language\" 에 주석이 붙어 있어 지우지 않고 \"auto\" 로 씀", "a comment is attached to \"language\", so it was set to \"auto\" instead of removed");
+                }
+            }
+            try
+            {
+                using var a = JsonDocument.Parse(body, JsoncOptions);
+                using var b = JsonDocument.Parse(n, JsoncOptions);
+                static IEnumerable<string> Others(JsonElement r) => r.EnumerateObject().Where(p => p.Name != "language").Select(p => p.Name + "\u0000" + p.Value.GetRawText());
+                bool same = b.RootElement.ValueKind == JsonValueKind.Object && Others(a.RootElement).SequenceEqual(Others(b.RootElement));
+                var mine = same ? b.RootElement.EnumerateObject().Where(p => p.Name == "language").ToList() : null;
+                bool ok = same && (written == null ? mine.Count == 0 : mine.Count == 1 && mine[0].Value.ValueKind == JsonValueKind.String && mine[0].Value.GetString() == written);
+                if (!ok) { why = L.T("고친 뒤 검증 실패(다른 키가 달라짐) — 그대로 둠", "check after the edit failed (another key changed) — left as is"); return null; }
+            }
+            catch (JsonException e) { why = L.T("고친 뒤 파싱 실패 — 그대로 둠(" + e.Message + ")", "parse after the edit failed — left as is (" + e.Message + ")"); return null; }
+            return (bom ? "﻿" : "") + n;
         }
 
         // ------------------------------------------------------------------ 케이블 보오(X5 /connect-uart COMx <baud>)
@@ -600,7 +765,7 @@ namespace UartHub
             try
             {
                 var rd = new Utf8JsonReader(u, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                if (!rd.Read() || rd.TokenType != JsonTokenType.StartObject) { why = "최상위가 객체가 아님 — 그대로 둠"; return null; }
+                if (!rd.Read() || rd.TokenType != JsonTokenType.StartObject) { why = L.T("최상위가 객체가 아님 — 그대로 둠", "top level is not an object — left as is"); return null; }
                 topOpen = rd.TokenStartIndex;
                 while (rd.Read() && !(rd.TokenType == JsonTokenType.EndObject && rd.CurrentDepth == 0))
                 {
@@ -618,7 +783,7 @@ namespace UartHub
                         string cn = rd.GetString();
                         rd.Read();
                         if (cableOpen >= 0 || !string.Equals(cn, cableId, StringComparison.OrdinalIgnoreCase)) { rd.Skip(); continue; }
-                        if (rd.TokenType != JsonTokenType.StartObject) { why = "cables." + cn + " 가 객체가 아님 — 그대로 둠"; return null; }
+                        if (rd.TokenType != JsonTokenType.StartObject) { why = L.T("cables." + cn + " 가 객체가 아님 — 그대로 둠", "cables." + cn + " is not an object — left as is"); return null; }
                         cableOpen = rd.TokenStartIndex;
                         while (rd.Read() && !(rd.TokenType == JsonTokenType.EndObject && rd.CurrentDepth == 2))
                         {
@@ -627,15 +792,15 @@ namespace UartHub
                             string fn = rd.GetString();
                             rd.Read();
                             if (fn != "baud" || baudStart >= 0) { rd.Skip(); continue; }
-                            if (rd.TokenType == JsonTokenType.StartObject || rd.TokenType == JsonTokenType.StartArray) { why = "cables." + cn + ".baud 가 숫자가 아님 — 그대로 둠"; return null; }
+                            if (rd.TokenType == JsonTokenType.StartObject || rd.TokenType == JsonTokenType.StartArray) { why = L.T("cables." + cn + ".baud 가 숫자가 아님 — 그대로 둠", "cables." + cn + ".baud is not a number — left as is"); return null; }
                             baudStart = rd.TokenStartIndex;
                             baudEnd = baudStart + (rd.HasValueSequence ? rd.ValueSequence.Length : rd.ValueSpan.Length) + (rd.TokenType == JsonTokenType.String ? 2 : 0);
                         }
                     }
                 }
             }
-            catch (JsonException e) { why = "JSON 파싱 실패 — 그대로 둠(" + e.Message + ")"; return null; }
-            if (cablesOpen < 0 && cablesKind != null) { why = "cables 가 객체가 아님(" + cablesKind + ") — 그대로 둠"; return null; }
+            catch (JsonException e) { why = L.T("JSON 파싱 실패 — 그대로 둠(" + e.Message + ")", "JSON parse failed — left as is (" + e.Message + ")"); return null; }
+            if (cablesOpen < 0 && cablesKind != null) { why = L.T("cables 가 객체가 아님(" + cablesKind + ") — 그대로 둠", "cables is not an object (" + cablesKind + ") — left as is"); return null; }
             int at;
             string ins;
             int cut = 0;
@@ -655,18 +820,18 @@ namespace UartHub
             Buffer.BlockCopy(add, 0, nb, at, add.Length);
             Buffer.BlockCopy(u, at + cut, nb, at + add.Length, u.Length - at - cut);
             string n = (bom ? "\uFEFF" : "") + u8.GetString(nb);
-            if (!SameExceptBaud(body, n.TrimStart('\uFEFF'), cableId, baud)) { why = "넣은 뒤 검증 실패(다른 값이 달라짐) — 그대로 둠"; return null; }
+            if (!SameExceptBaud(body, n.TrimStart('\uFEFF'), cableId, baud)) { why = L.T("넣은 뒤 검증 실패(다른 값이 달라짐) — 그대로 둠", "check after the insert failed (another value changed) — left as is"); return null; }
             try
             {
                 var cfg = Parse(n.TrimStart('\uFEFF'));
-                if (cfg.CableFor(cableId).Baud != baud) { why = "넣은 뒤 검증 실패(baud 가 다름) — 그대로 둠"; return null; }
+                if (cfg.CableFor(cableId).Baud != baud) { why = L.T("넣은 뒤 검증 실패(baud 가 다름) — 그대로 둠", "check after the insert failed (baud differs) — left as is"); return null; }
             }
             catch (ConfigException e)
             {
                 // 원래도 허브 파서가 거부하던 설정이면(알 수 없는 키 등) 그 오류는 그대로 둔다 — baud 를 넣은 것 때문에 생긴 오류만 막는다
                 bool before = true;
                 try { Parse(body); } catch (ConfigException) { before = false; }
-                if (before) { why = "넣은 뒤 설정 오류(" + string.Join("; ", e.Errors) + ") — 그대로 둠"; return null; }
+                if (before) { why = L.T("넣은 뒤 설정 오류(" + string.Join("; ", e.Errors) + ") — 그대로 둠", "config error after the insert (" + string.Join("; ", e.Errors) + ") — left as is"); return null; }
             }
             return n;
         }
@@ -696,12 +861,12 @@ namespace UartHub
             catch (Exception) { return false; }
         }
 
-        static void Pos(List<string> e, string name, double v) { if (!(v > 0)) e.Add(name + " 는 양수여야 함: " + v.ToString(CultureInfo.InvariantCulture)); }
+        static void Pos(List<string> e, string name, double v) { if (!(v > 0)) e.Add(L.T(name + " 는 양수여야 함: " + v.ToString(CultureInfo.InvariantCulture), name + " must be positive: " + v.ToString(CultureInfo.InvariantCulture))); }
 
         static void Re(List<string> e, string name, string re)
         {
-            if (string.IsNullOrEmpty(re)) { e.Add(name + " 비어 있음"); return; }
-            try { _ = new Regex(re); } catch (ArgumentException x) { e.Add(name + " 정규식 오류: " + x.Message); }
+            if (string.IsNullOrEmpty(re)) { e.Add(L.T(name + " 비어 있음", name + " is empty")); return; }
+            try { _ = new Regex(re); } catch (ArgumentException x) { e.Add(L.T(name + " 정규식 오류: " + x.Message, name + " regex error: " + x.Message)); }
         }
     }
 }

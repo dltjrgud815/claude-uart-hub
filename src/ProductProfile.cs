@@ -114,10 +114,10 @@ namespace UartHub
             var r = new ProductProfile();
             JsonDocument doc;
             try { doc = JsonDocument.Parse((json ?? "").TrimStart('﻿'), Jsonc); }
-            catch (JsonException e) { throw new ProfileException("JSON 파싱 실패: " + e.Message); }
+            catch (JsonException e) { throw new ProfileException(L.T("JSON 파싱 실패: " + e.Message, "JSON parse failed: " + e.Message)); }
             using (doc)
             {
-                if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new ProfileException("최상위가 객체가 아님");
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new ProfileException(L.T("최상위가 객체가 아님", "top level is not an object"));
                 var added = new Dictionary<string, List<string>>(StringComparer.Ordinal);
                 var codes = new List<AppCodeRule>();
                 foreach (var p in doc.RootElement.EnumerateObject())
@@ -126,28 +126,28 @@ namespace UartHub
                     {
                         case "name":
                             if (p.Value.ValueKind == JsonValueKind.String) r.Name = p.Value.GetString();
-                            else errs.Add("name: 문자열이어야 함");
+                            else errs.Add(L.T("name: 문자열이어야 함", "name: must be a string"));
                             break;
                         case "loader_marker_re":
-                            if (p.Value.ValueKind != JsonValueKind.String) { errs.Add("loader_marker_re: 문자열이어야 함"); break; }
+                            if (p.Value.ValueKind != JsonValueKind.String) { errs.Add(L.T("loader_marker_re: 문자열이어야 함", "loader_marker_re: must be a string")); break; }
                             r.LoaderMarkerRe = p.Value.GetString();
                             if (r.LoaderMarkerRe.Length > 0) CheckRe(errs, "loader_marker_re", r.LoaderMarkerRe);
                             break;
                         case "boot_re":
                         case "uboot_prompt_re":
-                            if (p.Value.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(p.Value.GetString())) { errs.Add(p.Name + ": 비어 있지 않은 문자열이어야 함"); break; }
+                            if (p.Value.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(p.Value.GetString())) { errs.Add(L.T(p.Name + ": 비어 있지 않은 문자열이어야 함", p.Name + ": must be a non-empty string")); break; }
                             CheckRe(errs, p.Name, p.Value.GetString());
                             if (p.Name == "boot_re") r.BootRe = p.Value.GetString(); else r.UbootPromptRe = p.Value.GetString();
                             break;
                         case "event_patterns":
-                            if (p.Value.ValueKind != JsonValueKind.Object) { errs.Add("event_patterns: 객체여야 함"); break; }
+                            if (p.Value.ValueKind != JsonValueKind.Object) { errs.Add(L.T("event_patterns: 객체여야 함", "event_patterns: must be an object")); break; }
                             foreach (var k in p.Value.EnumerateObject())
                             {
-                                if (!EventKinds.IsError(k.Name)) { errs.Add("event_patterns: 알 수 없는 종류 '" + k.Name + "'(" + string.Join("|", EventKinds.Errors) + ")"); continue; }
-                                if (k.Value.ValueKind != JsonValueKind.Array) { errs.Add("event_patterns." + k.Name + ": 배열이어야 함"); continue; }
+                                if (!EventKinds.IsError(k.Name)) { errs.Add(L.T("event_patterns: 알 수 없는 종류 '" + k.Name + "'(" + string.Join("|", EventKinds.Errors) + ")", "event_patterns: unknown kind '" + k.Name + "' (" + string.Join("|", EventKinds.Errors) + ")")); continue; }
+                                if (k.Value.ValueKind != JsonValueKind.Array) { errs.Add(L.T("event_patterns." + k.Name + ": 배열이어야 함", "event_patterns." + k.Name + ": must be an array")); continue; }
                                 foreach (var x in k.Value.EnumerateArray())
                                 {
-                                    if (x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())) { errs.Add("event_patterns." + k.Name + ": 비어 있지 않은 문자열만"); continue; }
+                                    if (x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())) { errs.Add(L.T("event_patterns." + k.Name + ": 비어 있지 않은 문자열만", "event_patterns." + k.Name + ": non-empty strings only")); continue; }
                                     if (!CheckRe(errs, "event_patterns." + k.Name, x.GetString())) continue;
                                     if (!added.TryGetValue(k.Name, out var l)) added[k.Name] = l = new List<string>();
                                     l.Add(x.GetString());
@@ -155,27 +155,27 @@ namespace UartHub
                             }
                             break;
                         case "app_codes":
-                            if (p.Value.ValueKind != JsonValueKind.Array) { errs.Add("app_codes: 배열이어야 함"); break; }
+                            if (p.Value.ValueKind != JsonValueKind.Array) { errs.Add(L.T("app_codes: 배열이어야 함", "app_codes: must be an array")); break; }
                             int i = 0;
                             foreach (var x in p.Value.EnumerateArray())
                             {
                                 string w = "app_codes[" + i++ + "]";
-                                if (x.ValueKind != JsonValueKind.Object) { errs.Add(w + ": 객체여야 함"); continue; }
+                                if (x.ValueKind != JsonValueKind.Object) { errs.Add(L.T(w + ": 객체여야 함", w + ": must be an object")); continue; }
                                 string re = null, code = null;
                                 bool ok = true;
                                 foreach (var f in x.EnumerateObject())
                                 {
                                     if (f.Name == "re" && f.Value.ValueKind == JsonValueKind.String) re = f.Value.GetString();
                                     else if (f.Name == "code" && f.Value.ValueKind == JsonValueKind.String && f.Value.GetString().Length > 0) code = f.Value.GetString();
-                                    else { errs.Add(w + ": 알 수 없거나 잘못된 키 '" + f.Name + "'(re: 문자열, code: 비어 있지 않은 문자열)"); ok = false; }
+                                    else { errs.Add(L.T(w + ": 알 수 없거나 잘못된 키 '" + f.Name + "'(re: 문자열, code: 비어 있지 않은 문자열)", w + ": unknown or invalid key '" + f.Name + "' (re: string, code: non-empty string)")); ok = false; }
                                 }
-                                if (string.IsNullOrEmpty(re)) { errs.Add(w + ".re: 비어 있음"); continue; }
+                                if (string.IsNullOrEmpty(re)) { errs.Add(L.T(w + ".re: 비어 있음", w + ".re: empty")); continue; }
                                 if (!CheckRe(errs, w + ".re", re) || !ok) continue;
                                 codes.Add(new AppCodeRule { Text = re, Code = code, Re = new Regex(re, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200)) });
                             }
                             break;
                         default:
-                            errs.Add("알 수 없는 키 '" + p.Name + "'(name|loader_marker_re|boot_re|uboot_prompt_re|event_patterns|app_codes)");
+                            errs.Add(L.T("알 수 없는 키 '" + p.Name + "'(name|loader_marker_re|boot_re|uboot_prompt_re|event_patterns|app_codes)", "unknown key '" + p.Name + "' (name|loader_marker_re|boot_re|uboot_prompt_re|event_patterns|app_codes)"));
                             break;
                     }
                 }
@@ -193,7 +193,7 @@ namespace UartHub
         static bool CheckRe(List<string> errs, string where, string re)
         {
             try { _ = new Regex(re, RegexOptions.CultureInvariant); return true; }
-            catch (ArgumentException e) { errs.Add(where + ": 정규식 오류: " + e.Message); return false; }
+            catch (ArgumentException e) { errs.Add(L.T(where + ": 정규식 오류: " + e.Message, where + ": regex error: " + e.Message)); return false; }
         }
 
         /// <summary>앱 오류 줄의 코드(규칙 중 처음 맞은 것). 없으면 null.</summary>

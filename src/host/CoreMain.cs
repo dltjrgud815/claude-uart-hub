@@ -50,6 +50,11 @@ namespace UartHub
             }
             if (string.IsNullOrEmpty(hubDir)) hubDir = InstallInfo.ResolveHubDir(out _);
             if (string.IsNullOrEmpty(hubDir)) return CoreHost.StartFailedExitCode;
+            // 언어: 첫 hub.log 줄부터, Config 를 만들기 전에(프로필 오류 글이 그때 언어로 굳는다) <허브 폴더>\config.json 의 "language" 만 읽어 정한다.
+            // --config 가 config.last-good.json 이어도(감독이 검증 실패로 고른 것) 같은 폴더의 config.json — 감독·CLI 와 같은 곳.
+            string langFile = HubFiles.ConfigPath(hubDir);
+            if (!string.IsNullOrEmpty(configPath)) try { langFile = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath)), "config.json"); } catch (Exception) { }
+            L.ConfigureFromFile(langFile);
             NativeHandles.DontInheritStd();
             var log = new HubLog(Path.Combine(hubDir, "hub.log"), SystemClock.Instance, "core");
             try { Directory.CreateDirectory(hubDir); } catch (Exception) { }
@@ -60,13 +65,13 @@ namespace UartHub
             try { own = mutex.WaitOne(3000); } catch (AbandonedMutexException) { own = true; }
             if (!own)
             {
-                log.Write("코어 mutex(" + coreMutex + ") 점유 중 — 다른 코어가 실행 중이라 끝냄(exit 3) pid=" + Environment.ProcessId);
+                log.Write(L.T("코어 mutex(" + coreMutex + ") 점유 중 — 다른 코어가 실행 중이라 끝냄(exit 3) pid=" + Environment.ProcessId, "Core mutex (" + coreMutex + ") is held — another core is running, exiting (exit 3) pid=" + Environment.ProcessId));
                 return CoreHost.CoreBusyExitCode;
             }
 
             if (SystemAccess.TestFail("core-crash"))
             {
-                log.Write("시험 주입(UART_HUB_TEST_FAIL=core-crash): 기동 직후 끝냄(exit " + CoreHost.CrashExitCode + ")");
+                log.Write(L.T("시험 주입(UART_HUB_TEST_FAIL=core-crash): 기동 직후 끝냄(exit " + CoreHost.CrashExitCode + ")", "Test injection (UART_HUB_TEST_FAIL=core-crash): exiting right after start (exit " + CoreHost.CrashExitCode + ")"));
                 return CoreHost.CrashExitCode;
             }
 
@@ -82,21 +87,21 @@ namespace UartHub
                 if (File.Exists(configPath)) cfg = Config.Load(configPath);
                 else { cfg = Config.Default(); configPath = ""; }
                 if (!string.IsNullOrEmpty(cfg.HubDir) && !string.Equals(Path.GetFullPath(cfg.HubDir).TrimEnd('\\'), Path.GetFullPath(hubDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
-                    log.Write("config hub_dir(" + cfg.HubDir + ") 대신 --hub-dir(" + hubDir + ") 사용");
+                    log.Write(L.T("config hub_dir(" + cfg.HubDir + ") 대신 --hub-dir(" + hubDir + ") 사용", "Using --hub-dir (" + hubDir + ") instead of config hub_dir (" + cfg.HubDir + ")"));
                 cfg.HubDir = hubDir;
                 cfg.ResolveLogRoot(hubDir);
                 if (SystemAccess.IsTest)
                 {
                     // C-13: 시험 코어는 실제 FTDI 를 열거하지 않고(vids []), 시험 포트(17000 이상)만 쓴다 — 운영 허브(7200·7001~)와 실제 COM 을 건드리지 않게
-                    if (cfg.Vids.Count > 0) { log.Write("시험 모드: vids " + string.Join(",", cfg.Vids) + " → [] (실제 장치 열거 안 함)"); cfg.Vids.Clear(); }
+                    if (cfg.Vids.Count > 0) { log.Write(L.T("시험 모드: vids " + string.Join(",", cfg.Vids) + " → [] (실제 장치 열거 안 함)", "Test mode: vids " + string.Join(",", cfg.Vids) + " → [] (real devices are not enumerated)")); cfg.Vids.Clear(); }
                     if (cfg.ControlPort < 17000 || cfg.BasePort < 17000)
-                        throw SystemAccess.Violation("시험 코어가 실제 포트를 쓰려 함 control_port=" + cfg.ControlPort + " base_port=" + cfg.BasePort);
+                        throw SystemAccess.Violation(L.T("시험 코어가 실제 포트를 쓰려 함 control_port=" + cfg.ControlPort + " base_port=" + cfg.BasePort, "Test core tried to use real ports control_port=" + cfg.ControlPort + " base_port=" + cfg.BasePort));
                 }
                 IPortProvider[] providers = null;
                 MethodInfo attach = null;
                 if (!string.IsNullOrEmpty(sim))
                 {
-                    if (string.IsNullOrEmpty(simDll)) throw new ArgumentException("--sim 에는 --sim-dll <UartHub.Tests.dll> 가 필요");
+                    if (string.IsNullOrEmpty(simDll)) throw new ArgumentException(L.T("--sim 에는 --sim-dll <UartHub.Tests.dll> 가 필요", "--sim requires --sim-dll <UartHub.Tests.dll>"));
                     var asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(simDll));
                     var t = asm.GetType("UartHub.Testing.SimCore", true);
                     providers = (IPortProvider[])t.GetMethod("Providers").Invoke(null, new object[] { sim });
@@ -114,7 +119,7 @@ namespace UartHub
             catch (Exception e)
             {
                 if (e is TargetInvocationException tie && tie.InnerException != null) e = tie.InnerException;
-                log.Write("코어 기동 실패(exit 2): " + e);
+                log.Write(L.T("코어 기동 실패(exit 2): " + e, "Core failed to start (exit 2): " + e));
                 try { hub?.Stop(); } catch (Exception) { }
                 return CoreHost.StartFailedExitCode;
             }
@@ -130,7 +135,7 @@ namespace UartHub
             Thread.Sleep(300);                     // hub stop 을 보낸 CLI 에 응답이 먼저 나가도록
             hider?.Dispose();
             sweeper?.Dispose();
-            try { hub.Stop(); } catch (Exception e) { log.Write("Hub.Stop 오류: " + e.Message); }
+            try { hub.Stop(); } catch (Exception e) { log.Write(L.T("Hub.Stop 오류: " + e.Message, "Hub.Stop error: " + e.Message)); }
             try { hub.Control.Events.Join(1500); } catch (Exception) { }   // X6(L12): 사건 추적 스레드가 앞뒤 로그에 '# 끝' 을 쓰고 남은 기록을 마치게
             ch.Exit();
             try { mutex.ReleaseMutex(); } catch (Exception) { }
@@ -159,9 +164,9 @@ namespace UartHub
         public static string RespawnExe(out string why)
         {
             var info = InstallInfo.Load(InstallInfo.DefaultPath);
-            why = info == null ? "install.json 없음"
-                : info.State != "installed" ? "install.json state=" + (info.State ?? "(없음)")
-                : string.IsNullOrEmpty(info.Exe) || !SystemAccess.FileExists(info.Exe) ? "exe 없음(" + (info.Exe ?? "") + ")" : null;
+            why = info == null ? L.T("install.json 없음", "install.json missing")
+                : info.State != "installed" ? "install.json state=" + (info.State ?? L.T("(없음)", "(none)"))
+                : string.IsNullOrEmpty(info.Exe) || !SystemAccess.FileExists(info.Exe) ? L.T("exe 없음(" + (info.Exe ?? "") + ")", "exe missing (" + (info.Exe ?? "") + ")") : null;
             return why == null ? info.Exe : null;
         }
 
@@ -172,8 +177,10 @@ namespace UartHub
             var inv = CultureInfo.InvariantCulture;
             double[] delays = Enumerable.Range(0, 4).Select(i => SystemAccess.TestNumber("UART_HUB_TEST_RESPAWN", i, new double[] { 30, 60, 120, 300 }[i])).ToArray();
             double quickS = SystemAccess.TestNumber("UART_HUB_TEST_RESPAWN", 4, 60), resetS = SystemAccess.TestNumber("UART_HUB_TEST_RESPAWN", 5, 600);
-            log.Write("감독 감시 시작(sup_watch_s=" + hub.Config.SupWatchS.ToString(inv) + ", " + supMutex + " · " + updMutex
-                      + ", 즉사 백오프 " + string.Join("→", delays.Select(d => d.ToString(inv))) + "초 · 즉사 창 " + quickS.ToString(inv) + "초 · 초기화 " + resetS.ToString(inv) + "초)");
+            log.Write(L.T("감독 감시 시작(sup_watch_s=" + hub.Config.SupWatchS.ToString(inv) + ", " + supMutex + " · " + updMutex
+                      + ", 즉사 백오프 " + string.Join("→", delays.Select(d => d.ToString(inv))) + "초 · 즉사 창 " + quickS.ToString(inv) + "초 · 초기화 " + resetS.ToString(inv) + "초)",
+                      "Supervisor watch started (sup_watch_s=" + hub.Config.SupWatchS.ToString(inv) + ", " + supMutex + " · " + updMutex
+                      + ", quick-death backoff " + string.Join("→", delays.Select(d => d.ToString(inv))) + " s · quick-death window " + quickS.ToString(inv) + " s · reset " + resetS.ToString(inv) + " s)"));
             int fails = 0, spawnPid = 0;
             long spawnTicks = 0;
             DateTime lastSpawn = default, nextAllowed = default;
@@ -198,37 +205,37 @@ namespace UartHub
                                 fails++;
                                 nextAllowed = now.AddSeconds(d);
                                 waitLogged = false;
-                                log.Write("띄운 감독 pid=" + spawnPid + " 이 " + quickS.ToString(inv) + "초 안에 사라짐(연속 " + fails + "회) → 다음 기동은 " + d.ToString(inv) + "초 뒤");
+                                log.Write(L.T("띄운 감독 pid=" + spawnPid + " 이 " + quickS.ToString(inv) + "초 안에 사라짐(연속 " + fails + "회) → 다음 기동은 " + d.ToString(inv) + "초 뒤", "Started supervisor pid=" + spawnPid + " disappeared within " + quickS.ToString(inv) + " s (" + fails + " in a row) → next start in " + d.ToString(inv) + " s"));
                             }
                             lastSpawn = default;
                         }
                         else if (fails > 0 && age >= resetS)
                         {
                             fails = 0; nextAllowed = default; lastSpawn = default;
-                            log.Write("띄운 감독이 " + resetS.ToString(inv) + "초 살아 있음 → 재기동 백오프 초기화");
+                            log.Write(L.T("띄운 감독이 " + resetS.ToString(inv) + "초 살아 있음 → 재기동 백오프 초기화", "Started supervisor stayed alive " + resetS.ToString(inv) + " s → restart backoff reset"));
                         }
                         else if (!sup && !upd && age < quickS) continue;          // 띄운 감독이 아직 기동 중(mutex 전) — 또 띄우지 않는다
                     }
                     if (sup || upd) { lastSkip = null; continue; }
                     if (now < nextAllowed)
                     {
-                        if (!waitLogged) log.Write("감독 없음 — 백오프 대기 " + (nextAllowed - now).TotalSeconds.ToString("0.0", inv) + "초");
+                        if (!waitLogged) log.Write(L.T("감독 없음 — 백오프 대기 " + (nextAllowed - now).TotalSeconds.ToString("0.0", inv) + "초", "No supervisor — waiting out backoff " + (nextAllowed - now).TotalSeconds.ToString("0.0", inv) + " s"));
                         waitLogged = true;
                         continue;
                     }
                     string exe = RespawnExe(out string skip);
                     if (exe == null)
                     {
-                        if (skip != lastSkip) log.Write("감독 없음 — 재기동하지 않음: " + skip);
+                        if (skip != lastSkip) log.Write(L.T("감독 없음 — 재기동하지 않음: " + skip, "No supervisor — not restarting: " + skip));
                         lastSkip = skip;
                         continue;
                     }
                     lastSkip = null;
                     var p = SystemAccess.StartDetached(exe, new[] { "sup", "--sup-mutex", supMutex, "--core-mutex", coreMutex, "--update-mutex", updMutex });
-                    log.Write("sup respawn pid=" + p.Pid + " exe=" + exe + (fails > 0 ? " (연속 즉사 " + fails + "회 뒤)" : ""));
+                    log.Write("sup respawn pid=" + p.Pid + " exe=" + exe + (fails > 0 ? L.T(" (연속 즉사 " + fails + "회 뒤)", " (after " + fails + " quick deaths in a row)") : ""));
                     lastSpawn = now; spawnPid = p.Pid; spawnTicks = p.StartTicks;
                 }
-                catch (Exception e) { log.WriteThrottled("supwatch", "감독 감시 오류: " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { log.WriteThrottled("supwatch", L.T("감독 감시 오류: " + e.GetType().Name + ": " + e.Message, "Supervisor watch error: " + e.GetType().Name + ": " + e.Message)); }
             }
         }
     }

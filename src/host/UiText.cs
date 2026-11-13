@@ -11,7 +11,7 @@ namespace UartHub
 {
     public sealed class UiText
     {
-        public string Title = "UART 허브";
+        public string Title = L.T("UART 허브", "UART Hub");
         /// <summary>굵은 첫 줄(결론). null 이면 예전 방식 창(본문만).</summary>
         public string Head;
         /// <summary>본문(\n 으로 문단).</summary>
@@ -23,7 +23,7 @@ namespace UartHub
         public List<string> Details = new List<string>();
         /// <summary>확인 창의 진행 버튼. 진행 창·안내 창은 쓰지 않는다.</summary>
         public string Ok;
-        public string Cancel = "취소";
+        public string Cancel = L.T("취소", "Cancel");
         /// <summary>Enter 가 진행 버튼인가. 아니면 Enter·Esc 모두 [취소](되돌릴 수 없거나 끊기는 동작).</summary>
         public bool OkIsDefault;
         /// <summary>오류 창의 [로그 폴더 열기] 대상(로그 파일 경로).</summary>

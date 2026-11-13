@@ -39,17 +39,17 @@ namespace UartHub
             public string Label => Env == "windows" ? "Windows" : "WSL " + Distro;
             public string Text => Result switch
             {
-                "installed" => "넣음",
-                "updated" => "갱신",
-                "removed" => "지움",
-                "kept" => "기록 유지(확인 못 함)",
-                "absent" => "지울 것 없음",
-                "install" => "넣을 예정",                                         // 아래 셋은 setup 계획(Plan, X7)
-                "update" => "갱신 예정",
-                "same" => "그대로(같은 표시)",
-                "unknown" => "확인 안 함",
-                "skipped" => "건너뜀",
-                _ => "실패",
+                "installed" => L.T("넣음", "installed"),
+                "updated" => L.T("갱신", "updated"),
+                "removed" => L.T("지움", "removed"),
+                "kept" => L.T("기록 유지(확인 못 함)", "record kept (could not verify)"),
+                "absent" => L.T("지울 것 없음", "nothing to remove"),
+                "install" => L.T("넣을 예정", "will install"),                                         // 아래 셋은 setup 계획(Plan, X7)
+                "update" => L.T("갱신 예정", "will update"),
+                "same" => L.T("그대로(같은 표시)", "unchanged (same marker)"),
+                "unknown" => L.T("확인 안 함", "not checked"),
+                "skipped" => L.T("건너뜀", "skipped"),
+                _ => L.T("실패", "failed"),
             } + (string.IsNullOrEmpty(Note) ? "" : "(" + Note + ")");
 
             public JObj ToJObj()
@@ -74,7 +74,7 @@ namespace UartHub
         public static string Summary(IEnumerable<Place> l)
         {
             var a = l.Select(p => p.Label + " " + p.Text).ToList();
-            return a.Count == 0 ? "(대상 없음)" : string.Join(", ", a);
+            return a.Count == 0 ? L.T("(대상 없음)", "(no targets)") : string.Join(", ", a);
         }
 
         public static string ToJson(IEnumerable<Place> l) => "[" + string.Join(",", l.Select(p => p.ToJObj().ToString())) + "]";
@@ -91,9 +91,9 @@ namespace UartHub
                 d.Ok = true;
                 d.Names = r.OutText.Replace("\r", "").Split('\n').Select(x => x.Trim())
                           .Where(x => x.Length > 0 && !x.StartsWith("docker-desktop", StringComparison.OrdinalIgnoreCase)).ToList();
-                d.Note = d.Names.Count == 0 ? "배포판 없음" : string.Join(", ", d.Names);
+                d.Note = d.Names.Count == 0 ? L.T("배포판 없음", "no distros") : string.Join(", ", d.Names);
             }
-            else d.Note = "WSL 없음(rc=" + r.Code + (r.TimedOut ? ", " + (ListTimeoutMs / 1000) + "초 응답 없음" : "") + ")";
+            else d.Note = L.T("WSL 없음(rc=" + r.Code + (r.TimedOut ? ", " + (ListTimeoutMs / 1000) + "초 응답 없음" : "") + ")", "no WSL (rc=" + r.Code + (r.TimedOut ? ", no response in " + (ListTimeoutMs / 1000) + " s" : "") + ")");
             return d;
         }
 
@@ -134,7 +134,7 @@ namespace UartHub
         {
             var lines = Lf(template).Split('\n');
             int n = lines.Count(l => l.StartsWith(ExeLine, StringComparison.Ordinal));
-            if (n != 1) throw new InvalidDataException("래퍼 원본에 " + ExeLine + " 줄이 " + n + "개(1개여야 함)");
+            if (n != 1) throw new InvalidDataException(L.T("래퍼 원본에 " + ExeLine + " 줄이 " + n + "개(1개여야 함)", "The wrapper source has " + n + " " + ExeLine + " line(s) (must be exactly 1)"));
             for (int i = 0; i < lines.Length; i++)
                 if (lines[i].StartsWith(ExeLine, StringComparison.Ordinal)) lines[i] = ExeLine + "'" + exe.Replace("'", "'\\''") + "'";
             return string.Join("\n", lines);
@@ -153,8 +153,8 @@ namespace UartHub
                 Wrapper = Resource(Assembly.GetEntryAssembly(), ResWrapper),
                 Script = Resource(typeof(SkillsDeployer).Assembly, ResWslScript),
             };
-            why = s.Skill == null || s.Wrapper == null ? "UartHub.exe 리소스에 " + ResSkill + "·" + ResWrapper + " 없음"
-                : s.Script == null ? "리소스에 " + ResWslScript + " 없음" : null;
+            why = s.Skill == null || s.Wrapper == null ? L.T("UartHub.exe 리소스에 " + ResSkill + "·" + ResWrapper + " 없음", "UartHub.exe resources lack " + ResSkill + " / " + ResWrapper)
+                : s.Script == null ? L.T("리소스에 " + ResWslScript + " 없음", "resources lack " + ResWslScript) : null;
             foreach (var e in Extras)
             {
                 string t = Resource(Assembly.GetEntryAssembly(), "skill/" + e + "/SKILL.md");
@@ -175,8 +175,8 @@ namespace UartHub
             var res = new List<Place>();
             string claude = Path.Combine(SystemAccess.UserProfile, ".claude"), mk = Path.Combine(WinDir, MarkerName);
             var w = new Place { Env = "windows", Path = WinDir };
-            if (!SystemAccess.DirExists(claude)) { w.Result = "skipped"; w.Note = ".claude 없음"; }
-            else if (SystemAccess.DirExists(WinDir) && !SystemAccess.FileExists(mk)) { w.Result = "skipped"; w.Note = "표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음"; }
+            if (!SystemAccess.DirExists(claude)) { w.Result = "skipped"; w.Note = L.T(".claude 없음", ".claude missing"); }
+            else if (SystemAccess.DirExists(WinDir) && !SystemAccess.FileExists(mk)) { w.Result = "skipped"; w.Note = L.T("표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음", "existing folder without .uart_hub marker — treated as user-made, left untouched"); }
             else w.Result = Judge(SystemAccess.ReadText(mk), installId, version, exe);
             res.Add(w);
             string script = Resource(typeof(SkillsDeployer).Assembly, ResWslScript);
@@ -184,17 +184,17 @@ namespace UartHub
             {
                 var p = new Place { Env = "wsl", Distro = d };
                 int left = (int)(deadlineUtc - DateTime.UtcNow).TotalMilliseconds;
-                if (script == null) { p.Result = "failed"; p.Note = "리소스에 " + ResWslScript + " 없음"; res.Add(p); continue; }
-                if (running != null && !running.Names.Contains(d, StringComparer.OrdinalIgnoreCase)) { p.Result = "unknown"; p.Note = "꺼진 배포판 — 계획에서는 깨우지 않음"; res.Add(p); continue; }
+                if (script == null) { p.Result = "failed"; p.Note = L.T("리소스에 " + ResWslScript + " 없음", "resources lack " + ResWslScript); res.Add(p); continue; }
+                if (running != null && !running.Names.Contains(d, StringComparer.OrdinalIgnoreCase)) { p.Result = "unknown"; p.Note = L.T("꺼진 배포판 — 계획에서는 깨우지 않음", "distro is stopped — not woken up while planning"); res.Add(p); continue; }
                 if (left < 1000) { p.Result = "failed"; p.Note = BudgetNote; res.Add(p); continue; }
                 var pr = SystemAccess.Wsl(Args(d, script, "probe"), null, Math.Min(DistroBudgetMs, left));
                 var kv = Kv(pr.OutText);
-                if (pr.Code != 0 || !kv.ContainsKey("home")) { p.Result = "failed"; p.Note = "탐침 " + Fail(pr, DistroBudgetMs); }
+                if (pr.Code != 0 || !kv.ContainsKey("home")) { p.Result = "failed"; p.Note = L.T("탐침 ", "probe ") + Fail(pr, DistroBudgetMs); }
                 else
                 {
                     p.Path = kv["home"].TrimEnd('/') + "/.claude/skills/uart";
-                    if (kv.GetValueOrDefault("claude") != "1") { p.Result = "skipped"; p.Note = ".claude 없음"; }
-                    else if (kv.GetValueOrDefault("dir") == "1" && !kv.ContainsKey("marker")) { p.Result = "skipped"; p.Note = "표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음"; }
+                    if (kv.GetValueOrDefault("claude") != "1") { p.Result = "skipped"; p.Note = L.T(".claude 없음", ".claude missing"); }
+                    else if (kv.GetValueOrDefault("dir") == "1" && !kv.ContainsKey("marker")) { p.Result = "skipped"; p.Note = L.T("표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음", "existing folder without .uart_hub marker — treated as user-made, left untouched"); }
                     else p.Result = Judge(kv.GetValueOrDefault("marker"), installId, version, exe);
                 }
                 res.Add(p);
@@ -203,7 +203,7 @@ namespace UartHub
             return res;
         }
 
-        public const string BudgetNote = "budget — setup 시간 예산을 넘어 탐침하지 않음";
+        public static string BudgetNote => L.T("budget — setup 시간 예산을 넘어 탐침하지 않음", "budget — not probing past the setup time budget");
 
         /// <summary>표시(.uart_hub 한 줄)가 없으면 install, install_id·version·exe 가 모두 같으면 same, 아니면 update.</summary>
         static string Judge(string marker, string installId, string version, string exe)
@@ -233,26 +233,26 @@ namespace UartHub
             var src = Load(out string why);
             if (src == null)
             {
-                log("  경고: skills 원본 없음(" + why + ") — 건너뜀");
+                log(L.T("  경고: skills 원본 없음(" + why + ") — 건너뜀", "  Warning: skills source missing (" + why + ") — skipped"));
                 res.Add(new Place { Env = "windows", Path = WinDir, Result = "failed", Note = why });
                 return res;
             }
             string uart = RenderWrapper(src.Wrapper, exe);
 
-            foreach (var e in Extras.Where(x => !src.Extra.ContainsKey(x))) log("  경고: skills 원본에 " + e + " 없음 — 그 skill 은 건너뜀");
+            foreach (var e in Extras.Where(x => !src.Extra.ContainsKey(x))) log(L.T("  경고: skills 원본에 " + e + " 없음 — 그 skill 은 건너뜀", "  Warning: skills source lacks " + e + " — that skill is skipped"));
             var winPlace = DeployWindows(src.Skill, uart, MarkerJson(installId, version, exe, "windows"), version, log);
             res.Add(winPlace);
             if (winPlace.Result == "installed" || winPlace.Result == "updated") DeployWindowsExtras(src, MarkerJson(installId, version, exe, "windows"), log);
 
             distros ??= ListDistros();
-            log("  WSL 배포판: " + distros.Note);
+            log(L.T("  WSL 배포판: ", "  WSL distros: ") + distros.Note);
             var names = new List<string>(distros.Names);
             foreach (var p in recorded ?? new List<Place>())
             {
                 if (p.Env != "wsl" || names.Contains(p.Distro, StringComparer.OrdinalIgnoreCase) || res.Any(x => x.Env == "wsl" && string.Equals(x.Distro, p.Distro, StringComparison.OrdinalIgnoreCase))) continue;
                 Place q = !distros.Ok
-                    ? new Place { Env = "wsl", Distro = p.Distro, Path = p.Path, Version = p.Version, Result = p.Placed ? "kept" : p.Result, Note = "배포판 목록을 얻지 못함 — 이전 기록 유지" }
-                    : new Place { Env = "wsl", Distro = p.Distro, Path = p.Path, Result = "skipped", Note = "배포판 목록에 없음(지워졌거나 이름이 바뀜)" };
+                    ? new Place { Env = "wsl", Distro = p.Distro, Path = p.Path, Version = p.Version, Result = p.Placed ? "kept" : p.Result, Note = L.T("배포판 목록을 얻지 못함 — 이전 기록 유지", "could not get the distro list — keeping the previous record") }
+                    : new Place { Env = "wsl", Distro = p.Distro, Path = p.Path, Result = "skipped", Note = L.T("배포판 목록에 없음(지워졌거나 이름이 바뀜)", "not in the distro list (deleted or renamed)") };
                 log("  skills " + q.Label + ": " + q.Text);
                 res.Add(q);
             }
@@ -271,8 +271,8 @@ namespace UartHub
                 int left = deadlineUtc == null ? DistroBudgetMs : (int)(deadlineUtc.Value - DateTime.UtcNow).TotalMilliseconds;
                 if (pp != null && (pp.Result == "skipped" || pp.Result == "failed" || pp.Result == "unknown"))
                 {
-                    var q = new Place { Env = "wsl", Distro = d, Path = pp.Path, Result = pp.Result == "unknown" ? "failed" : pp.Result, Note = pp.Note ?? "계획 탐침 결과" };
-                    log("  skills " + q.Label + ": " + q.Text + (q.Path != null ? " — " + q.Path : "") + " (계획 탐침 결과 그대로)");
+                    var q = new Place { Env = "wsl", Distro = d, Path = pp.Path, Result = pp.Result == "unknown" ? "failed" : pp.Result, Note = pp.Note ?? L.T("계획 탐침 결과", "plan probe result") };
+                    log("  skills " + q.Label + ": " + q.Text + (q.Path != null ? " — " + q.Path : "") + L.T(" (계획 탐침 결과 그대로)", " (plan probe result as is)"));
                     res.Add(q);
                 }
                 else if (left < 1000)
@@ -294,11 +294,11 @@ namespace UartHub
             var p = new Place { Env = "windows", Path = dir };
             try
             {
-                if (!SystemAccess.DirExists(claude)) { p.Result = "skipped"; p.Note = ".claude 없음"; }
+                if (!SystemAccess.DirExists(claude)) { p.Result = "skipped"; p.Note = L.T(".claude 없음", ".claude missing"); }
                 else if (SystemAccess.DirExists(dir) && !SystemAccess.FileExists(mk))
                 {
-                    p.Result = "skipped"; p.Note = "표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음";
-                    log("  경고: " + dir + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skills 로 보고 건너뜀");
+                    p.Result = "skipped"; p.Note = L.T("표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음", "existing folder without .uart_hub marker — treated as user-made, left untouched");
+                    log(L.T("  경고: " + dir + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skills 로 보고 건너뜀", "  Warning: " + dir + " has no .uart_hub marker — treated as user-made skills, skipped"));
                 }
                 else
                 {
@@ -326,7 +326,7 @@ namespace UartHub
             {
                 var kv = p.Split(':');
                 string r = kv.Length > 1 ? kv[1] : "";
-                return kv[0] + " " + (r == "installed" ? "넣음" : r == "updated" ? "갱신" : r == "skipped" ? "건너뜀(표시 없는 기존 폴더)" : r == "removed" ? "지움" : "실패" + (kv.Length > 2 ? "(" + kv[2] + ")" : ""));
+                return kv[0] + " " + (r == "installed" ? L.T("넣음", "installed") : r == "updated" ? L.T("갱신", "updated") : r == "skipped" ? L.T("건너뜀(표시 없는 기존 폴더)", "skipped (existing folder without marker)") : r == "removed" ? L.T("지움", "removed") : L.T("실패", "failed") + (kv.Length > 2 ? "(" + kv[2] + ")" : ""));
             }));
         }
 
@@ -339,7 +339,7 @@ namespace UartHub
                 string dir = Path.Combine(SkillsRoot, kv.Key), mk = Path.Combine(dir, MarkerName);
                 try
                 {
-                    if (SystemAccess.DirExists(dir) && !SystemAccess.FileExists(mk)) { parts.Add(kv.Key + ":skipped"); log("  경고: " + dir + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skill 로 보고 건너뜀"); continue; }
+                    if (SystemAccess.DirExists(dir) && !SystemAccess.FileExists(mk)) { parts.Add(kv.Key + ":skipped"); log(L.T("  경고: " + dir + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skill 로 보고 건너뜀", "  Warning: " + dir + " has no .uart_hub marker — treated as a user-made skill, skipped")); continue; }
                     bool had = SystemAccess.FileExists(mk);
                     SystemAccess.CreateDir(dir);
                     SystemAccess.WriteText(mk, marker);
@@ -389,7 +389,7 @@ namespace UartHub
         }
 
         static string Fail(ExtResult r, int budgetMs)
-            => r.TimedOut ? (budgetMs / 1000) + "초 안에 응답 없음" : "rc=" + r.Code + (string.IsNullOrWhiteSpace(r.Err) ? "" : " " + Trunc(r.Err.Trim(), 160));
+            => r.TimedOut ? L.T((budgetMs / 1000) + "초 안에 응답 없음", "no response within " + (budgetMs / 1000) + " s") : "rc=" + r.Code + (string.IsNullOrWhiteSpace(r.Err) ? "" : " " + Trunc(r.Err.Trim(), 160));
 
         static string Trunc(string s, int n) => s.Length > n ? s.Substring(0, n) + "…" : s;
 
@@ -404,17 +404,17 @@ namespace UartHub
             {
                 var pr = probedPath != null ? null : SystemAccess.Wsl(Args(distro, script, "probe"), null, budgetMs);
                 var kv = pr != null ? Kv(pr.OutText) : new Dictionary<string, string> { ["home"] = probedPath.EndsWith("/.claude/skills/uart", StringComparison.Ordinal) ? probedPath.Substring(0, probedPath.Length - 20) : probedPath, ["claude"] = "1" };
-                if (pr != null && (pr.Code != 0 || !kv.ContainsKey("home"))) { p.Result = "failed"; p.Note = "탐침 " + Fail(pr, budgetMs); }
+                if (pr != null && (pr.Code != 0 || !kv.ContainsKey("home"))) { p.Result = "failed"; p.Note = L.T("탐침 ", "probe ") + Fail(pr, budgetMs); }
                 else
                 {
                     p.Path = kv["home"].TrimEnd('/') + "/.claude/skills/uart";
-                    if (kv.GetValueOrDefault("claude") != "1") { p.Result = "skipped"; p.Note = ".claude 없음"; }
+                    if (kv.GetValueOrDefault("claude") != "1") { p.Result = "skipped"; p.Note = L.T(".claude 없음", ".claude missing"); }
                     else if (kv.GetValueOrDefault("dir") == "1" && !kv.ContainsKey("marker"))
                     {
-                        p.Result = "skipped"; p.Note = "표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음";
-                        log("  경고: WSL " + distro + " " + p.Path + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skills 로 보고 건너뜀");
+                        p.Result = "skipped"; p.Note = L.T("표시(.uart_hub) 없는 기존 폴더 — 사용자가 만든 것으로 보고 건드리지 않음", "existing folder without .uart_hub marker — treated as user-made, left untouched");
+                        log(L.T("  경고: WSL " + distro + " " + p.Path + " 에 .uart_hub 표시가 없음 — 사용자가 만든 skills 로 보고 건너뜀", "  Warning: WSL " + distro + " " + p.Path + " has no .uart_hub marker — treated as user-made skills, skipped"));
                     }
-                    else if (sw.ElapsedMilliseconds >= budgetMs) { p.Result = "failed"; p.Note = "탐침에 " + (budgetMs / 1000) + "초를 다 씀"; }
+                    else if (sw.ElapsedMilliseconds >= budgetMs) { p.Result = "failed"; p.Note = L.T("탐침에 " + (budgetMs / 1000) + "초를 다 씀", "probing used up all " + (budgetMs / 1000) + " s"); }
                     else
                     {
                         int budget = Left();
@@ -427,9 +427,9 @@ namespace UartHub
                             if (w.TryGetValue("path", out var path) && path.Length > 0) p.Path = path;
                             if (w.TryGetValue("extras", out var ex) && ex.Length > 0) log("  skills WSL " + distro + ": " + ExtrasText(ex.Split(',')));
                         }
-                        else if (w.GetValueOrDefault("err") == "foreign") { p.Result = "skipped"; p.Note = "표시 없는 기존 폴더(쓰기 직전 확인)"; }
-                        else if (w.GetValueOrDefault("err") == "no_claude") { p.Result = "skipped"; p.Note = ".claude 없음"; }
-                        else { p.Result = "failed"; p.Note = "쓰기 " + (w.TryGetValue("err", out var err) ? "err=" + err : Fail(wr, budget)); }
+                        else if (w.GetValueOrDefault("err") == "foreign") { p.Result = "skipped"; p.Note = L.T("표시 없는 기존 폴더(쓰기 직전 확인)", "existing folder without marker (checked just before writing)"); }
+                        else if (w.GetValueOrDefault("err") == "no_claude") { p.Result = "skipped"; p.Note = L.T(".claude 없음", ".claude missing"); }
+                        else { p.Result = "failed"; p.Note = L.T("쓰기 ", "write ") + (w.TryGetValue("err", out var err) ? "err=" + err : Fail(wr, budget)); }
                     }
                 }
             }
@@ -447,7 +447,7 @@ namespace UartHub
         public static List<Place> Remove(string installId, IList<Place> recorded, Action<string> log)
         {
             var res = new List<Place>();
-            if (string.IsNullOrEmpty(installId)) { log("  install_id 모름(install.json 없음) — skills 는 지우지 않음"); return res; }
+            if (string.IsNullOrEmpty(installId)) { log(L.T("  install_id 모름(install.json 없음) — skills 는 지우지 않음", "  install_id unknown (no install.json) — skills are not removed")); return res; }
             res.Add(RemoveWindows(installId, log));
             RemoveWindowsExtras(installId, log);
             var src = Load(out string why);
@@ -465,9 +465,9 @@ namespace UartHub
                         var kv = Kv(r.OutText);
                         string ok = kv.GetValueOrDefault("ok"), err = kv.GetValueOrDefault("err");
                         if (kv.TryGetValue("extras_removed", out var xr) && xr.Length > 0) log("  skills WSL " + p.Distro + ": " + ExtrasText(xr.Split(',').Select(x => x + ":removed")));
-                        if (r.Code == 0 && (ok == "removed" || ok == "removed_files")) { q.Result = "removed"; q.Note = ok == "removed_files" ? "다른 파일이 있어 폴더는 남김" : null; }
+                        if (r.Code == 0 && (ok == "removed" || ok == "removed_files")) { q.Result = "removed"; q.Note = ok == "removed_files" ? L.T("다른 파일이 있어 폴더는 남김", "folder kept because it holds other files") : null; }
                         else if (r.Code == 0 && ok == "absent") q.Result = "absent";
-                        else if (err == "other_install") { q.Result = "skipped"; q.Note = "다른 설치의 표시(install_id 다름) — 남김"; }
+                        else if (err == "other_install") { q.Result = "skipped"; q.Note = L.T("다른 설치의 표시(install_id 다름) — 남김", "marker from another install (install_id differs) — kept"); }
                         else { q.Result = "failed"; q.Note = err != null ? "err=" + err : Fail(r, DistroBudgetMs); }
                     }
                 }
@@ -486,18 +486,18 @@ namespace UartHub
             try
             {
                 if (!SystemAccess.DirExists(dir)) p.Result = "absent";
-                else if (!SystemAccess.FileExists(mk)) { p.Result = "skipped"; p.Note = "표시(.uart_hub) 없음 — 사용자가 만든 것으로 보고 남김"; }
+                else if (!SystemAccess.FileExists(mk)) { p.Result = "skipped"; p.Note = L.T("표시(.uart_hub) 없음 — 사용자가 만든 것으로 보고 남김", "no .uart_hub marker — treated as user-made, kept"); }
                 else
                 {
                     string id = null;
                     var j = HubFiles.ReadJson(SystemAccess.Guard(mk, "read"));
                     if (j.HasValue) id = HubFiles.Str(j.Value, "install_id");
-                    if (id != installId) { p.Result = "skipped"; p.Note = "다른 설치의 표시(install_id 다름) — 남김"; }
+                    if (id != installId) { p.Result = "skipped"; p.Note = L.T("다른 설치의 표시(install_id 다름) — 남김", "marker from another install (install_id differs) — kept"); }
                     else
                     {
                         foreach (var f in new[] { "SKILL.md", "uart", MarkerName }) SystemAccess.DeleteFile(Path.Combine(dir, f));
                         if (SystemAccess.ListFiles(dir, "*").Length == 0 && SystemAccess.ListDirs(dir).Length == 0) { SystemAccess.DeleteDir(dir); p.Result = "removed"; }
-                        else { p.Result = "removed"; p.Note = "다른 파일이 있어 폴더는 남김"; }
+                        else { p.Result = "removed"; p.Note = L.T("다른 파일이 있어 폴더는 남김", "folder kept because it holds other files"); }
                     }
                 }
             }

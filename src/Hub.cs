@@ -88,7 +88,7 @@ namespace UartHub
             bool first;
             lock (svc)
             {
-                if (IsOldAttach(c.Id, seq)) { Log.Write("늦은 attach 이벤트 무시 " + c.Id + " seq=" + seq); return; }
+                if (IsOldAttach(c.Id, seq)) { Log.Write(L.T("늦은 attach 이벤트 무시 " + c.Id + " seq=" + seq, "late attach event ignored " + c.Id + " seq=" + seq)); return; }
                 if (!trackers.TryGetValue(c.Id, out t))
                 {
                     t = new PromptTracker(Config, c.Board) { Log = Log };
@@ -120,7 +120,7 @@ namespace UartHub
                 arm = !first && want && c.ReplugClearEnabled;
                 if (arm) c.ArmReplugClear(seq);
             }
-            if (arm) Log.Write("replug clear 예약 " + c.Id + " seq=" + seq + " — 첫 입력 앞에 ^E^U(탈착 잡음이 셸 줄 버퍼에 남았을 수 있음)");
+            if (arm) Log.Write(L.T("replug clear 예약 " + c.Id + " seq=" + seq + " — 첫 입력 앞에 ^E^U(탈착 잡음이 셸 줄 버퍼에 남았을 수 있음)", "replug clear armed " + c.Id + " seq=" + seq + " — ^E^U before the first input (unplug noise may be left in the shell line buffer)"));
             TestAfterAttachRegistered?.Invoke(c);
             p.Start();
         }
@@ -170,7 +170,7 @@ namespace UartHub
                     }
                 }
             }
-            if (curSeq > 0) { Log.Write("늦은 detach 이벤트 무시 " + c.Id + " seq=" + seq + " (현재 세션 " + curSeq + ")"); return; }
+            if (curSeq > 0) { Log.Write(L.T("늦은 detach 이벤트 무시 " + c.Id + " seq=" + seq + " (현재 세션 " + curSeq + ")", "late detach event ignored " + c.Id + " seq=" + seq + " (current session " + curSeq + ")")); return; }
             p?.Stop();                                              // 앞 세션 펌프를 기다리는 중이어도 곧 끝난다(기다림이 stop 을 본다)
             t?.MarkDetached(Clock.MonoMs);
         }
@@ -196,7 +196,7 @@ namespace UartHub
             string prev = HubLogReplay.FindLatestRaw(Config.LogRoot, c.TcpPort, c.Writer.CurrentRawPath);
             if (prev == null)
             {
-                if (!t.ResetFresh(resume, Clock.MonoMs, seq)) Log.Write("tracker 새 세션 시작 거부 " + c.Id + " seq=" + seq + " (더 새 세션이 이미 복원됨)");
+                if (!t.ResetFresh(resume, Clock.MonoMs, seq)) Log.Write(L.T("tracker 새 세션 시작 거부 " + c.Id + " seq=" + seq + " (더 새 세션이 이미 복원됨)", "tracker new session refused " + c.Id + " seq=" + seq + " (a newer session was already restored)"));
                 return resume;
             }
             double gapS = 0;
@@ -211,12 +211,14 @@ namespace UartHub
             var items = HubLogReplay.LoadTail(prev, Path.ChangeExtension(prev, ".idx"), Config.RestoreTailBytes);
             if (cancelled() || !t.Restore(items, src, gapS, resume, Clock.MonoMs, seq))
             {
-                Log.Write("tracker 복원 건너뜀 " + c.Id + " seq=" + seq + " (멈춤 요청 또는 더 새 세션이 이미 복원됨)");
+                Log.Write(L.T("tracker 복원 건너뜀 " + c.Id + " seq=" + seq + " (멈춤 요청 또는 더 새 세션이 이미 복원됨)", "tracker restore skipped " + c.Id + " seq=" + seq + " (stop requested or a newer session was already restored)"));
                 return resume;
             }
             var sn = t.Snapshot();
-            Log.Write("tracker 복원 " + c.Id + " src=" + src + " gap=" + gapS.ToString("0.0", CultureInfo.InvariantCulture) + "s from="
-                      + Path.GetFileName(prev) + " → " + sn.StateName + (sn.BlockedReason == null ? "" : " (" + sn.BlockedReason + ")"));
+            Log.Write(L.T("tracker 복원 " + c.Id + " src=" + src + " gap=" + gapS.ToString("0.0", CultureInfo.InvariantCulture) + "s from="
+                      + Path.GetFileName(prev) + " → " + sn.StateName + (sn.BlockedReason == null ? "" : " (" + sn.BlockedReason + ")"),
+                      "tracker restored " + c.Id + " src=" + src + " gap=" + gapS.ToString("0.0", CultureInfo.InvariantCulture) + "s from="
+                      + Path.GetFileName(prev) + " → " + sn.StateName + (sn.BlockedReason == null ? "" : " (" + sn.BlockedReason + ")")));
             return resume;
         }
 

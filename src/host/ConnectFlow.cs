@@ -69,16 +69,18 @@ namespace UartHub
             string ans = s.HasValue ? HubFiles.Str(s.Value, "confirm") ?? "yes" : "yes";
             int delay = s.HasValue ? (int)HubFiles.Long(s.Value, "confirm_delay_ms") : 0;
             string yes = t.Ok;
-            log("[ui:fake] 확인 창: " + t.Title + " — " + t.Flat() + " [" + yes + "][" + t.Cancel + "]" + (t.OkIsDefault ? "" : " 기본=" + t.Cancel)
-                + " (자동 응답=" + (ans == "yes" ? yes : ans == "none" ? "없음" : "취소") + (delay > 0 ? ", " + delay + "ms 뒤" : "") + ")");
+            log(L.T("[ui:fake] 확인 창: " + t.Title + " — " + t.Flat() + " [" + yes + "][" + t.Cancel + "]" + (t.OkIsDefault ? "" : " 기본=" + t.Cancel)
+                + " (자동 응답=" + (ans == "yes" ? yes : ans == "none" ? "없음" : "취소") + (delay > 0 ? ", " + delay + "ms 뒤" : "") + ")",
+                "[ui:fake] confirm window: " + t.Title + " — " + t.Flat() + " [" + yes + "][" + t.Cancel + "]" + (t.OkIsDefault ? "" : " default=" + t.Cancel)
+                + " (auto reply=" + (ans == "yes" ? yes : ans == "none" ? "none" : "cancel") + (delay > 0 ? ", after " + delay + "ms" : "") + ")"));
             int wait = ans == "none" ? timeoutMs : Math.Min(delay, timeoutMs);
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < wait)
             {
-                if (abort != null && abort()) { log("[ui:fake] 확인 창 닫음(요청자가 떠남)"); return false; }
+                if (abort != null && abort()) { log(L.T("[ui:fake] 확인 창 닫음(요청자가 떠남)", "[ui:fake] confirm window closed (requester left)")); return false; }
                 Thread.Sleep(50);
             }
-            if (ans == "none") { log("[ui:fake] 확인 창 시간 초과(" + timeoutMs + "ms) → 취소로 봄"); return false; }
+            if (ans == "none") { log(L.T("[ui:fake] 확인 창 시간 초과(" + timeoutMs + "ms) → 취소로 봄", "[ui:fake] confirm window timed out (" + timeoutMs + "ms) → treated as cancel")); return false; }
             return ans == "yes";
         }
 
@@ -87,7 +89,8 @@ namespace UartHub
             var s = Spec();
             string ans = s.HasValue ? HubFiles.Str(s.Value, "guide") ?? "wait" : "wait";
             long ms = s.HasValue ? HubFiles.Long(s.Value, "guide_cancel_ms", 500) : 500;
-            log("[ui:fake] 안내 창: " + t.Title + " — " + t.Flat() + " / 남은 시간 " + ConnectFlow.Clock(maxMs) + " [" + t.Cancel + "] (자동 응답=" + (ans == "cancel" ? "취소(" + ms + "ms 뒤)" : "기다림") + ")");
+            log(L.T("[ui:fake] 안내 창: " + t.Title + " — " + t.Flat() + " / 남은 시간 " + ConnectFlow.Clock(maxMs) + " [" + t.Cancel + "] (자동 응답=" + (ans == "cancel" ? "취소(" + ms + "ms 뒤)" : "기다림") + ")",
+                "[ui:fake] guide window: " + t.Title + " — " + t.Flat() + " / time left " + ConnectFlow.Clock(maxMs) + " [" + t.Cancel + "] (auto reply=" + (ans == "cancel" ? "cancel (after " + ms + "ms)" : "wait") + ")"));
             return new G(ans == "cancel" ? ms : -1, log);
         }
 
@@ -98,14 +101,14 @@ namespace UartHub
             readonly Action<string> log;
             public G(long cancelMs, Action<string> log) { this.cancelMs = cancelMs; this.log = log; }
             public bool Cancelled => cancelMs >= 0 && sw.ElapsedMilliseconds >= cancelMs;
-            public void Close() => log("[ui:fake] 안내 창 닫음");
+            public void Close() => log(L.T("[ui:fake] 안내 창 닫음", "[ui:fake] guide window closed"));
         }
     }
 
     public sealed class ConnectFlow
     {
         /// <summary>창 제목 "UART 허브 · COMx 연결"(UI_COPY.md).</summary>
-        public static string Title(string com) => "UART 허브 · " + com + " 연결";
+        public static string Title(string com) => L.T("UART 허브 · " + com + " 연결", "UART Hub · " + com + " connection");
         /// <summary>남은 시간 표시 "m:ss".</summary>
         public static string Clock(long ms)
         {
@@ -123,11 +126,13 @@ namespace UartHub
             return new UiText
             {
                 Title = Title(com),
-                Head = com + " 사용 중: " + h.Label,
-                Body = (motty ? "이 세션을 끊고" : h.Label + " 창을 닫고") + ", 허브가 " + Josa.EulReul(com) + " 열어 터미널과 Claude가 같이 쓰게 할까요?"
+                Head = L.T(com + " 사용 중: " + h.Label, com + " in use: " + h.Label),
+                Body = L.T((motty ? "이 세션을 끊고" : h.Label + " 창을 닫고") + ", 허브가 " + Josa.EulReul(com) + " 열어 터미널과 Claude가 같이 쓰게 할까요?"
                        + (motty ? " MobaXterm의 다른 탭은 그대로입니다." : ""),
+                       (motty ? "Disconnect this session" : "Close the " + h.Label + " window") + " and let the hub open " + com + " so the terminal and Claude can share it?"
+                       + (motty ? " Other MobaXterm tabs stay as they are." : "")),
                 Note = HolderNote(h),
-                Ok = "끊고 연결", OkIsDefault = false,
+                Ok = L.T("끊고 연결", "Disconnect and connect"), OkIsDefault = false,
             };
         }
 
@@ -137,9 +142,11 @@ namespace UartHub
             return new UiText
             {
                 Title = Title(com),
-                Head = com + " 사용 중: " + (h?.Label ?? "다른 프로그램"),
-                Body = "그 프로그램에서 " + com + " 연결을 끊어 주세요. 끊으면 바로 이어서 연결합니다."
+                Head = L.T(com + " 사용 중: " + (h?.Label ?? "다른 프로그램"), com + " in use: " + (h?.Label ?? "another program")),
+                Body = L.T("그 프로그램에서 " + com + " 연결을 끊어 주세요. 끊으면 바로 이어서 연결합니다."
                        + (h == null ? "\n어느 프로그램인지 찾지 못했습니다. 관리자 권한으로 실행한 프로그램일 수 있습니다." : ""),
+                       "Please disconnect " + com + " in that program. The hub will connect right after you do."
+                       + (h == null ? "\nCould not tell which program it is. It may be a program running as administrator." : "")),
                 Note = h != null ? HolderNote(h) : null,
             };
         }
@@ -183,7 +190,7 @@ namespace UartHub
         // ================================================================== 진입점
         public JObj Connect(string com, string from, int baud = 0)
         {
-            if (baud != 0 && !Config.IsStandardBaud(baud)) return Err(106, "rejected", "baud 는 " + Config.StandardBaudText + " 중 하나: " + baud).Set("com", com).Set("allowed_bauds", Config.StandardBauds.Select(x => (long)x));
+            if (baud != 0 && !Config.IsStandardBaud(baud)) return Err(106, "rejected", L.T("baud 는 " + Config.StandardBaudText + " 중 하나: " + baud, "baud must be one of " + Config.StandardBaudText + ": " + baud)).Set("com", com).Set("allowed_bauds", Config.StandardBauds.Select(x => (long)x));
             return Exclusive(com, c => DoConnect(c, from, baud));
         }
         public JObj Disconnect(string com, string from) => Exclusive(com, c => DoDisconnect(c, from));
@@ -191,8 +198,8 @@ namespace UartHub
         JObj Exclusive(string com, Func<string, JObj> work)
         {
             com = (com ?? "").Trim().ToUpperInvariant();
-            if (!System.Text.RegularExpressions.Regex.IsMatch(com, @"^COM\d+$")) return Err(106, "rejected", "COM 이름이 아님: '" + com + "' (예: COM8)");
-            if (Interlocked.CompareExchange(ref running, 1, 0) != 0) return Err(106, "rejected", "다른 연결·끊기 작업이 진행 중 — 끝난 뒤 다시").Set("com", com);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(com, @"^COM\d+$")) return Err(106, "rejected", L.T("COM 이름이 아님: '" + com + "' (예: COM8)", "Not a COM name: '" + com + "' (e.g. COM8)"));
+            if (Interlocked.CompareExchange(ref running, 1, 0) != 0) return Err(106, "rejected", L.T("다른 연결·끊기 작업이 진행 중 — 끝난 뒤 다시", "Another connect or disconnect is in progress — try again after it finishes")).Set("com", com);
             lock (active) active.Add(com);
             flow.Restart();
             try { return work(com); }
@@ -250,20 +257,20 @@ namespace UartHub
         (long Code, string Error) Cable(params string[] argv)
         {
             string l = Call(new[] { "cable" }.Concat(argv).ToArray());
-            log("connect: cable " + string.Join(" ", argv) + " → " + (l == null ? "코어 응답 없음" : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
-            if (l == null) return (-1, "허브 코어 응답 없음");
+            log("connect: cable " + string.Join(" ", argv) + " → " + (l == null ? L.T("코어 응답 없음", "no core reply") : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
+            if (l == null) return (-1, L.T("허브 코어 응답 없음", "No reply from the hub core"));
             try
             {
                 using var d = JsonDocument.Parse(l);
                 return (HubFiles.Long(d.RootElement, "exit", -1), HubFiles.Str(d.RootElement, "error"));
             }
-            catch (JsonException) { return (-1, "코어 응답을 해석할 수 없음"); }
+            catch (JsonException) { return (-1, L.T("코어 응답을 해석할 수 없음", "Cannot parse the core reply")); }
         }
 
         JObj NoHub()
         {
-            if (HubFiles.IsStopped(hubDir)) return Err(103, "hub_down", "허브 정지됨(트레이 → 시작 또는 'uart hub start' 뒤 다시)").Set("stopped", true);
-            return Err(103, "hub_down", "허브 코어가 응답하지 않음(재시작 중일 수 있음 — 잠시 뒤 다시)");
+            if (HubFiles.IsStopped(hubDir)) return Err(103, "hub_down", L.T("허브 정지됨(트레이 → 시작 또는 'uart hub start' 뒤 다시)", "Hub stopped (tray → Start, or run 'uart hub start', then try again)")).Set("stopped", true);
+            return Err(103, "hub_down", L.T("허브 코어가 응답하지 않음(재시작 중일 수 있음 — 잠시 뒤 다시)", "The hub core is not responding (it may be restarting — try again shortly)"));
         }
 
         static IEnumerable<JObj> ComList(IEnumerable<CableRow> rows)
@@ -272,7 +279,7 @@ namespace UartHub
         // ================================================================== connect
         JObj DoConnect(string com, string from, int baud)
         {
-            log("connect " + com + (baud > 0 ? " " + baud : "") + " 시작(" + from + ")");
+            log(L.T("connect " + com + (baud > 0 ? " " + baud : "") + " 시작(" + from + ")", "connect " + com + (baud > 0 ? " " + baud : "") + " started (" + from + ")"));
             ComHolder closed = null;
             CableRow row = null;
             JObj Fin(JObj r)
@@ -281,7 +288,7 @@ namespace UartHub
                 if (row?.Cable != null) r.Set("cable", row.Cable);
                 if (closed != null) r.Set("holder_closed", closed.ToJObj());     // 세션을 끝냈으면 어떤 결과든 알린다
                 string s = r.ToString();
-                log("connect " + com + " 끝 → " + (s.Length > 300 ? s.Substring(0, 300) + "…" : s));
+                log(L.T("connect " + com + " 끝 → ", "connect " + com + " done → ") + (s.Length > 300 ? s.Substring(0, 300) + "…" : s));
                 return r;
             }
 
@@ -295,9 +302,9 @@ namespace UartHub
                 row = Pick(rows, com);
             }
             if (row == null || row.Status == "detached")
-                return Fin(Err(102, "no_cable", com + (row == null ? " 이(가) 허브가 보는 케이블 목록에 없음" : " 케이블이 분리됨") + "(꽂혀 있는지·FTDI 케이블인지 확인)").Set("coms", ComList(rows)));
+                return Fin(Err(102, "no_cable", L.T(com + (row == null ? " 이(가) 허브가 보는 케이블 목록에 없음" : " 케이블이 분리됨") + "(꽂혀 있는지·FTDI 케이블인지 확인)", com + (row == null ? " is not in the cable list the hub sees" : " cable was unplugged") + " (check that it is plugged in and is an FTDI cable)")).Set("coms", ComList(rows)));
             if (row.ModeExplicit == "ignore")
-                return Fin(Err(106, "rejected", "config.json 이 제외함(cables." + row.Cable + ".mode = ignore) — 연결할 수 없음"));
+                return Fin(Err(106, "rejected", L.T("config.json 이 제외함(cables." + row.Cable + ".mode = ignore) — 연결할 수 없음", "Excluded by config.json (cables." + row.Cable + ".mode = ignore) — cannot connect")));
             bool already = IsOn(row);
             int oldBaud = row.Baud;
             bool rebaud = baud > 0 && baud != row.Baud;
@@ -311,7 +318,7 @@ namespace UartHub
             {
                 // 점유자를 비운 뒤(취소면 여기까지 오지 않음): 메모리 설정·config.json 저장, 붙어 있으면 닫았다가 새 보오로 다시 엶
                 var (c, e) = Cable("baud", row.Cable, baud.ToString(CultureInfo.InvariantCulture));
-                if (c != 0) return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", "보오 바꾸기 실패(cable baud): " + e));
+                if (c != 0) return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", L.T("보오 바꾸기 실패(cable baud): " + e, "Changing the baud rate failed (cable baud): " + e)));
             }
             if (!already || rebaud)
             {
@@ -319,19 +326,19 @@ namespace UartHub
                 if (before == "pending")
                 {
                     var (c, e) = Cable("decide", row.Cable, "board");
-                    if (c != 0) { Revert(row.Cable, false, rebaud, oldBaud, com); return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", "연결 실패(cable decide): " + e)); }
+                    if (c != 0) { Revert(row.Cable, false, rebaud, oldBaud, com); return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", L.T("연결 실패(cable decide): " + e, "Connect failed (cable decide): " + e))); }
                     decided = true;
                 }
                 else if (before == "released")
                 {
                     var (c, e) = Cable("include", row.Cable);
-                    if (c != 0) { Revert(row.Cable, false, rebaud, oldBaud, com); return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", "연결 실패(cable include): " + e)); }
+                    if (c != 0) { Revert(row.Cable, false, rebaud, oldBaud, com); return Fin(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", L.T("연결 실패(cable include): " + e, "Connect failed (cable include): " + e))); }
                     decided = true;
                 }
                 var got = WaitAttached(com, out var last);
                 if (got == null && last?.Status == "held_by_other")
                 {
-                    log("connect " + com + ": 점유자를 찾지 못했는데 열리지 않음(held_by_other) → 안내 창");
+                    log(L.T("connect " + com + ": 점유자를 찾지 못했는데 열리지 않음(held_by_other) → 안내 창", "connect " + com + ": no holder found but the port will not open (held_by_other) → guide window"));
                     var stop2 = GuideWait(com, null, () => IsOn(Row(com)));
                     if (stop2 != null) { Revert(row.Cable, decided, rebaud, oldBaud, com); return Fin(stop2.Set("reverted", true)); }
                     got = Row(com);
@@ -339,13 +346,13 @@ namespace UartHub
                 if (!IsOn(got))
                 {
                     Revert(row.Cable, decided, rebaud, oldBaud, com);
-                    return Fin(Err(100, "timeout", com + " 을 " + (AttachMs / 1000) + "초 안에 열지 못함(" + (last?.Status ?? "목록에 없음") + ") — 연결 전 상태로 되돌림").Set("reverted", true));
+                    return Fin(Err(100, "timeout", L.T(com + " 을 " + (AttachMs / 1000) + "초 안에 열지 못함(" + (last?.Status ?? "목록에 없음") + ") — 연결 전 상태로 되돌림", "Could not open " + com + " within " + (AttachMs / 1000) + " s (" + (last?.Status ?? "not in the list") + ") — reverted to the state before connecting")).Set("reverted", true));
                 }
                 row = got;
             }
 
             // 터미널(open <포트> 와 같은 경로). 띄운 터미널에만 전면 권한(확인 창을 누른 뒤라면 감독에 전면 권한이 있다)
-            string term = OpenCmd.OpenTerminal(hubDir, row.Port, row.Board, row.Com, false, s => log("connect " + com + ": " + s), s => log("connect " + com + ": 터미널 " + s),
+            string term = OpenCmd.OpenTerminal(hubDir, row.Port, row.Board, row.Com, false, s => log("connect " + com + ": " + s), s => log(L.T("connect " + com + ": 터미널 " + s, "connect " + com + ": terminal " + s)),
                                                pid => { if (pid > 0) SystemAccess.AllowForeground(pid); });
             Thread.Sleep(RxWaitMs);
             var now = Pick(Ls(), com) ?? row;
@@ -354,9 +361,9 @@ namespace UartHub
                 .Set("cable", now.Cable).Set("rx_bytes", rx).Set("holder_closed", closed?.ToJObj()).Set("terminal", term);
             if (rebaud) o.Set("old_baud", (long)oldBaud);
             if (already) o.Set("already", true);
-            if (now.Status == "bind_failed") o.Set("note", "연결됨 — 그러나 telnet 포트 " + now.Port + " 를 열지 못함(bind_failed, 다른 프로그램이 그 포트를 씀) — 터미널이 붙지 않을 수 있음");
-            if (term == "none") o.Set("terminal_note", "터미널(TeraTerm·PuTTY·MobaXterm)을 찾지 못함 — 127.0.0.1:" + now.Port + " 로 telnet 접속");
-            if (rx == 0) o.Set("hint", "no_output").Set("message", "보드 출력이 아직 없습니다 — 전원·배선 확인 뒤 터미널에서 Enter");
+            if (now.Status == "bind_failed") o.Set("note", L.T("연결됨 — 그러나 telnet 포트 " + now.Port + " 를 열지 못함(bind_failed, 다른 프로그램이 그 포트를 씀) — 터미널이 붙지 않을 수 있음", "Connected — but telnet port " + now.Port + " could not be opened (bind_failed, another program is using it) — the terminal may not attach"));
+            if (term == "none") o.Set("terminal_note", L.T("터미널(TeraTerm·PuTTY·MobaXterm)을 찾지 못함 — 127.0.0.1:" + now.Port + " 로 telnet 접속", "No terminal program (TeraTerm, PuTTY, MobaXterm) found — connect with telnet to 127.0.0.1:" + now.Port));
+            if (rx == 0) o.Set("hint", "no_output").Set("message", L.T("보드 출력이 아직 없습니다 — 전원·배선 확인 뒤 터미널에서 Enter", "No board output yet — check power and wiring, then press Enter in the terminal"));
             return Fin(o);
         }
 
@@ -366,19 +373,19 @@ namespace UartHub
             if (decided)
             {
                 var (c, _) = Cable("exclude", cable);
-                log("connect " + com + ": 되돌림 cable exclude → " + (c == 0 ? "끊김(released)" : "실패 exit=" + c));
+                log(L.T("connect " + com + ": 되돌림 cable exclude → " + (c == 0 ? "끊김(released)" : "실패 exit=" + c), "connect " + com + ": revert cable exclude → " + (c == 0 ? "released" : "failed exit=" + c)));
             }
             if (rebaud)
             {
                 var (c, _) = Cable("baud", cable, oldBaud.ToString(CultureInfo.InvariantCulture));
-                log("connect " + com + ": 되돌림 cable baud " + oldBaud + " → " + (c == 0 ? "ok" : "실패 exit=" + c));
+                log(L.T("connect " + com + ": 되돌림 cable baud " + oldBaud + " → " + (c == 0 ? "ok" : "실패 exit=" + c), "connect " + com + ": revert cable baud " + oldBaud + " → " + (c == 0 ? "ok" : "failed exit=" + c)));
             }
         }
 
         JObj Cancelled(ComHolder h)
         {
             bool g = gone();
-            var r = Err(106, "cancelled", g ? "요청자가 떠남(CLI 시간 초과·종료) — 창을 닫고 아무것도 바꾸지 않음" : "사용자가 취소 — 아무것도 바꾸지 않음").Set("holder", h?.ToJObj());
+            var r = Err(106, "cancelled", g ? L.T("요청자가 떠남(CLI 시간 초과·종료) — 창을 닫고 아무것도 바꾸지 않음", "The requester left (CLI timeout or exit) — window closed, nothing changed") : L.T("사용자가 취소 — 아무것도 바꾸지 않음", "Cancelled by the user — nothing changed")).Set("holder", h?.ToJObj());
             return g ? r.Set("requester_gone", true) : r;
         }
 
@@ -390,31 +397,34 @@ namespace UartHub
             var ex = Exclude();
             var scan = ComHolders.Scan(new[] { com }, ex, HolderScanMode.FullIfNone, skip);
             var hs = scan.Of(com);
-            log("connect " + com + ": 점유자 " + (hs.Count == 0 ? "없음" : string.Join(", ", hs.Select(h => h.ToString()))) + " (찾기 " + scan.Mode + ", " + scan.Ms + "ms" + (scan.Note != null ? ", " + scan.Note : "") + ")");
+            log(L.T("connect " + com + ": 점유자 " + (hs.Count == 0 ? "없음" : string.Join(", ", hs.Select(h => h.ToString()))) + " (찾기 " + scan.Mode + ", " + scan.Ms + "ms" + (scan.Note != null ? ", " + scan.Note : "") + ")",
+                "connect " + com + ": holder " + (hs.Count == 0 ? "none" : string.Join(", ", hs.Select(h => h.ToString()))) + " (scan " + scan.Mode + ", " + scan.Ms + "ms" + (scan.Note != null ? ", " + scan.Note : "") + ")"));
             if (hs.Count == 0) return null;
             if (hs.Count == 1 && hs[0].Allowed)
             {
                 var h = hs[0];
-                if (ui == null) return Err(106, "rejected", com + " 을 " + h + " 이 쓰고 있음 — 확인 창을 띄울 수 없는 감독(트레이 없음)이라 끝내지 않음. 그 세션을 직접 끊은 뒤 다시").Set("holder", h.ToJObj());
+                if (ui == null) return Err(106, "rejected", L.T(com + " 을 " + h + " 이 쓰고 있음 — 확인 창을 띄울 수 없는 감독(트레이 없음)이라 끝내지 않음. 그 세션을 직접 끊은 뒤 다시", h + " is using " + com + " — this supervisor cannot show a confirm window (no tray), so it was not closed. Disconnect that session yourself, then try again")).Set("holder", h.ToJObj());
                 bool yes = ui.Confirm(ConfirmText(com, h), Cap(ConfirmMs), gone);
-                log("connect " + com + ": 확인 창 → " + (yes ? "끊고 연결" : gone() ? "닫음(요청자가 떠남)" : "취소"));
+                log(L.T("connect " + com + ": 확인 창 → " + (yes ? "끊고 연결" : gone() ? "닫음(요청자가 떠남)" : "취소"), "connect " + com + ": confirm window → " + (yes ? "Disconnect and connect" : gone() ? "closed (requester left)" : "cancel")));
                 if (!yes || gone()) return Cancelled(h);
                 string why = ComHolders.Terminate(h, ex);
                 if (why != null)
                 {
-                    log("connect " + com + ": 끝내지 않음 — " + why);
+                    log(L.T("connect " + com + ": 끝내지 않음 — " + why, "connect " + com + ": not terminated — " + why));
                     var again = ComHolders.Find(com, ex, HolderScanMode.FullIfNone, skip);
-                    if (again.Count == 0) { log("connect " + com + ": 다시 찾음 → 점유자 없음(스스로 놓음) — 계속"); return null; }
+                    if (again.Count == 0) { log(L.T("connect " + com + ": 다시 찾음 → 점유자 없음(스스로 놓음) — 계속", "connect " + com + ": rescanned → no holder (it let go on its own) — continuing")); return null; }
                     bool same = again.Any(x => x.Pid == h.Pid && x.StartTicks == h.StartTicks && string.Equals(x.Name, h.Name, StringComparison.OrdinalIgnoreCase));
-                    return Err(106, "rejected", (same ? h + " 을 끝내지 못함(" + why + ")" : "확인하는 사이 " + com + " 을 쥔 프로그램이 바뀜(" + why + ")")
-                                                + " — 아무것도 끝내지 않음. 그 프로그램에서 직접 끊거나 다시 /connect-uart " + com).Set("holder", again[0].ToJObj());
+                    return Err(106, "rejected", L.T((same ? h + " 을 끝내지 못함(" + why + ")" : "확인하는 사이 " + com + " 을 쥔 프로그램이 바뀜(" + why + ")")
+                                                + " — 아무것도 끝내지 않음. 그 프로그램에서 직접 끊거나 다시 /connect-uart " + com,
+                                                (same ? "Could not close " + h + " (" + why + ")" : "The program holding " + com + " changed while confirming (" + why + ")")
+                                                + " — nothing was closed. Disconnect from that program yourself, or run /connect-uart " + com + " again")).Set("holder", again[0].ToJObj());
                 }
                 closed = h;
-                log("connect " + com + ": " + h + " 끝냄(TerminateProcess)");
+                log(L.T("connect " + com + ": " + h + " 끝냄(TerminateProcess)", "connect " + com + ": " + h + " terminated (TerminateProcess)"));
                 var sw = Stopwatch.StartNew();
                 while (ComHolders.StillHolds(h, ex, skip))
                 {
-                    if (sw.ElapsedMilliseconds >= ReleaseMs) return Err(100, "timeout", h + " 을 끝냈지만 " + com + " 이 " + (ReleaseMs / 1000) + "초 안에 풀리지 않음");
+                    if (sw.ElapsedMilliseconds >= ReleaseMs) return Err(100, "timeout", L.T(h + " 을 끝냈지만 " + com + " 이 " + (ReleaseMs / 1000) + "초 안에 풀리지 않음", "Closed " + h + " but " + com + " was not released within " + (ReleaseMs / 1000) + " s"));
                     Thread.Sleep(200);
                 }
                 return null;
@@ -426,8 +436,8 @@ namespace UartHub
         /// <summary>안내 창 + GuideEveryMs 마다 released() 확인, 최대 GuideMaxMs(흐름 상한 안). null = 풀림(계속), 아니면 취소·요청자 떠남(106)·시간 초과(100)·창 없음(106).</summary>
         JObj GuideWait(string com, ComHolder h, Func<bool> released)
         {
-            string who = h != null ? h.Label + "(pid " + h.Pid + ")" : "다른 프로그램";
-            if (ui == null) return Err(106, "rejected", com + " 을 " + who + " 이 쓰고 있음 — 안내 창을 띄울 수 없는 감독(트레이 없음). 그 프로그램에서 연결을 끊은 뒤 다시").Set("holder", h?.ToJObj());
+            string who = h != null ? h.Label + L.T("(pid ", " (pid ") + h.Pid + ")" : L.T("다른 프로그램", "another program");
+            if (ui == null) return Err(106, "rejected", L.T(com + " 을 " + who + " 이 쓰고 있음 — 안내 창을 띄울 수 없는 감독(트레이 없음). 그 프로그램에서 연결을 끊은 뒤 다시", who + " is using " + com + " — this supervisor cannot show a guide window (no tray). Disconnect from that program, then try again")).Set("holder", h?.ToJObj());
             int max = Cap(GuideMaxMs);
             var g = ui.Guide(GuideText(com, h), max);
             var sw = Stopwatch.StartNew();
@@ -436,16 +446,16 @@ namespace UartHub
             {
                 while (true)
                 {
-                    if (g.Cancelled || gone()) { log("connect " + com + ": 안내 창 → " + (gone() ? "닫음(요청자가 떠남)" : "취소")); return Cancelled(h); }
+                    if (g.Cancelled || gone()) { log(L.T("connect " + com + ": 안내 창 → " + (gone() ? "닫음(요청자가 떠남)" : "취소"), "connect " + com + ": guide window → " + (gone() ? "closed (requester left)" : "cancel"))); return Cancelled(h); }
                     if (sw.ElapsedMilliseconds >= nextCheck)
                     {
-                        if (released()) { log("connect " + com + ": " + who + " 이 놓음(" + sw.ElapsedMilliseconds + "ms) — 계속"); return null; }
+                        if (released()) { log(L.T("connect " + com + ": " + who + " 이 놓음(" + sw.ElapsedMilliseconds + "ms) — 계속", "connect " + com + ": " + who + " let go (" + sw.ElapsedMilliseconds + "ms) — continuing")); return null; }
                         nextCheck = sw.ElapsedMilliseconds + GuideEveryMs;
                     }
                     if (sw.ElapsedMilliseconds >= max)
                     {
-                        log("connect " + com + ": 안내 창 시간 초과(" + (max / 1000) + "초)");
-                        return Err(100, "timeout", com + " 을 " + who + " 이 " + (max / 1000) + "초 동안 놓지 않음 — 아무것도 바꾸지 않음").Set("holder", h?.ToJObj());
+                        log(L.T("connect " + com + ": 안내 창 시간 초과(" + (max / 1000) + "초)", "connect " + com + ": guide window timed out (" + (max / 1000) + " s)"));
+                        return Err(100, "timeout", L.T(com + " 을 " + who + " 이 " + (max / 1000) + "초 동안 놓지 않음 — 아무것도 바꾸지 않음", who + " did not release " + com + " for " + (max / 1000) + " s — nothing changed")).Set("holder", h?.ToJObj());
                     }
                     Thread.Sleep(100);
                 }
@@ -476,19 +486,19 @@ namespace UartHub
         // ================================================================== disconnect
         JObj DoDisconnect(string com, string from)
         {
-            log("disconnect " + com + " 시작(" + from + ")");
+            log(L.T("disconnect " + com + " 시작(" + from + ")", "disconnect " + com + " started (" + from + ")"));
             var rows = LsWait(5000);
-            JObj Done(JObj r) { string s = r.ToString(); log("disconnect " + com + " 끝 → " + (s.Length > 300 ? s.Substring(0, 300) + "…" : s)); return r; }
+            JObj Done(JObj r) { string s = r.ToString(); log(L.T("disconnect " + com + " 끝 → ", "disconnect " + com + " done → ") + (s.Length > 300 ? s.Substring(0, 300) + "…" : s)); return r; }
             if (rows == null) return Done(NoHub().Set("com", com));
             var row = Pick(rows, com);
-            if (row == null) return Done(Err(102, "no_cable", com + " 이(가) 허브가 보는 케이블 목록에 없음").Set("com", com).Set("coms", ComList(rows)));
-            if (row.ModeExplicit == "ignore") return Done(Err(106, "rejected", "config.json 이 제외함(mode: ignore) — 허브가 이미 쓰지 않음").Set("com", com).Set("cable", row.Cable));
+            if (row == null) return Done(Err(102, "no_cable", L.T(com + " 이(가) 허브가 보는 케이블 목록에 없음", com + " is not in the cable list the hub sees")).Set("com", com).Set("coms", ComList(rows)));
+            if (row.ModeExplicit == "ignore") return Done(Err(106, "rejected", L.T("config.json 이 제외함(mode: ignore) — 허브가 이미 쓰지 않음", "Excluded by config.json (mode: ignore) — the hub is already not using it")).Set("com", com).Set("cable", row.Cable));
             var o = new JObj().Set("status", "ok").Set("exit", 0L).Set("com", com).Set("port", (long)row.Port).Set("board", row.Board).Set("cable", row.Cable);
             if (row.Status == "released" || row.Status == "pending")
-                return Done(o.Set("cable_status", row.Status).Set("already", true).Set("message", row.Status == "pending" ? "연결된 적 없음 — 허브가 이 COM 을 열지 않음" : "이미 끊김"));
+                return Done(o.Set("cable_status", row.Status).Set("already", true).Set("message", row.Status == "pending" ? L.T("연결된 적 없음 — 허브가 이 COM 을 열지 않음", "Never connected — the hub does not open this COM port") : L.T("이미 끊김", "Already disconnected")));
             var (c, e) = Cable("exclude", row.Cable);
-            if (c != 0) return Done(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", "끊기 실패(cable exclude): " + e).Set("com", com).Set("cable", row.Cable));
-            return Done(o.Set("cable_status", "released").Set("message", "허브가 " + com + " 을 닫음(포트 " + row.Port + " 유지) — 다른 프로그램이 쓸 수 있음"));
+            if (c != 0) return Done(Err(c < 0 ? 103 : c, c < 0 ? "hub_down" : "rejected", L.T("끊기 실패(cable exclude): " + e, "Disconnect failed (cable exclude): " + e)).Set("com", com).Set("cable", row.Cable));
+            return Done(o.Set("cable_status", "released").Set("message", L.T("허브가 " + com + " 을 닫음(포트 " + row.Port + " 유지) — 다른 프로그램이 쓸 수 있음", "The hub closed " + com + " (port " + row.Port + " kept) — other programs can use it now")));
         }
 
         // ================================================================== 표(인자 없는 connect)
@@ -504,15 +514,18 @@ namespace UartHub
             {
                 var h = IsOn(r) ? null : scan.Of(r.Com).FirstOrDefault();
                 string st = r.ModeExplicit == "ignore" ? "ignored" : IsOn(r) ? "connected" : h != null || r.Status == "held_by_other" ? "in_use" : "not_connected";
-                string text = (st == "connected" ? "연결됨 " + r.Port + (r.Board != null ? " " + r.Board : "") + (r.Status == "bind_failed" ? "(telnet 포트 문제)" : "")
+                string text = L.T(st == "connected" ? "연결됨 " + r.Port + (r.Board != null ? " " + r.Board : "") + (r.Status == "bind_failed" ? "(telnet 포트 문제)" : "")
                             : st == "in_use" ? (h != null ? h.Label + "(pid " + h.Pid + ")" : "다른 프로그램") + " 사용 중"
-                            : st == "ignored" ? "설정 파일이 제외함" : "연결 안 됨") + " · " + r.Baud.ToString(CultureInfo.InvariantCulture);
+                            : st == "ignored" ? "설정 파일이 제외함" : "연결 안 됨",
+                            st == "connected" ? "Connected " + r.Port + (r.Board != null ? " " + r.Board : "") + (r.Status == "bind_failed" ? " (telnet port problem)" : "")
+                            : st == "in_use" ? "In use by " + (h != null ? h.Label + " (pid " + h.Pid + ")" : "another program")
+                            : st == "ignored" ? "Excluded by the config file" : "Not connected") + " · " + r.Baud.ToString(CultureInfo.InvariantCulture);
                 list.Add(new JObj().Set("com", r.Com).Set("connected", st == "connected").Set("state", st).Set("text", text).Set("port", (long)r.Port).Set("baud", (long)r.Baud).Set("board", r.Board)
                                    .Set("cable", r.Cable).Set("hub_status", r.Status).Set("holder", h?.ToJObj()));
             }
             var o = new JObj().Set("status", "ok").Set("exit", 0L).Set("cables", list).Set("holder_scan", scan.Mode);
             if (scan.Note != null) o.Set("holder_note", scan.Note);
-            log("connect(표) " + list.Count + "개, 점유자 찾기 " + scan.Mode + " " + scan.Ms + "ms");
+            log(L.T("connect(표) " + list.Count + "개, 점유자 찾기 " + scan.Mode + " " + scan.Ms + "ms", "connect (table) " + list.Count + " row(s), holder scan " + scan.Mode + " " + scan.Ms + "ms"));
             return o;
         }
     }

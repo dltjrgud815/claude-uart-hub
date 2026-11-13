@@ -53,14 +53,14 @@ namespace UartHub.App
                     case "uninstall": return Installer.Main(sub, rest, RunInstallGui);
                     case "render-ui": return RenderUiCmd(rest);                    // 숨은 개발용: 창을 띄우지 않고 모든 창·트레이 메뉴 모형을 PNG 로(UI_COPY.md 검토)
                     default:
-                        Err("uart: E106 rejected 알 수 없는 하위 명령: " + sub + " — sup | core | cli | open | version | setup | install | uninstall");
+                        Err(L.T("uart: E106 rejected 알 수 없는 하위 명령: " + sub + " — sup | core | cli | open | version | setup | install | uninstall", "uart: E106 rejected unknown subcommand: " + sub + " — sup | core | cli | open | version | setup | install | uninstall"));
                         return 106;
                 }
             }
             catch (Exception e)
             {
                 // 창(WER·WinForms 예외 대화상자)을 띄우지 않고 끝낸다
-                Err("UartHub " + (sub ?? "") + ": 내부 오류 " + e.GetType().Name + ": " + e.Message);
+                Err(L.T("UartHub " + (sub ?? "") + ": 내부 오류 " + e.GetType().Name + ": " + e.Message, "UartHub " + (sub ?? "") + ": internal error " + e.GetType().Name + ": " + e.Message));
                 return sub == "cli" ? 103 : sub == null || sub == "setup" || sub == "install" || sub == "uninstall" ? Installer.RcFailed : CoreHost.StartFailedExitCode;
             }
         }
@@ -105,9 +105,9 @@ namespace UartHub.App
                     case "--sim-dll": o.SimDll = Val(); break;
                     case "--icons-dir": o.IconsDir = Val(); break;
                     case "--tick-ms":
-                        if (!int.TryParse(Val(), out tickMs) || tickMs < 10) { Err("sup: --tick-ms 는 10 이상 정수"); return 2; }
+                        if (!int.TryParse(Val(), out tickMs) || tickMs < 10) { Err(L.T("sup: --tick-ms 는 10 이상 정수", "sup: --tick-ms must be an integer of 10 or more")); return 2; }
                         break;
-                    default: Err("sup: 알 수 없는 인자 " + a[i]); return 2;
+                    default: Err(L.T("sup: 알 수 없는 인자 " + a[i], "sup: unknown argument " + a[i])); return 2;
                 }
             }
             if (SystemAccess.IsTest && o.Sim == null && File.Exists(SystemAccess.TestFile("sim_spec.json")))
@@ -131,7 +131,8 @@ namespace UartHub.App
                     o.Production = fromInstall;
                 }
                 if (string.IsNullOrEmpty(o.HubDir))
-                    return Fatal(noTray, "허브 폴더를 정하지 못함 — 설치되지 않음(--hub-dir·UART_HUB_DIR·" + InstallInfo.DefaultPath + " 없음)");
+                    return Fatal(noTray, L.T("허브 폴더를 정하지 못함 — 설치되지 않음(--hub-dir·UART_HUB_DIR·" + InstallInfo.DefaultPath + " 없음)", "Could not find the hub folder — not installed (no --hub-dir, UART_HUB_DIR or " + InstallInfo.DefaultPath + ")"));
+                L.ConfigureFromFile(HubFiles.ConfigPath(o.HubDir));       // 감독·트레이 문구의 언어(config.json "language")
                 NativeHandles.DontInheritStd();
                 o.Exe = Environment.ProcessPath;
                 o.PollCables = !noTray;
@@ -146,7 +147,7 @@ namespace UartHub.App
                     sup = new Supervisor(o);
                     sup.Init();
                 }
-                catch (Exception e) { return Fatal(noTray, "감독 기동 실패: " + e.GetType().Name + ": " + e.Message, o.HubDir); }
+                catch (Exception e) { return Fatal(noTray, L.T("감독 기동 실패: " + e.GetType().Name + ": " + e.Message, "Supervisor failed to start: " + e.GetType().Name + ": " + e.Message), o.HubDir); }
                 if (noTray)
                 {
                     while (!sup.QuitRequested)
@@ -155,7 +156,7 @@ namespace UartHub.App
                         Thread.Sleep(tickMs);
                     }
                 }
-                else RunTray(sup, tickMs);
+                else RunTray(sup, tickMs, o.HubDir);
                 sup.Shutdown();
                 return 0;
             }
@@ -167,7 +168,7 @@ namespace UartHub.App
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        static void RunTray(Supervisor sup, int tickMs) => TrayApp.Run(sup, tickMs);
+        static void RunTray(Supervisor sup, int tickMs, string hubDir) => TrayApp.Run(sup, tickMs, hubDir);
 
         /// <summary>설치기 화면(확인 창 + 진행 창). 시험 모드·dry-run 은 Installer 가 이 경로를 부르지 않는다.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -189,8 +190,17 @@ namespace UartHub.App
         [MethodImpl(MethodImplOptions.NoInlining)]
         static int RenderUiCmd(string[] a)
         {
-            if (a.Length != 1 || string.IsNullOrWhiteSpace(a[0])) { Err("render-ui <출력 폴더>"); return 106; }
-            foreach (var f in RenderUi.Run(a[0])) Out(f);
+            // render-ui <출력 폴더> [--lang en|ko]: --lang 은 영어판 가이드 그림용(없으면 환경변수 → Windows 언어)
+            string dir = null, lang = null;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] == "--lang" && i + 1 < a.Length && (a[i + 1] == L.En || a[i + 1] == L.Ko)) lang = a[++i];
+                else if (dir == null && !a[i].StartsWith("--", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(a[i])) dir = a[i];
+                else dir = "";
+            }
+            if (string.IsNullOrEmpty(dir)) { Err(L.T("render-ui <출력 폴더>", "render-ui <output folder>") + " [--lang en|ko]"); return 106; }
+            if (lang != null) L.Use(lang);
+            foreach (var f in RenderUi.Run(dir)) Out(f);
             return 0;
         }
     }

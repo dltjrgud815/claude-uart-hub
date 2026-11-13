@@ -102,7 +102,7 @@ namespace UartHub
         public static TermChoice Find(string kind)
         {
             foreach (var p in DefaultPaths(kind))
-                if (Exists(p)) return new TermChoice { Kind = kind, Path = p, Source = "기본 경로" };
+                if (Exists(p)) return new TermChoice { Kind = kind, Path = p, Source = L.T("기본 경로", "default path") };
             string ap = SystemAccess.AppPath(ExeName(kind));
             if (Exists(ap)) return new TermChoice { Kind = kind, Path = ap, Source = "App Paths" };
             foreach (var d in SystemAccess.PathDirs())
@@ -130,7 +130,7 @@ namespace UartHub
                 if (prefs.Paths.TryGetValue(k, out var path) && Exists(path)) return new TermChoice { Kind = k, Path = path, Source = "prefs.json" };
                 var f = Find(k);
                 if (f != null) return f;
-                note = "prefs.json 의 " + Label(k) + " 를 찾지 못함 → 자동 선택";
+                note = L.T("prefs.json 의 " + Label(k) + " 를 찾지 못함 → 자동 선택", Label(k) + " from prefs.json not found → automatic choice");
             }
             foreach (var k in Kinds)
             {
@@ -176,7 +176,7 @@ namespace UartHub
                 "teraterm" => "127.0.0.1:" + p + " /nossh /T=1 /W=\"" + title + "\"",
                 "putty" => "-telnet 127.0.0.1 -P " + p,
                 "mobaxterm" => "-newtab \"telnet 127.0.0.1 " + p + "\"",
-                _ => throw new ArgumentException("터미널 종류: " + kind),
+                _ => throw new ArgumentException(L.T("터미널 종류: " + kind, "Terminal kind: " + kind)),
             };
         }
 
@@ -209,7 +209,7 @@ namespace UartHub
                     if (cmd.IndexOf("127.0.0.1", StringComparison.Ordinal) < 0) continue;
                     if ((r.Title ?? "").IndexOf("(inactive)", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        skipped = "끊긴 PuTTY 창 pid=" + r.Pid + " '" + r.Title + "' — 새로 엶";
+                        skipped = L.T("끊긴 PuTTY 창 pid=" + r.Pid + " '" + r.Title + "' — 새로 엶", "Disconnected PuTTY window pid=" + r.Pid + " '" + r.Title + "' — opening a new one");
                         continue;
                     }
                 }

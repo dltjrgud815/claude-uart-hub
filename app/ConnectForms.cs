@@ -89,7 +89,7 @@ namespace UartHub.App
         System.Windows.Forms.Timer tick;
         bool answered;
 
-        public ConnectForm(UiText t, int guideMs, Action<bool> answer, float zoom = 1f) : base(t.Title ?? "UART 허브", zoom)
+        public ConnectForm(UiText t, int guideMs, Action<bool> answer, float zoom = 1f) : base(t.Title ?? L.T("UART 허브", "UART Hub"), zoom)
         {
             this.answer = answer;
             this.guideMs = guideMs;
@@ -99,7 +99,7 @@ namespace UartHub.App
             AddText(t);
             if (guideMs > 0 && t.Ok == null)
             {
-                clock = Bind(new TextBlock { BackColor = Pal.Footer, ForeColor = Pal.Muted, Text = "남은 시간 " + ConnectFlow.Clock(guideMs) }, () => FBody);
+                clock = Bind(new TextBlock { BackColor = Pal.Footer, ForeColor = Pal.Muted, Text = L.T("남은 시간 ", "Time left ") + ConnectFlow.Clock(guideMs) }, () => FBody);
                 SetFooterLeft(clock);
             }
             if (t.Ok != null)
@@ -107,7 +107,7 @@ namespace UartHub.App
                 yesButton = AddButton(t.Ok, () => Answer(true));
                 yesButton.Enabled = false;
             }
-            noButton = AddButton(t.Cancel ?? "취소", () => Answer(false));
+            noButton = AddButton(t.Cancel ?? L.T("취소", "Cancel"), () => Answer(false));
             AcceptButton = noButton;                                         // Enter·Space(포커스) = 취소 — 세션을 끝내는 쪽은 기본이 아니다
             CancelButton = noButton;
             ActiveControl = noButton;
@@ -122,7 +122,7 @@ namespace UartHub.App
                     tick = new System.Windows.Forms.Timer { Interval = 250 };
                     tick.Tick += (s2, e2) =>
                     {
-                        string c = "남은 시간 " + ConnectFlow.Clock((long)Math.Max(0, (guideEnd - DateTime.UtcNow).TotalMilliseconds));
+                        string c = L.T("남은 시간 ", "Time left ") + ConnectFlow.Clock((long)Math.Max(0, (guideEnd - DateTime.UtcNow).TotalMilliseconds));
                         if (c != clock.Text) clock.Text = c;
                     };
                     tick.Start();
@@ -158,7 +158,7 @@ namespace UartHub.App
         /// <summary>그림용: 남은 시간을 고정하고(타이머 없이) [끊고 연결]을 켠 모습.</summary>
         public void Pose(long leftMs, bool armed)
         {
-            if (clock != null) clock.Text = "남은 시간 " + ConnectFlow.Clock(leftMs);
+            if (clock != null) clock.Text = L.T("남은 시간 ", "Time left ") + ConnectFlow.Clock(leftMs);
             if (yesButton != null) yesButton.Enabled = armed;
             Relayout();
         }

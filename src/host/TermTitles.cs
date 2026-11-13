@@ -111,12 +111,18 @@ namespace UartHub
         public static string WantTitle(string kind, CableRow row, int port)
             => Terminals.WindowTitle(kind, Terminals.Title(row.Board, row.Com, port) + (row.Aging ? AgingText.TitleSuffix : ""));
 
-        /// <summary>지금 제목이 원하는 제목으로 시작하지만 그 뒤가 끝난 세션의 " · 에이징 중"이면(세션 끝 — 붙은 글을 떼야 함) true.</summary>
+        /// <summary>
+        /// 세션 표시 글(AgingText.TitleSuffix)의 두 언어 값 — 지금 언어 먼저. 언어를 바꾸기 전에 다른 언어로 붙인 제목도 알아보고 뗀다(기계 비교용 값이라 L.T 가 아님).
+        /// </summary>
+        static string[] Suffixes => new[] { AgingText.TitleSuffix, " · 에이징 중", " · aging" }.Distinct(StringComparer.Ordinal).ToArray();
+
+        /// <summary>지금 제목이 원하는 제목으로 시작하지만 그 뒤가 끝난 세션의 " · 에이징 중"(또는 영어 " · aging")이면(세션 끝 — 붙은 글을 떼야 함) true.</summary>
         public static bool StaleSuffix(string cur, string want)
         {
             string w = want.EndsWith(" - PuTTY", StringComparison.Ordinal) ? want.Substring(0, want.Length - 8) : want;
-            if (w.EndsWith(AgingText.TitleSuffix, StringComparison.Ordinal)) return false;
-            return cur.StartsWith(w + AgingText.TitleSuffix, StringComparison.Ordinal) || (cur.StartsWith(want, StringComparison.Ordinal) && cur.Substring(want.Length).StartsWith(AgingText.TitleSuffix, StringComparison.Ordinal));
+            var sx = Suffixes;
+            if (sx.Any(x => w.EndsWith(x, StringComparison.Ordinal))) return false;
+            return sx.Any(x => cur.StartsWith(w + x, StringComparison.Ordinal) || (cur.StartsWith(want, StringComparison.Ordinal) && cur.Substring(want.Length).StartsWith(x, StringComparison.Ordinal)));
         }
 
         public void Apply(IEnumerable<CableRow> rows, DateTime nowUtc)
@@ -156,7 +162,7 @@ namespace UartHub
                     string cur = w.Title ?? "";
                     if (cur.IndexOf("(inactive)", StringComparison.OrdinalIgnoreCase) >= 0) continue;
                     if (cur.StartsWith(want, StringComparison.Ordinal) && !StaleSuffix(cur, want)) continue;
-                    if (win.SetTitle(w.Handle, want)) log("터미널 제목 바꿈 pid=" + pid.ToString(CultureInfo.InvariantCulture) + " \"" + cur + "\" → \"" + want + "\"");
+                    if (win.SetTitle(w.Handle, want)) log(L.T("터미널 제목 바꿈 pid=" + pid.ToString(CultureInfo.InvariantCulture) + " \"" + cur + "\" → \"" + want + "\"", "Terminal title changed pid=" + pid.ToString(CultureInfo.InvariantCulture) + " \"" + cur + "\" → \"" + want + "\""));
                 }
             }
         }

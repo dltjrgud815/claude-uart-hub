@@ -204,7 +204,7 @@ namespace UartHub
                         if (byReq.TryGetValue(old, out var o) && o.IsDone) byReq.Remove(old);
                     }
                 }
-                if (stopped) { r.Complete(Error(cable, 103, "hub_down", "허브 정지 중"), 103); return r; }
+                if (stopped) { r.Complete(Error(cable, 103, "hub_down", L.T("허브 정지 중", "hub is stopping")), 103); return r; }
                 if (r.Kind == TxKind.Run && !PrepareRun(r, out string why))
                 {
                     r.Complete(Error(cable, 106, "rejected", why).Set("req_id", r.ReqId), 106);
@@ -212,7 +212,7 @@ namespace UartHub
                 }
                 if (cable == null || cable.Ring == null || !cable.IsAttached || hub.Tracker(cable) == null)
                 {
-                    r.Complete(Error(cable, 102, "no_cable", "케이블이 연결돼 있지 않음(" + (cable?.StatusText ?? "없음") + ")").Set("req_id", r.ReqId), 102);
+                    r.Complete(Error(cable, 102, "no_cable", L.T("케이블이 연결돼 있지 않음(" + (cable?.StatusText ?? "없음") + ")", "cable is not connected (" + (cable?.StatusText ?? "none") + ")")).Set("req_id", r.ReqId), 102);
                     return r;
                 }
                 if (!lanes.TryGetValue(cable.Id, out lane) || lane.Cable != cable)
@@ -261,20 +261,20 @@ namespace UartHub
         internal static bool PrepareRun(TxRequest r, out string why)
         {
             string cmd = r.Cmd;
-            if (string.IsNullOrWhiteSpace(cmd)) { why = "빈 명령"; return false; }
+            if (string.IsNullOrWhiteSpace(cmd)) { why = L.T("빈 명령", "empty command"); return false; }
             foreach (char ch in cmd)
-                if (ch < 0x20 || ch == 0x7f) { why = "제어문자(CR·LF 포함)가 든 명령: 0x" + ((int)ch).ToString("x2", CultureInfo.InvariantCulture); return false; }
+                if (ch < 0x20 || ch == 0x7f) { why = L.T("제어문자(CR·LF 포함)가 든 명령: 0x" + ((int)ch).ToString("x2", CultureInfo.InvariantCulture), "command contains a control character (CR and LF included): 0x" + ((int)ch).ToString("x2", CultureInfo.InvariantCulture)); return false; }
             if (r.Inline)
             {
                 string c = cmd.Trim();
-                if (!InlineHead.IsMatch(c)) { why = "--inline 은 cd/export/unset/umask/alias 단일 명령만 허용"; return false; }
-                if (c.IndexOfAny(new[] { ';', '&', '|', '`' }) >= 0 || c.Contains("$(")) { why = "--inline 에 ; & | ` $( 금지"; return false; }
+                if (!InlineHead.IsMatch(c)) { why = L.T("--inline 은 cd/export/unset/umask/alias 단일 명령만 허용", "--inline allows only a single cd/export/unset/umask/alias command"); return false; }
+                if (c.IndexOfAny(new[] { ';', '&', '|', '`' }) >= 0 || c.Contains("$(")) { why = L.T("--inline 에 ; & | ` $( 금지", "--inline must not contain ; & | ` $("); return false; }
                 if (InlinePromptVar.IsMatch(c))
-                { why = "--inline 으로 PS1/PS2/PROMPT_COMMAND 변경 금지(프롬프트 판정 기준)"; return false; }
+                { why = L.T("--inline 으로 PS1/PS2/PROMPT_COMMAND 변경 금지(프롬프트 판정 기준)", "--inline must not change PS1/PS2/PROMPT_COMMAND (used to detect the prompt)"); return false; }
             }
             string esc = cmd.Replace("'", "'\\''");
             int n = Encoding.UTF8.GetByteCount(esc);
-            if (n > MaxCmdBytes) { why = "이스케이프 뒤 " + n + "B > " + MaxCmdBytes + "B"; return false; }
+            if (n > MaxCmdBytes) { why = L.T("이스케이프 뒤 " + n + "B > " + MaxCmdBytes + "B", "after escaping " + n + "B > " + MaxCmdBytes + "B"); return false; }
             string id = r.MarkerId;
             string line = "printf '__U''H_B_%s\\n' " + id + "; "
                           + (r.Inline ? "eval '" : "sh -c '") + esc + "' </dev/null; "
@@ -378,7 +378,7 @@ namespace UartHub
                 if (tracker != null) { tracker.RunMarkerSeen -= OnMarker; tracker.PromptConfirmed -= OnPrompt; }
                 List<TxRequest> left;
                 lock (ls) { left = q.ToList(); q.Clear(); }
-                foreach (var r in left) r.Complete(a.Error(Cable, 103, "hub_down", "허브 정지 중").Set("req_id", r.ReqId), 103);
+                foreach (var r in left) r.Complete(a.Error(Cable, 103, "hub_down", L.T("허브 정지 중", "hub is stopping")).Set("req_id", r.ReqId), 103);
             }
 
             PromptTracker EnsureTracker()
@@ -423,7 +423,7 @@ namespace UartHub
                     }
                     w = lingering.Find(x => x.Id == m.RunId);
                     if (w == null) return;
-                    if (m.Kind == 'R') { w.Reboot ??= m; Cable.PostEvent("*** 재부팅으로 명령 소멸 " + w.ReqId + " — 다음 프롬프트에서 잠금 해제 ***"); }
+                    if (m.Kind == 'R') { w.Reboot ??= m; Cable.PostEvent(L.T("*** 재부팅으로 명령 소멸 " + w.ReqId + " — 다음 프롬프트에서 잠금 해제 ***", "*** command lost to reboot " + w.ReqId + " — lock released at the next prompt ***")); }
                     else if (m.Kind == 'B' && w.B == null)
                     {
                         w.B = m;
@@ -459,8 +459,10 @@ namespace UartHub
                 foreach (var x in release)
                 {
                     tracker?.EndRun(x.Id, a.Now);
-                    a.hub.Log.Write("직렬화 잠금 해제 " + x.ReqId + (x.Reboot != null && !(Interlocked.Read(ref humanCutSeq) > x.CutSeqAtSend)
-                                    ? " (재부팅으로 명령 소멸 — 재부팅 뒤 프롬프트 확정)" : " (사람 ^C/CR 뒤 프롬프트 확정)"));
+                    a.hub.Log.Write(L.T("직렬화 잠금 해제 " + x.ReqId + (x.Reboot != null && !(Interlocked.Read(ref humanCutSeq) > x.CutSeqAtSend)
+                                    ? " (재부팅으로 명령 소멸 — 재부팅 뒤 프롬프트 확정)" : " (사람 ^C/CR 뒤 프롬프트 확정)"),
+                                    "serialization lock released " + x.ReqId + (x.Reboot != null && !(Interlocked.Read(ref humanCutSeq) > x.CutSeqAtSend)
+                                    ? " (command lost to reboot — prompt confirmed after reboot)" : " (prompt confirmed after human ^C/CR)")));
                 }
             }
 
@@ -489,7 +491,7 @@ namespace UartHub
                                 if (!Cable.IsAttached || t == null)
                                 {
                                     q.RemoveAt(i--);
-                                    r.Complete(a.Error(Cable, 102, "no_cable", "케이블 분리됨").Set("req_id", r.ReqId), 102);
+                                    r.Complete(a.Error(Cable, 102, "no_cable", L.T("케이블 분리됨", "cable detached")).Set("req_id", r.ReqId), 102);
                                     continue;
                                 }
                                 if (now >= r.DeadlineMs) { q.RemoveAt(i--); Expire(r, sn, now); continue; }
@@ -512,8 +514,8 @@ namespace UartHub
                     }
                     catch (Exception e)
                     {
-                        a.hub.Log.Write("arbiter " + Cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message);
-                        (go ?? clear)?.Complete(a.Error(Cable, 103, "hub_down", "허브 내부 오류: " + e.Message), 103);
+                        a.hub.Log.Write(L.T("arbiter " + Cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message, "arbiter " + Cable.Id + " error: " + e.GetType().Name + ": " + e.Message));
+                        (go ?? clear)?.Complete(a.Error(Cable, 103, "hub_down", L.T("허브 내부 오류: " + e.Message, "hub internal error: " + e.Message)), 103);
                         Thread.Sleep(20);
                     }
                 }
@@ -577,11 +579,11 @@ namespace UartHub
                     {
                         if (!first) Thread.Sleep(ProbeKillGapMs);
                         if (!Cable.TryWriteIf(new[] { b }, TxSource.Probe, hseq,
-                                              first ? ">>> [hub-nudge] ^E^U CR " + n + " (연결 뒤 상태 모름 — 남은 줄을 지우고 깨우기, " + sn.StateName + ")" : null)) break;
+                                              first ? L.T(">>> [hub-nudge] ^E^U CR " + n + " (연결 뒤 상태 모름 — 남은 줄을 지우고 깨우기, " + sn.StateName + ")", ">>> [hub-nudge] ^E^U CR " + n + " (state unknown after connect — clear the leftover line and wake, " + sn.StateName + ")") : null)) break;
                         first = false;
                     }
                 }
-                else Cable.TryWriteIf(new byte[] { 0x0d }, TxSource.Probe, hseq, ">>> [hub-nudge] CR " + n + " (재부팅 뒤 프롬프트 깨우기, " + sn.StateName + ")");
+                else Cable.TryWriteIf(new byte[] { 0x0d }, TxSource.Probe, hseq, L.T(">>> [hub-nudge] CR " + n + " (재부팅 뒤 프롬프트 깨우기, " + sn.StateName + ")", ">>> [hub-nudge] CR " + n + " (wake the prompt after reboot, " + sn.StateName + ")"));
             }
 
             /// <summary>§3.3 게이트 판정. 레인 잠금 안(쓰기 없음). 사람 유휴는 추적기 반영분과 Cable 의 송신 시각 중 늦은 쪽으로 본다.</summary>
@@ -591,7 +593,7 @@ namespace UartHub
                 long lastHuman = Math.Max(sn.LastHumanTxMs, cableHumanMs);
                 bool idle = lastHuman == long.MinValue || now - lastHuman >= r.IdleMs;
                 if (r.Kind == TxKind.Run && r.Gate != TxGate.Force && sn.State == PromptState.AtUboot)
-                { code = 106; why = "AT_UBOOT 에서는 run 불가(send 사용)"; return Verdict.Reject; }
+                { code = 106; why = L.T("AT_UBOOT 에서는 run 불가(send 사용)", "run is not allowed at AT_UBOOT (use send)"); return Verdict.Reject; }
                 switch (r.Gate)
                 {
                     case TxGate.Probe:
@@ -627,7 +629,7 @@ namespace UartHub
 
             JObj Busy(TxRequest r, TrackerSnapshot sn, string reason)
             {
-                var o = a.Error(Cable, 101, "busy", "비프롬프트 상태이거나 사용자 사용 중").Set("req_id", r.ReqId).Set("blocked_reason", reason);
+                var o = a.Error(Cable, 101, "busy", L.T("비프롬프트 상태이거나 사용자 사용 중", "not at a prompt, or someone is typing")).Set("req_id", r.ReqId).Set("blocked_reason", reason);
                 if (sn != null)
                 {
                     o.Set("state", sn.StateName).Set("since_ms", Math.Max(0, a.Now - sn.SinceMs)).Set("last_lines", sn.LastLines.Select(RxText.FromLatin1));
@@ -694,14 +696,14 @@ namespace UartHub
             void Requeue(TxRequest r)
             {
                 if (!r.UndoBeginSend()) return;
-                a.hub.Log.Write("송신 직전 사람 입력 → 재대기 " + Cable.Id + " " + Tag(r) + " " + r.ReqId);
+                a.hub.Log.Write(L.T("송신 직전 사람 입력 → 재대기 " + Cable.Id + " " + Tag(r) + " " + r.ReqId, "human input just before send → requeued " + Cable.Id + " " + Tag(r) + " " + r.ReqId));
                 bool late;
                 lock (ls)
                 {
                     late = stop;
                     if (!late) { q.Insert(0, r); Monitor.PulseAll(ls); }
                 }
-                if (late) r.Complete(a.Error(Cable, 103, "hub_down", "허브 정지 중").Set("req_id", r.ReqId), 103);
+                if (late) r.Complete(a.Error(Cable, 103, "hub_down", L.T("허브 정지 중", "hub is stopping")).Set("req_id", r.ReqId), 103);
             }
 
             /// <summary>일부 조각을 보낸 뒤 사람 입력 → 나머지를 버리고 interrupted(101).</summary>
@@ -709,11 +711,11 @@ namespace UartHub
             {
                 Cable.PostEvent("!!! [" + Tag(r) + " " + r.ReqId + "] interrupted (human input)");
                 var o = a.Resp("interrupted", 101, Cable, Cable.Ring.Format(rx0)).Set("req_id", r.ReqId).Set("bytes", (long)sent).Set("state", state)
-                         .Set("blocked_reason", "human_input").Set("error", "조각 송신 중 사람 입력 — 나머지 조각은 보내지 않음");
+                         .Set("blocked_reason", "human_input").Set("error", L.T("조각 송신 중 사람 입력 — 나머지 조각은 보내지 않음", "human input while sending in pieces — the remaining pieces were not sent"));
                 r.Complete(o, 101);
             }
 
-            void NoCable(TxRequest r) => r.Complete(a.Error(Cable, 102, "no_cable", "송신 실패: " + Cable.LastError).Set("req_id", r.ReqId), 102);
+            void NoCable(TxRequest r) => r.Complete(a.Error(Cable, 102, "no_cable", L.T("송신 실패: " + Cable.LastError, "send failed: " + Cable.LastError)).Set("req_id", r.ReqId), 102);
 
             void DoClear(TxRequest r)
             {
@@ -830,7 +832,7 @@ namespace UartHub
                 if (res == Put.NoCable) { NoCable(r); return; }
                 if (late)
                 {
-                    r.Complete(a.Error(Cable, 100, "timeout", "probe deadline 지남 — 앞 바이트만 보내고 CR 은 보내지 않음").Set("req_id", r.ReqId).Set("bytes", (long)sent), 100);
+                    r.Complete(a.Error(Cable, 100, "timeout", L.T("probe deadline 지남 — 앞 바이트만 보내고 CR 은 보내지 않음", "probe deadline passed — only the first bytes were sent, no CR")).Set("req_id", r.ReqId).Set("bytes", (long)sent), 100);
                     return;
                 }
                 long until = Math.Min(r.DeadlineMs, a.Now + ProbeWaitMs);
@@ -881,7 +883,7 @@ namespace UartHub
                     lock (ls) { current = null; lingering.Add(w); }
                     if (started) res.Set("b_ms", Math.Max(0, w.B.Ms - w.SendMs));
                     Output(res, ring, w.B?.End ?? rx0, Math.Max(w.B?.End ?? rx0, w.Reboot.Start));
-                    Cable.PostEvent("!!! [" + Tag(r) + " " + r.ReqId + "] 재부팅으로 명령 소멸(" + (a.Now - w.SendMs) + "ms, " + (started ? "명령이 시작된 뒤" : "명령이 시작되기 전") + ")");
+                    Cable.PostEvent(L.T("!!! [" + Tag(r) + " " + r.ReqId + "] 재부팅으로 명령 소멸(" + (a.Now - w.SendMs) + "ms, " + (started ? "명령이 시작된 뒤" : "명령이 시작되기 전") + ")", "!!! [" + Tag(r) + " " + r.ReqId + "] command lost to reboot (" + (a.Now - w.SendMs) + "ms, " + (started ? "after the command started" : "before the command started") + ")"));
                     res.Set("status", "stranded").Set("exit", 100L).Null("rc").Set("released", false).Set("rebooted", true).Set("started", started);
                     r.Complete(res, 100);
                     return false;
@@ -930,8 +932,10 @@ namespace UartHub
                         if (!released) lingering.Add(w);
                     }
                     if (released) t.EndRun(w.Id, a.Now);
-                    Cable.PostEvent("!!! [" + Tag(r) + " " + r.ReqId + "] stranded (" + (a.Now - w.SendMs) + "ms 동안 B 마커 없음"
-                                    + (released ? ", 사람 입력 뒤 프롬프트로 해제" : ", 줄이 tty 에 남았을 수 있음") + ")");
+                    Cable.PostEvent(L.T("!!! [" + Tag(r) + " " + r.ReqId + "] stranded (" + (a.Now - w.SendMs) + "ms 동안 B 마커 없음"
+                                    + (released ? ", 사람 입력 뒤 프롬프트로 해제" : ", 줄이 tty 에 남았을 수 있음") + ")",
+                                    "!!! [" + Tag(r) + " " + r.ReqId + "] stranded (no B marker for " + (a.Now - w.SendMs) + "ms"
+                                    + (released ? ", released at the prompt after human input" : ", the line may be left in the tty") + ")"));
                     res.Set("status", "stranded").Set("exit", 100L).Null("rc").Set("released", released);
                     r.Complete(res, 100);
                     return false;

@@ -95,13 +95,19 @@ namespace UartHub
             "missed" => 10, _ => 0,
         };
 
-        /// <summary>사람이 읽는 이름. causeKind = 부팅의 cause 종류("panic 후 리셋"), of = confirm 이 확인한 종류("panic 뒤 응답 없음").</summary>
-        public static string Label(string kind, string cls, string causeKind = null, string of = null) => kind switch
+        /// <summary>
+        /// 사람이 읽는 이름. causeKind = 부팅의 cause 종류("panic 후 리셋"), of = confirm 이 확인한 종류("panic 뒤 응답 없음").
+        /// lang null = 지금 언어(이벤트 txt 머리는 세션 언어).
+        /// </summary>
+        public static string Label(string kind, string cls, string causeKind = null, string of = null, string lang = null) => kind switch
         {
-            "panic" => "Kernel panic", "oops" => "커널 Oops", "bug" => "커널 BUG·경고", "oom" => "메모리 부족(OOM)", "app_error" => "앱 오류",
-            "boot" => causeKind != null ? causeKind + " 후 리셋(" + cls + ")" : cls == "cmd" ? "재부팅(명령)" : "예상 못 한 재부팅(" + cls + ")",
-            "confirm" => (of ?? "panic") + " 뒤 응답 없음(멈춤 의심)",
-            "missed" => "로그 놓침(검사 못 한 구간)", "attach" => "연결", "detach" => "분리", _ => kind,
+            "panic" => "Kernel panic", "oops" => AgingLang.T(lang, "커널 Oops", "Kernel Oops"), "bug" => AgingLang.T(lang, "커널 BUG·경고", "Kernel BUG/warning"),
+            "oom" => AgingLang.T(lang, "메모리 부족(OOM)", "Out of memory (OOM)"), "app_error" => AgingLang.T(lang, "앱 오류", "App error"),
+            "boot" => causeKind != null ? AgingLang.T(lang, causeKind + " 후 리셋(" + cls + ")", "Reset after " + causeKind + " (" + cls + ")")
+                    : cls == "cmd" ? AgingLang.T(lang, "재부팅(명령)", "Reboot (command)") : AgingLang.T(lang, "예상 못 한 재부팅(" + cls + ")", "Unexpected reboot (" + cls + ")"),
+            "confirm" => AgingLang.T(lang, (of ?? "panic") + " 뒤 응답 없음(멈춤 의심)", "No response after " + (of ?? "panic") + " (suspected hang)"),
+            "missed" => AgingLang.T(lang, "로그 놓침(검사 못 한 구간)", "Log missed (span not checked)"), "attach" => AgingLang.T(lang, "연결", "Connected"),
+            "detach" => AgingLang.T(lang, "분리", "Disconnected"), _ => kind,
         };
     }
 
@@ -216,7 +222,7 @@ namespace UartHub
 
         public void Write(string text)
         {
-            if (q.Count >= MaxPending) Drop(q.Dequeue(), "대기열 " + MaxPending + "줄 넘침");
+            if (q.Count >= MaxPending) Drop(q.Dequeue(), L.T("대기열 " + MaxPending + "줄 넘침", "queue over " + MaxPending + " lines"));
             q.Enqueue(Utf8.GetBytes(text));
             Flush(failing ? 0 : 2000);
         }
@@ -236,9 +242,9 @@ namespace UartHub
         public void Close(int budgetMs)
         {
             Flush(budgetMs);
-            while (q.Count > 0) Drop(q.Dequeue(), "닫을 때까지 쓰지 못함");
+            while (q.Count > 0) Drop(q.Dequeue(), L.T("닫을 때까지 쓰지 못함", "not written before close"));
             if (!perLine && dropped > 0)
-                hlog?.Write(what + " " + dropped + "줄 버림(" + Path + ") — 첫 줄: " + firstDrop);
+                hlog?.Write(L.T(what + " " + dropped + "줄 버림(" + Path + ") — 첫 줄: " + firstDrop, what + ": dropped " + dropped + " line(s) (" + Path + ") — first line: " + firstDrop));
             try { fs?.Dispose(); } catch (Exception) { }
             fs = null;
         }
@@ -261,13 +267,18 @@ namespace UartHub
                     fs.Flush();
                     q.Dequeue();
                     budget?.Add(b.Length);
-                    if (failing) { failing = false; hlog?.Write(what + " 쓰기 회복(" + Path + ")"); }
+                    if (failing) { failing = false; hlog?.Write(L.T(what + " 쓰기 회복(" + Path + ")", what + ": write recovered (" + Path + ")")); }
                 }
                 catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
                 {
                     try { fs?.Dispose(); } catch (Exception) { }
                     fs = null;
-                    if (!failing) { failing = true; hlog?.WriteThrottled("safefile|" + Path, what + " 쓰기 실패(" + Path + "): " + e.GetType().Name + ": " + e.Message + " — 다시 시도(대기열 " + q.Count + "줄)"); }
+                    if (!failing)
+                    {
+                        failing = true;
+                        hlog?.WriteThrottled("safefile|" + Path, L.T(what + " 쓰기 실패(" + Path + "): " + e.GetType().Name + ": " + e.Message + " — 다시 시도(대기열 " + q.Count + "줄)",
+                                                                     what + ": write failed (" + Path + "): " + e.GetType().Name + ": " + e.Message + " — retrying (queue " + q.Count + " lines)"));
+                    }
                     long left = deadline - Environment.TickCount64;
                     if (left <= 0) return;
                     Thread.Sleep((int)Math.Min(delay, left));
@@ -280,7 +291,7 @@ namespace UartHub
         {
             dropped++;
             string t = Utf8.GetString(b).TrimEnd('\r', '\n');
-            if (perLine) hlog?.Write(what + " 버림(" + why + ", " + Path + "): " + t);
+            if (perLine) hlog?.Write(L.T(what + " 버림(" + why + ", " + Path + "): " + t, what + ": dropped (" + why + ", " + Path + "): " + t));
             else firstDrop ??= t.Length > 300 ? t.Substring(0, 300) + "…" : t;
         }
     }
@@ -321,6 +332,7 @@ namespace UartHub
         readonly string dir;
         readonly string txtDir;               // log_layout 2: 에이징 이벤트 txt 뿌리(<기준>\에이징이벤트). null = Phase A(앞뒤 로그를 jsonl 옆 <날짜> 폴더에)
         readonly bool flatTxt;                // 에이징 세션(부록 C.12): txtDir = <세션 폴더>\이벤트, 이름 <HHMMSS>_<종류>.txt(날짜 폴더·보드·포트 없음)
+        readonly string lang;                 // txt 이름·글의 언어(세션 = 세션 언어, 그 밖 = 만들 때의 지금 언어) — jsonl·hub.log 는 지금 언어(L.T)
         readonly HashSet<string> fileKinds;   // log_layout 2 에서 txt 를 만드는 종류(알림 종류 ∩ 커널·앱 오류)
         string com;                           // 마지막 연결의 COM(txt 머리)
         readonly int port;
@@ -406,9 +418,12 @@ namespace UartHub
         /// <param name="board">지금 보드명(없으면 null). <paramref name="logPath"/> 지금 기록 중인 .log(없으면 null). budget = 폴더 크기 예산(없으면 무제한).</param>
         /// <param name="txtDir">log_layout 2 의 에이징 이벤트 txt 뿌리(null = Phase A 배치 — 앞뒤 로그를 eventsDir\&lt;날짜&gt; 에).</param>
         /// <param name="flatTxt">에이징 세션의 이벤트 폴더(txtDir = &lt;세션 폴더&gt;\이벤트): 이름 &lt;HHMMSS&gt;_&lt;종류&gt;[_의심].txt, 날짜 폴더 없음(부록 C.12).</param>
-        public EventScanner(string eventsDir, int port, string cable, Func<string> board, Func<string> logPath, EventPatterns pats, Config cfg, HubLog hlog, EventsBudget budget = null, string txtDir = null, bool flatTxt = false)
+        /// <param name="lang">txt 이름·글의 언어("ko"|"en" — 세션이면 세션 언어). null = 지금 언어(만들 때 정해 바꾸지 않는다).</param>
+        public EventScanner(string eventsDir, int port, string cable, Func<string> board, Func<string> logPath, EventPatterns pats, Config cfg, HubLog hlog, EventsBudget budget = null, string txtDir = null, bool flatTxt = false,
+                            string lang = null)
         {
             dir = eventsDir; this.txtDir = txtDir; this.flatTxt = flatTxt && txtDir != null; this.port = port;
+            this.lang = lang == L.En || lang == L.Ko ? lang : L.Current;
             fileKinds = new HashSet<string>((cfg.Events?.Notify ?? (IEnumerable<string>)EventKinds.NotifyDefault).Where(EventKinds.IsError), StringComparer.Ordinal); this.cable = cable; this.board = board ?? (() => null); this.logPath = logPath ?? (() => null);
             this.pats = pats; this.hlog = hlog; this.budget = budget;
             bootRe = new Regex(cfg.BootRe, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
@@ -416,11 +431,15 @@ namespace UartHub
             shellPromptRe = string.IsNullOrEmpty(cfg.PromptRe) ? null : new Regex(cfg.PromptRe, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
             ubootPromptRe = string.IsNullOrEmpty(cfg.UbootPromptRe) ? null : new Regex(cfg.UbootPromptRe, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
             bootMergeMs = cfg.BootMergeMs;
-            jsonl = new SafeFile(JsonlPath, "사건 기록 :" + port, hlog, budget, true);
+            jsonl = new SafeFile(JsonlPath, L.T("사건 기록 :" + port, "event record :" + port), hlog, budget, true);
             LoadState();
         }
 
         public string JsonlPath => System.IO.Path.Combine(dir, port.ToString(CultureInfo.InvariantCulture) + ".jsonl");
+        /// <summary>txt 이름·글의 언어("ko"|"en").</summary>
+        public string Lang => lang;
+        /// <summary>txt 에 쓰는 글(이 판정기의 언어 — 세션이면 세션 언어).</summary>
+        string Tx(string ko, string en) => AgingLang.T(lang, ko, en);
         public long BootSeq => bootSeq;
         /// <summary>jsonl 의 마지막 기록 시각·종류(이 판정기를 만들 때 읽은 것, 없으면 null).</summary>
         public DateTimeOffset? LastRecordTs { get; private set; }
@@ -511,8 +530,10 @@ namespace UartHub
             ResetShell();
             lastRxMono = lastTxMono = long.MinValue;
             if (com != null) this.com = com;
-            string line = (reason == "reattach" ? "케이블 다시 연결" : reason == "session" ? "에이징 세션 시작" : reason == "session_end" ? "에이징 세션 끝" : "허브가 이 케이블 기록 시작") + " " + (com ?? "")
-                          + (reason == "session" || reason == "session_end" ? "" : gapS.HasValue ? " — 그 전 기록 공백 " + gapS.Value.ToString("0.0", CultureInfo.InvariantCulture) + "초" : " — 그 전 기록 없음");
+            string line = L.T((reason == "reattach" ? "케이블 다시 연결" : reason == "session" ? "에이징 세션 시작" : reason == "session_end" ? "에이징 세션 끝" : "허브가 이 케이블 기록 시작") + " " + (com ?? "")
+                              + (reason == "session" || reason == "session_end" ? "" : gapS.HasValue ? " — 그 전 기록 공백 " + gapS.Value.ToString("0.0", CultureInfo.InvariantCulture) + "초" : " — 그 전 기록 없음"),
+                              (reason == "reattach" ? "Cable reconnected" : reason == "session" ? "Aging started" : reason == "session_end" ? "Aging ended" : "Hub started recording this cable") + " " + (com ?? "")
+                              + (reason == "session" || reason == "session_end" ? "" : gapS.HasValue ? " — gap before: " + gapS.Value.ToString("0.0", CultureInfo.InvariantCulture) + " s" : " — no earlier record"));
             Emit("attach", null, line, wall, mono, rxOff, null, false, o =>
             {
                 o.Set("com", com).Set("reason", reason);
@@ -527,8 +548,9 @@ namespace UartHub
             CloseExpired(mono);
             ResetShell();
             pending = null;
-            Settle(c => c.Result ??= "결과: 케이블이 분리되어 확인하지 못했습니다.");
-            Emit("detach", null, "케이블 분리 — 이 뒤 다시 붙을 때까지 기록 없음" + (reason != null ? " (" + reason + ")" : ""), wall, mono, rxOff, null, false, o => o.Set("reason", reason));
+            Settle(c => c.Result ??= Tx("결과: 케이블이 분리되어 확인하지 못했습니다.", "Result: not checked, the cable was disconnected."));
+            Emit("detach", null, L.T("케이블 분리 — 이 뒤 다시 붙을 때까지 기록 없음" + (reason != null ? " (" + reason + ")" : ""),
+                                     "Cable disconnected — no record until it is connected again" + (reason != null ? " (" + reason + ")" : "")), wall, mono, rxOff, null, false, o => o.Set("reason", reason));
         }
 
         void ResetShell()
@@ -655,7 +677,7 @@ namespace UartHub
                     if (suspect && !pending.HasValue) pending = (mono, kind, display, wall, ctxPath);
                 }
             }
-            foreach (var c in open.Where(x => x.After >= AfterLines).ToList()) CloseCtx(c, "뒤 " + AfterLines + "줄 채움");
+            foreach (var c in open.Where(x => x.After >= AfterLines).ToList()) CloseCtx(c, Tx("뒤 " + AfterLines + "줄 채움", AfterLines + " lines after collected"));
 
             before.Enqueue((wall, display));
             while (before.Count > BeforeLines) before.Dequeue();
@@ -670,10 +692,12 @@ namespace UartHub
         public void OnLost(long skipped, DateTime wall, long mono, string rxOff)
         {
             CloseExpired(mono);
-            string text = "*** 링 버퍼 놓침 " + skipped.ToString(CultureInfo.InvariantCulture) + "바이트 — 이 사이 줄은 검사·기록하지 못함 ***";
+            string text = Tx("*** 링 버퍼 놓침 " + skipped.ToString(CultureInfo.InvariantCulture) + "바이트 — 이 사이 줄은 검사·기록하지 못함 ***",
+                             "*** Ring buffer missed " + skipped.ToString(CultureInfo.InvariantCulture) + " bytes — lines in this span were not checked or recorded ***");
             foreach (var c in open) Append(c, "    " + Stamp(wall) + text + "\r\n");
             promptPending = typing = false;
-            Emit("missed", null, "링 버퍼를 놓쳐 " + skipped.ToString(CultureInfo.InvariantCulture) + "바이트를 검사하지 못함", wall, mono, rxOff, null, false, o => o.Set("skipped", skipped));
+            Emit("missed", null, Tx("링 버퍼를 놓쳐 " + skipped.ToString(CultureInfo.InvariantCulture) + "바이트를 검사하지 못함",
+                                    "Ring buffer missed: " + skipped.ToString(CultureInfo.InvariantCulture) + " bytes not checked"), wall, mono, rxOff, null, false, o => o.Set("skipped", skipped));
         }
 
         /// <summary>시간만 흐름(줄 없음): 30초 지난 앞뒤 로그를 닫고, suspect panic 뒤 30초 무응답이면 confirm, 못 쓴 줄을 다시 쓴다.</summary>
@@ -688,7 +712,8 @@ namespace UartHub
                 double quiet = Math.Round((mono - lastRxMono) / 1000.0, 1);
                 Emit("confirm", null, p.Line, wall, mono, null, p.Context, false, o => o.Set("of", p.Kind).Set("suspect_ts", EventLog.Ts(p.Wall)).Set("silence_s", quiet));
                 if (p.Context != null)
-                    Settle(c => { if (c.Result == null && string.Equals(c.Path, p.Context, StringComparison.OrdinalIgnoreCase)) c.Result = "결과: 응답 없음. " + quiet.ToString("0", CultureInfo.InvariantCulture) + "초 동안 출력이 없어 보드가 멈췄을 수 있습니다."; });
+                    Settle(c => { if (c.Result == null && string.Equals(c.Path, p.Context, StringComparison.OrdinalIgnoreCase)) c.Result = Tx("결과: 응답 없음. " + quiet.ToString("0", CultureInfo.InvariantCulture) + "초 동안 출력이 없어 보드가 멈췄을 수 있습니다.",
+                                                                                                                                   "Result: no response. No output for " + quiet.ToString("0", CultureInfo.InvariantCulture) + " s; the board may have hung."); });
             }
             if (txtDir != null)                                                                  // 결과 창이 지난 txt: 무음이면 응답 없음, 아니면 계속 동작
                 Settle(c =>
@@ -697,8 +722,10 @@ namespace UartHub
                     if (pending.HasValue && string.Equals(pending.Value.Context, c.Path, StringComparison.OrdinalIgnoreCase)) return;   // confirm 이 판정한다
                     double quietS = lastRxMono == long.MinValue ? double.MaxValue : (mono - lastRxMono) / 1000.0;
                     c.Result = c.Kind == "panic" && quietS >= ConfirmQuietS                       // panic 뒤 조용함 = 멈춤(Oops·앱 오류 뒤 조용한 프롬프트는 정상일 수 있다)
-                        ? "결과: 응답 없음. " + Math.Min(quietS, 9999).ToString("0", CultureInfo.InvariantCulture) + "초 동안 출력이 없어 보드가 멈췄을 수 있습니다."
-                        : "결과: 계속 동작. " + ResultS.ToString("0", CultureInfo.InvariantCulture) + "초 안에 재부팅이 없었습니다.";
+                        ? Tx("결과: 응답 없음. " + Math.Min(quietS, 9999).ToString("0", CultureInfo.InvariantCulture) + "초 동안 출력이 없어 보드가 멈췄을 수 있습니다.",
+                             "Result: no response. No output for " + Math.Min(quietS, 9999).ToString("0", CultureInfo.InvariantCulture) + " s; the board may have hung.")
+                        : Tx("결과: 계속 동작. " + ResultS.ToString("0", CultureInfo.InvariantCulture) + "초 안에 재부팅이 없었습니다.",
+                             "Result: kept running. No reboot within " + ResultS.ToString("0", CultureInfo.InvariantCulture) + " s.");
                 });
             jsonl.Retry();
             foreach (var c in open) c.File?.Retry();
@@ -712,7 +739,7 @@ namespace UartHub
         /// <summary>끝(허브 정지 등): 열린 앞뒤 로그를 모두 닫고 남은 쓰기를 2초까지 마저 한다(못 쓴 줄은 hub.log 에).</summary>
         public void Close(string why)
         {
-            Settle(c => c.Result ??= "결과: 기록이 끝나 확인하지 못했습니다(" + why + ").");
+            Settle(c => c.Result ??= Tx("결과: 기록이 끝나 확인하지 못했습니다(" + why + ").", "Result: not checked, recording ended (" + why + ")."));
             foreach (var c in open.ToList()) CloseCtx(c, why);
             foreach (var f in closing.ToList()) f.Close(1000);
             closing.Clear();
@@ -807,8 +834,10 @@ namespace UartHub
                 Settle(c =>
                 {
                     if (c.Result != null || c.BootSeq >= bootSeq || mono - c.LastMono > ResultS * 1000) return;
-                    c.Result = "결과: " + t + "에 재부팅했습니다(" + BootText(cls) + ")."
-                               + (c.Suspect && (c.Kind == "panic" || c.Kind == "oops") ? " 이 재부팅으로 실제로 일어난 일로 확인되었습니다." : "");
+                    c.Result = Tx("결과: " + t + "에 재부팅했습니다(" + BootText(cls) + ")."
+                                  + (c.Suspect && (c.Kind == "panic" || c.Kind == "oops") ? " 이 재부팅으로 실제로 일어난 일로 확인되었습니다." : ""),
+                                  "Result: rebooted at " + t + " (" + BootText(cls) + ")."
+                                  + (c.Suspect && (c.Kind == "panic" || c.Kind == "oops") ? " This reboot confirms it really happened." : ""));
                 });
             }
             string bctx = bc?.Path ?? (txtDir != null ? cause?.Context : null);                 // log_layout 2: panic·oops 뒤 부팅은 그 txt
@@ -833,7 +862,8 @@ namespace UartHub
         }
 
         void PatternTimeout(string pattern)
-            => hlog?.WriteThrottled("events-re|" + port + "|" + pattern, "사건 감지 :" + port + " 패턴 시간 초과(200ms, 맞지 않음으로 봄): " + pattern);
+            => hlog?.WriteThrottled("events-re|" + port + "|" + pattern, L.T("사건 감지 :" + port + " 패턴 시간 초과(200ms, 맞지 않음으로 봄): " + pattern,
+                                                                                  "event detection :" + port + " pattern timed out (200 ms, treated as no match): " + pattern));
 
         /// <summary>
         /// 에코인가(판정하지 않음): 프롬프트 + 최근 2초 송신 줄 안의 글자, 그 송신 줄의 일부(3글자 이상 — 80열 접힘), 사람이 치는 중인 줄(typingPartial).
@@ -860,7 +890,7 @@ namespace UartHub
         // ================================================================== 앞뒤 로그
         void CloseExpired(long mono)
         {
-            foreach (var c in open.Where(x => mono - x.StartMono >= AfterS * 1000).ToList()) CloseCtx(c, AfterS.ToString(CultureInfo.InvariantCulture) + "초 지남");
+            foreach (var c in open.Where(x => mono - x.StartMono >= AfterS * 1000).ToList()) CloseCtx(c, Tx(AfterS.ToString(CultureInfo.InvariantCulture) + "초 지남", AfterS.ToString(CultureInfo.InvariantCulture) + " s passed"));
         }
 
         /// <summary>
@@ -883,10 +913,14 @@ namespace UartHub
         {
             if (skipState.TryGetValue(kind, out var st) && st == why) return;
             skipState[kind] = why;
-            hlog?.Write("사건 감지 :" + port + " 앞뒤 로그 줄임(" + kind + ") — " + (why == "disk"
+            hlog?.Write(L.T("사건 감지 :" + port + " 앞뒤 로그 줄임(" + kind + ") — " + (why == "disk"
                 ? "events 폴더가 " + (budget.MaxBytes / (1024 * 1024)) + "MB 를 넘음: 앞뒤 로그를 더 만들지 않음(지우지 않음, jsonl 에는 계속 기록)"
                 : why == "hourly" ? "이 포트 앞뒤 로그가 1시간에 " + MaxFilesPerPortHour + "개를 넘음(jsonl 에는 모두 기록)"
-                : "같은 부팅에서 같은 종류가 잦음: 1시간에 " + FreeFilesPerKindHour + "개 뒤로는 " + (KindRateS / 60).ToString("0", CultureInfo.InvariantCulture) + "분에 1개만(jsonl 에는 모두 기록)"));
+                : "같은 부팅에서 같은 종류가 잦음: 1시간에 " + FreeFilesPerKindHour + "개 뒤로는 " + (KindRateS / 60).ToString("0", CultureInfo.InvariantCulture) + "분에 1개만(jsonl 에는 모두 기록)"),
+                "event detection :" + port + " fewer context logs (" + kind + ") — " + (why == "disk"
+                ? "events folder is over " + (budget.MaxBytes / (1024 * 1024)) + " MB: no more context logs (nothing deleted, jsonl keeps recording)"
+                : why == "hourly" ? "this port made over " + MaxFilesPerPortHour + " context logs in 1 hour (jsonl records all)"
+                : "same kind repeats in one boot: after " + FreeFilesPerKindHour + " per hour, only 1 every " + (KindRateS / 60).ToString("0", CultureInfo.InvariantCulture) + " min (jsonl records all)")));
         }
 
         /// <summary>새 묶음. 예산 밖이면 파일 없이 묶기만 하고(같은 사건의 연속 줄이 새 사건이 되지 않게) 이유를 남긴다.</summary>
@@ -940,17 +974,20 @@ namespace UartHub
             }
             usedNames.Add(p);
             c.Path = p;
-            c.File = new SafeFile(p, "앞뒤 로그 :" + port, hlog, budget, false);
-            string since = SinceBoot(wall, mono) is double sb ? " (부팅 뒤 " + sb.ToString("0.0", CultureInfo.InvariantCulture) + "초)" : "";
+            c.File = new SafeFile(p, L.T("앞뒤 로그 :" + port, "context log :" + port), hlog, budget, false);
+            string since = SinceBoot(wall, mono) is double sb ? Tx(" (부팅 뒤 " + sb.ToString("0.0", CultureInfo.InvariantCulture) + "초)", " (" + sb.ToString("0.0", CultureInfo.InvariantCulture) + " s after boot)") : "";
             var sbd = new StringBuilder();
-            sbd.Append("# UART 허브 사건 기록 — ").Append(kind).Append(" (").Append(EventKinds.Label(kind, null)).Append(")\r\n");
-            sbd.Append("# 시각 ").Append(wall.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)).Append(" · 포트 ").Append(port).Append(" · 케이블 ").Append(cable)
-               .Append(" · 보드 ").Append(board() ?? "unknown").Append(" · 부팅 #").Append(bootSeq).Append(since).Append("\r\n");
-            sbd.Append("# 원본 로그 ").Append(logPath() ?? "(없음)").Append(" · rx_offset ").Append(rxOff).Append("\r\n");
-            if (skipped > 0) sbd.Append("# 이 파일 전 같은 종류 ").Append(skipped).Append("건은 앞뒤 로그 없이 jsonl 에만(예산)\r\n");
+            sbd.Append(Tx("# UART 허브 사건 기록 — ", "# UART Hub event record — ")).Append(kind).Append(" (").Append(EventKinds.Label(kind, null, lang: lang)).Append(")\r\n");
+            sbd.Append(Tx("# 시각 ", "# Time ")).Append(wall.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)).Append(Tx(" · 포트 ", " · port ")).Append(port).Append(Tx(" · 케이블 ", " · cable ")).Append(cable)
+               .Append(Tx(" · 보드 ", " · board ")).Append(board() ?? "unknown").Append(Tx(" · 부팅 #", " · boot #")).Append(bootSeq).Append(since).Append("\r\n");
+            sbd.Append(Tx("# 원본 로그 ", "# Source log ")).Append(logPath() ?? Tx("(없음)", "(none)")).Append(" · rx_offset ").Append(rxOff).Append("\r\n");
+            if (skipped > 0) sbd.Append(Tx("# 이 파일 전 같은 종류 " + skipped + "건은 앞뒤 로그 없이 jsonl 에만(예산)\r\n",
+                                            "# " + skipped + " earlier event(s) of this kind are in jsonl only, without a context log (budget)\r\n"));
             sbd.Append(collect
-                ? "# 앞 " + BeforeLines + "줄(있는 만큼) · '>>>' = 사건 줄 · 뒤 " + AfterLines + "줄 또는 " + AfterS.ToString(CultureInfo.InvariantCulture) + "초 — 다 모을 때까지 이 파일에 이어 쓰고 끝에 '# 끝' 줄을 남긴다\r\n"
-                : "# 앞 " + BeforeLines + "줄(있는 만큼) · '>>>' = 부팅 줄(그 전 부팅의 마지막 줄들이 증거)\r\n");
+                ? Tx("# 앞 " + BeforeLines + "줄(있는 만큼) · '>>>' = 사건 줄 · 뒤 " + AfterLines + "줄 또는 " + AfterS.ToString(CultureInfo.InvariantCulture) + "초 — 다 모을 때까지 이 파일에 이어 쓰고 끝에 '# 끝' 줄을 남긴다\r\n",
+                     "# " + BeforeLines + " lines before (as many as there are) · '>>>' = event line · " + AfterLines + " lines or " + AfterS.ToString(CultureInfo.InvariantCulture) + " s after — appended until done, then an '# end' line\r\n")
+                : Tx("# 앞 " + BeforeLines + "줄(있는 만큼) · '>>>' = 부팅 줄(그 전 부팅의 마지막 줄들이 증거)\r\n",
+                     "# " + BeforeLines + " lines before (as many as there are) · '>>>' = boot line (the last lines of the previous boot are the evidence)\r\n"));
             foreach (var b in before) sbd.Append("    ").Append(Stamp(b.Wall)).Append(b.Text).Append("\r\n");
             sbd.Append(">>> ").Append(Stamp(wall)).Append(display).Append("\r\n");
             c.File.Write(sbd.ToString());
@@ -960,11 +997,11 @@ namespace UartHub
         Ctx BootCtx(string cls, string display, DateTime wall, long mono, string rxOff, bool exempt)
         {
             var c = NewCtx("boot", "boot", false, display, wall, mono, rxOff, false, exempt);
-            if (c.File != null) { c.File.Write("# 끝 — 부팅 " + cls + " 앞 줄(" + before.Count + "줄)" + Skips(c) + "\r\n"); Retire(c.File); }
+            if (c.File != null) { c.File.Write(Tx("# 끝 — 부팅 " + cls + " 앞 줄(" + before.Count + "줄)", "# end — lines before boot " + cls + " (" + before.Count + " lines)") + Skips(c) + "\r\n"); Retire(c.File); }
             return c;
         }
 
-        static string Skips(Ctx c) => c.SkippedBefore > 0 ? ", 이 파일 전 앞뒤 로그 생략 " + c.SkippedBefore + "건" : "";
+        string Skips(Ctx c) => c.SkippedBefore > 0 ? Tx(", 이 파일 전 앞뒤 로그 생략 " + c.SkippedBefore + "건", ", " + c.SkippedBefore + " earlier context log(s) skipped") : "";
 
         void WriteLine(Ctx c, bool mark, DateTime wall, string display) => Append(c, (mark ? ">>> " : "    ") + Stamp(wall) + display + "\r\n");
 
@@ -987,7 +1024,8 @@ namespace UartHub
                 Retire(c.File);
                 return;
             }
-            c.File.Write("# 끝 — " + why + " (뒤 " + c.After + "줄, 사건 줄 " + c.Marked + "개: " + string.Join(", ", c.Kinds) + Skips(c) + ")\r\n");
+            c.File.Write(Tx("# 끝 — " + why + " (뒤 " + c.After + "줄, 사건 줄 " + c.Marked + "개: " + string.Join(", ", c.Kinds) + Skips(c) + ")\r\n",
+                            "# end — " + why + " (" + c.After + " lines after, " + c.Marked + " event line(s): " + string.Join(", ", c.Kinds) + Skips(c) + ")\r\n"));
             Retire(c.File);
         }
 
@@ -1008,13 +1046,13 @@ namespace UartHub
                 decide(c);
                 if (c.Result == null) continue;
                 waiting.Remove(c);
-                var f = new SafeFile(c.Path, "에이징 이벤트 :" + port, hlog, budget, false);
+                var f = new SafeFile(c.Path, L.T("에이징 이벤트 :" + port, "aging event :" + port), hlog, budget, false);
                 f.Write("\r\n" + c.Result + "\r\n");
                 Retire(f);
             }
         }
 
-        static string BootText(string cls) => cls == "hard" ? "하드 리셋" : cls == "soft" ? "소프트 재부팅" : cls == "cmd" ? "명령으로 재부팅" : cls;
+        string BootText(string cls) => cls == "hard" ? Tx("하드 리셋", "hard reset") : cls == "soft" ? Tx("소프트 재부팅", "soft reboot") : cls == "cmd" ? Tx("명령으로 재부팅", "reboot by command") : cls;
 
         /// <summary>새 종류가 묶음의 대표보다 심한가(panic &gt; oops &gt; app_error), 같은 종류면 실시간이 의심을 이긴다.</summary>
         static bool Worse(string kind, bool suspect, Ctx c)
@@ -1023,14 +1061,17 @@ namespace UartHub
             return a > b || (a == b && c.Suspect && !suspect);
         }
 
-        /// <summary>txt 파일 이름의 종류: 커널패닉 · Oops · 앱오류_&lt;코드 또는 첫 낱말&gt;(프로필 app_codes 의 코드 …) · BUG · OOM.</summary>
+        /// <summary>
+        /// txt 파일 이름의 종류(이 판정기의 언어 — 계획 §4): 커널패닉 · Oops · 앱오류_&lt;코드 또는 첫 낱말&gt;(프로필 app_codes 의 코드 …) · BUG · OOM
+        /// ↔ kernel-panic · oops · app-error_&lt;code&gt; · bug · oom.
+        /// </summary>
         string TxtKind(string kind, string line) => kind switch
         {
-            "panic" => "커널패닉",
-            "oops" => "Oops",
-            "bug" => "BUG",
-            "oom" => "OOM",
-            "app_error" => "앱오류_" + AppCode(line),
+            "panic" => Tx("커널패닉", "kernel-panic"),
+            "oops" => Tx("Oops", "oops"),
+            "bug" => Tx("BUG", "bug"),
+            "oom" => Tx("OOM", "oom"),
+            "app_error" => Tx("앱오류_", "app-error_") + AppCode(line),
             _ => kind,
         };
 
@@ -1048,7 +1089,7 @@ namespace UartHub
                 catch (RegexMatchTimeoutException) { }
             }
             string w = (hit ?? line).Trim().Split(new[] { ' ', '\t', ':', '=', ',' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-            return string.IsNullOrEmpty(w) ? "알수없음" : w.Length > 40 ? w.Substring(0, 40) : w;
+            return string.IsNullOrEmpty(w) ? Tx("알수없음", "unknown") : w.Length > 40 ? w.Substring(0, 40) : w;
         }
 
         /// <summary>파일 이름에 못 쓰는 글자(와 공백)는 '_'.</summary>
@@ -1065,9 +1106,9 @@ namespace UartHub
         {
             string day = flatTxt ? txtDir : System.IO.Path.Combine(txtDir, c.NameWall.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
             string name = flatTxt
-                ? FileSafe(c.NameWall.ToString("HHmmss", CultureInfo.InvariantCulture) + "_" + TxtKind(c.Kind, c.Line) + (c.Suspect ? "_의심" : ""))
+                ? FileSafe(c.NameWall.ToString("HHmmss", CultureInfo.InvariantCulture) + "_" + TxtKind(c.Kind, c.Line) + (c.Suspect ? Tx("_의심", "_suspect") : ""))
                 : FileSafe(c.NameWall.ToString("HHmmss", CultureInfo.InvariantCulture) + "_" + (string.IsNullOrWhiteSpace(board()) ? "unknown" : board().Trim())
-                                   + "(" + port.ToString(CultureInfo.InvariantCulture) + ")_" + TxtKind(c.Kind, c.Line) + (c.Suspect ? "_의심" : ""));
+                                   + "(" + port.ToString(CultureInfo.InvariantCulture) + ")_" + TxtKind(c.Kind, c.Line) + (c.Suspect ? Tx("_의심", "_suspect") : ""));
             string p = null;
             for (int n = 1; n < 1000; n++)
             {
@@ -1082,22 +1123,24 @@ namespace UartHub
         string TxtHead(Ctx c)
         {
             var sb = new StringBuilder();
-            string what = EventKinds.Label(c.Kind, null) + (c.Kind == "app_error" ? " " + AppCode(c.Line) : "");
-            sb.Append("이벤트 종류: ").Append(what).Append(c.Suspect ? " (의심)" : "").Append("\r\n");
-            sb.Append("보드: ").Append(string.IsNullOrWhiteSpace(board()) ? "알 수 없음" : board()).Append(" (포트 ").Append(port.ToString(CultureInfo.InvariantCulture))
+            string what = EventKinds.Label(c.Kind, null, lang: lang) + (c.Kind == "app_error" ? " " + AppCode(c.Line) : "");
+            sb.Append(Tx("이벤트 종류: ", "Event: ")).Append(what).Append(c.Suspect ? Tx(" (의심)", " (suspect)") : "").Append("\r\n");
+            sb.Append(Tx("보드: ", "Board: ")).Append(string.IsNullOrWhiteSpace(board()) ? Tx("알 수 없음", "unknown") : board()).Append(Tx(" (포트 ", " (port ")).Append(port.ToString(CultureInfo.InvariantCulture))
               .Append(com != null ? " · " + com : "").Append(")\r\n");
-            sb.Append("시각: ").Append(c.Wall.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture))
-              .Append(c.SinceBoot is double sb2 ? " (부팅 후 " + sb2.ToString("0.0", CultureInfo.InvariantCulture) + "초)" : "").Append("\r\n");
-            sb.Append("원인 줄: ").Append(Trunc(c.Line, MaxLineChars)).Append("\r\n");
-            sb.Append("콘솔 로그 파일: ").Append(c.LogPath ?? "(없음)").Append("\r\n");
+            sb.Append(Tx("시각: ", "Time: ")).Append(c.Wall.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture))
+              .Append(c.SinceBoot is double sb2 ? Tx(" (부팅 후 " + sb2.ToString("0.0", CultureInfo.InvariantCulture) + "초)", " (" + sb2.ToString("0.0", CultureInfo.InvariantCulture) + " s after boot)") : "").Append("\r\n");
+            sb.Append(Tx("원인 줄: ", "Cause line: ")).Append(Trunc(c.Line, MaxLineChars)).Append("\r\n");
+            sb.Append(Tx("콘솔 로그 파일: ", "Console log file: ")).Append(c.LogPath ?? Tx("(없음)", "(none)")).Append("\r\n");
             if (c.Suspect)
-                sb.Append("의심 이유: 사람이나 Claude가 친 명령의 출력 속에 있던 줄입니다. 옛 로그를 다시 보여 준 것일 수 있어 알림을 띄우지 않았습니다. 결과 줄에서 실제로 재부팅했는지 확인하세요.\r\n");
-            if (c.SkippedBefore > 0) sb.Append("참고: 이 파일 전 같은 종류 ").Append(c.SkippedBefore).Append("건은 앞뒤 로그 없이 기록만 했습니다(용량·빈도 제한).\r\n");
-            sb.Append("----- 앞 ").Append(BeforeLines).Append("줄 -----\r\n");
+                sb.Append(Tx("의심 이유: 사람이나 Claude가 친 명령의 출력 속에 있던 줄입니다. 옛 로그를 다시 보여 준 것일 수 있어 알림을 띄우지 않았습니다. 결과 줄에서 실제로 재부팅했는지 확인하세요.\r\n",
+                             "Why suspect: this line was inside the output of a command typed by someone or by Claude. It may be an old log shown again, so no alert was shown. Check the result line to see whether the board really rebooted.\r\n"));
+            if (c.SkippedBefore > 0) sb.Append(Tx("참고: 이 파일 전 같은 종류 " + c.SkippedBefore + "건은 앞뒤 로그 없이 기록만 했습니다(용량·빈도 제한).\r\n",
+                                                  "Note: " + c.SkippedBefore + " earlier event(s) of this kind were recorded without a context log (size and rate limits).\r\n"));
+            sb.Append(Tx("----- 앞 " + BeforeLines + "줄 -----\r\n", "----- " + BeforeLines + " lines before -----\r\n"));
             return sb.ToString();
         }
 
-        const string AfterHead = "----- 이후 -----\r\n";
+        string AfterHead => Tx("----- 이후 -----\r\n", "----- after -----\r\n");
 
         /// <summary>새 txt: 머리 + 앞 200줄 + '----- 이후 -----' + 사건 줄. 뒤 줄은 Append 로 이어 쓰고, 끝 줄(결과)은 닫을 때·결과가 정해질 때.</summary>
         void OpenTxt(Ctx c, string kind, bool suspect, string display, DateTime wall, long mono)
@@ -1108,7 +1151,7 @@ namespace UartHub
             c.BeforeText = bt.ToString();
             c.AfterText = new StringBuilder(">>> " + Stamp(wall) + display + "\r\n");
             c.Path = TxtPath(c);
-            c.File = new SafeFile(c.Path, "에이징 이벤트 :" + port, hlog, budget, false);
+            c.File = new SafeFile(c.Path, L.T("에이징 이벤트 :" + port, "aging event :" + port), hlog, budget, false);
             c.File.Write(TxtHead(c) + c.BeforeText + AfterHead + c.AfterText);
         }
 
@@ -1122,11 +1165,11 @@ namespace UartHub
             c.Kind = kind; c.Suspect = c.Suspect && suspect; c.Line = display; c.Wall = wall; c.SinceBoot = SinceBoot(wall, mono);
             c.File.Abandon();
             c.Path = TxtPath(c);
-            c.File = new SafeFile(c.Path, "에이징 이벤트 :" + port, hlog, budget, false);
+            c.File = new SafeFile(c.Path, L.T("에이징 이벤트 :" + port, "aging event :" + port), hlog, budget, false);
             c.File.Write(TxtHead(c) + c.BeforeText + AfterHead + c.AfterText);
             try { File.Delete(old); }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
-            { hlog?.WriteThrottled("events-rename|" + port, "사건 감지 :" + port + " 옛 이름 txt 를 지우지 못함(" + old + "): " + e.Message); }
+            { hlog?.WriteThrottled("events-rename|" + port, L.T("사건 감지 :" + port + " 옛 이름 txt 를 지우지 못함(" + old + "): " + e.Message, "event detection :" + port + " could not delete the old txt name (" + old + "): " + e.Message)); }
             usedNames.Remove(old);
             for (int i = 0; i < errs.Count; i++)                                                 // 리셋 원인·확인 대기가 옛 경로를 들고 있지 않게
                 if (string.Equals(errs[i].Context, old, StringComparison.OrdinalIgnoreCase)) errs[i] = (errs[i].Mono, errs[i].Kind, errs[i].Line, errs[i].Wall, c.Path, errs[i].Suspect);
@@ -1208,7 +1251,8 @@ namespace UartHub
                     return;
                 }
             }
-            catch (Exception e) { hlog?.WriteThrottled("events-load|" + port, "사건 감지 :" + port + " 이전 사건 기록 읽기 실패: " + e.GetType().Name + ": " + e.Message); }
+            catch (Exception e) { hlog?.WriteThrottled("events-load|" + port, L.T("사건 감지 :" + port + " 이전 사건 기록 읽기 실패: " + e.GetType().Name + ": " + e.Message,
+                                                                                   "event detection :" + port + " failed to read earlier event records: " + e.GetType().Name + ": " + e.Message)); }
         }
 
         // ================================================================== 도우미
@@ -1325,7 +1369,7 @@ namespace UartHub
                 }
                 if (fresh) f.Start(); else f.SessionBreak(c.AttachRxPos, c.Com, det, hub.Clock.Now);
             }
-            catch (Exception e) { hub.Log.WriteThrottled("events-attach|" + c.Id, "사건 감지 시작 실패 " + c.Id + ": " + e.GetType().Name + ": " + e.Message); }
+            catch (Exception e) { hub.Log.WriteThrottled("events-attach|" + c.Id, L.T("사건 감지 시작 실패 " + c.Id + ": " + e.GetType().Name + ": " + e.Message, "event detection failed to start " + c.Id + ": " + e.GetType().Name + ": " + e.Message)); }
         }
 
         void OnDetached(Cable c, long seq)
@@ -1398,7 +1442,9 @@ namespace UartHub
 
         EventsBudget Budget()
         {
-            lock (followers) return budget ??= new EventsBudget((long)(hub.Config.Events.MaxMb * 1024 * 1024), Dir, TxtDir);
+            // log_layout 3: 두 언어의 에이징 뿌리를 모두 센다(언어를 바꿔도 옛 세션 폴더가 예산에 남는다)
+            lock (followers) return budget ??= new EventsBudget((long)(hub.Config.Events.MaxMb * 1024 * 1024),
+                                                                new[] { Dir }.Concat(hub.Config.LogLayout >= 2 ? hub.Config.EventsTxtDirs : new string[0]).ToArray());
         }
 
         /// <summary>세션 콘솔.log(추적 스레드 하나만 쓴다): DiskWriter .log 와 같은 줄머리 "[yyyy-MM-dd HH:mm:ss.fff +   경과초] 글" — 경과 = 세션 시작부터.</summary>
@@ -1408,6 +1454,9 @@ namespace UartHub
             readonly HubLog log;
             FileStream fs;
             bool dirty;
+
+            /// <summary>콘솔.log 에 쓰는 표시 글(세션 언어).</summary>
+            public string T(string ko, string en) => AgingLang.T(s.Lang, ko, en);
 
             public ConsoleOut(AgingSession s, HubLog log, DateTime now)
             {
@@ -1423,15 +1472,18 @@ namespace UartHub
                     fs = new FileStream(s.ConsolePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
                     s.SetConsole(fs.Length, lines);
                     if (resume)
-                        Marker(now, "기록 끊김 " + last.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " ~ " + now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                                    + " (" + AgingText.Duration((now - last).TotalSeconds) + ") — 허브가 다시 켜졌거나 케이블이 다시 연결됨");
-                    else Marker(now, "에이징 시작 '" + s.Name + "' · " + (s.Board ?? "보드 모름") + " (포트 " + s.Port.ToString(CultureInfo.InvariantCulture) + (s.Com != null ? " · " + s.Com : "") + ")");
+                        Marker(now, T("기록 끊김 " + last.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " ~ " + now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                                      + " (" + AgingText.Duration((now - last).TotalSeconds, s.Lang) + ") — 허브가 다시 켜졌거나 케이블이 다시 연결됨",
+                                      "Recording gap " + last.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " ~ " + now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                                      + " (" + AgingText.Duration((now - last).TotalSeconds, s.Lang) + ") — the hub restarted or the cable was reconnected"));
+                    else Marker(now, T("에이징 시작 '" + s.Name + "' · " + (s.Board ?? "보드 모름") + " (포트 " + s.Port.ToString(CultureInfo.InvariantCulture) + (s.Com != null ? " · " + s.Com : "") + ")",
+                                       "Aging started '" + s.Name + "' · " + (s.Board ?? "board unknown") + " (port " + s.Port.ToString(CultureInfo.InvariantCulture) + (s.Com != null ? " · " + s.Com : "") + ")"));
                     Flush();
                 }
                 catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
                 {
                     fs = null;
-                    log?.WriteThrottled("aging-console|" + s.Port, "에이징 콘솔.log 열기 실패 :" + s.Port + " (" + s.ConsolePath + "): " + e.Message);
+                    log?.WriteThrottled("aging-console|" + s.Port, L.T("에이징 콘솔.log 열기 실패 :" + s.Port + " (" + s.ConsolePath + "): " + e.Message, "aging console log open failed :" + s.Port + " (" + s.ConsolePath + "): " + e.Message));
                 }
             }
 
@@ -1465,14 +1517,15 @@ namespace UartHub
                     dirty = true;
                 }
                 catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
-                { log?.WriteThrottled("aging-console|" + s.Port, "에이징 콘솔.log 쓰기 실패 :" + s.Port + ": " + e.Message); }
+                { log?.WriteThrottled("aging-console|" + s.Port, L.T("에이징 콘솔.log 쓰기 실패 :" + s.Port + ": " + e.Message, "aging console log write failed :" + s.Port + ": " + e.Message)); }
             }
 
             public void Flush()
             {
                 if (fs == null || !dirty) return;
                 try { fs.Flush(); dirty = false; }
-                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { log?.WriteThrottled("aging-console|" + s.Port, "에이징 콘솔.log 쓰기 실패 :" + s.Port + ": " + e.Message); }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                { log?.WriteThrottled("aging-console|" + s.Port, L.T("에이징 콘솔.log 쓰기 실패 :" + s.Port + ": " + e.Message, "aging console log write failed :" + s.Port + ": " + e.Message)); }
             }
 
             public void Close()
@@ -1609,7 +1662,7 @@ namespace UartHub
                 if (!dt.HasValue || (!force && pos < dt.Value.At)) return;
                 lock (brLock) { if (detach.Equals(dt)) detach = null; }
                 if (line.Count > 0) Complete(true);
-                console?.Marker(dt.Value.Wall, "케이블 분리 — 다시 연결될 때까지 기록 없음");
+                console?.Marker(dt.Value.Wall, console.T("케이블 분리 — 다시 연결될 때까지 기록 없음", "Cable disconnected — no record until it is reconnected"));
                 console?.Flush();
                 Scanner?.OnDetach(null, dt.Value.Wall, dt.Value.Mono, ring.Format(Math.Min(pos, dt.Value.At)));
             }
@@ -1625,7 +1678,8 @@ namespace UartHub
                 CheckDetach(pos, true);
                 if (line.Count > 0) Complete(true);
                 double? gap = info.DetachedAt.HasValue ? Math.Max(0, (info.Wall - info.DetachedAt.Value).TotalSeconds) : (double?)null;
-                console?.Marker(info.Wall, "케이블 다시 연결 " + (info.Com ?? "") + (gap.HasValue ? " — 기록 끊김 " + AgingText.Duration(gap.Value) : ""));
+                console?.Marker(info.Wall, console.T("케이블 다시 연결 " + (info.Com ?? "") + (gap.HasValue ? " — 기록 끊김 " + AgingText.Duration(gap.Value, cur?.Lang) : ""),
+                                                     "Cable reconnected " + (info.Com ?? "") + (gap.HasValue ? " — recording gap " + AgingText.Duration(gap.Value, cur?.Lang) : "")));
                 Scanner?.OnAttach("reattach", info.Com, gap, info.DetachedAt.HasValue ? new DateTimeOffset(info.DetachedAt.Value) : (DateTimeOffset?)null,
                                   info.Wall, hub.Clock.MonoMs, ring.Format(br));
             }
@@ -1641,14 +1695,14 @@ namespace UartHub
                 bool hadSession = cur != null;
                 if (cur != null)
                 {
-                    console?.Marker(hub.Clock.Now, "에이징 끝");
+                    console?.Marker(hub.Clock.Now, console.T("에이징 끝", "Aging ended"));
                     console?.Close();
                     console = null;
                     cur = null;
                 }
                 if (!first && Scanner != null && (hadSession || want != null))
                 {
-                    Scanner.Close(hadSession ? "에이징 끝" : "에이징 시작");
+                    Scanner.Close(hadSession ? AgingLang.T(Scanner.Lang, "에이징 끝", "aging ended") : AgingLang.T(Scanner.Lang, "에이징 시작", "aging started"));
                     Scanner = null;
                 }
                 if (want != null) { console = new ConsoleOut(want, hub.Log, hub.Clock.Now); cur = want; }
@@ -1659,7 +1713,8 @@ namespace UartHub
                     {
                         // 시작은 hub.log 에 남기지 않는다(실패만) — 기존 시나리오가 hub.log 줄 번호를 기대값에 쓴다(Phase A ok: 불변)
                         var sc = new EventScanner(d.Dir, c.TcpPort, c.Id, () => c.Board ?? hub.State.GetBoard(c.Id), () => c.Writer?.CurrentLogPath,
-                                                  EventPatterns.For(hub.Config, c.Id), hub.Config, hub.Log, d.Budget(), want != null ? want.EventsDir : d.Gated ? null : d.TxtDir, want != null);
+                                                  EventPatterns.For(hub.Config, c.Id), hub.Config, hub.Log, d.Budget(), want != null ? want.EventsDir : d.Gated ? null : d.TxtDir, want != null,
+                                                  want?.Lang);
                         if (first)
                         {
                             // 허브 시작 공백: 마지막 기록이 분리면 그때부터(분리 동안에도 alive 하트비트는 돈다, D8), 아니면 이전 코어의 마지막 하트비트와 마지막 기록 중 늦은 것부터
@@ -1672,7 +1727,7 @@ namespace UartHub
                         else sc.OnAttach(want != null ? "session" : "session_end", c.Com, null, null, hub.Clock.Now, hub.Clock.MonoMs, ring.Format(pos));
                         Scanner = sc;
                     }
-                    catch (Exception e) { hub.Log.WriteThrottled("events-start|" + c.Id, "사건 감지 시작 실패 " + c.Id + ": " + e.GetType().Name + ": " + e.Message); }
+                    catch (Exception e) { hub.Log.WriteThrottled("events-start|" + c.Id, L.T("사건 감지 시작 실패 " + c.Id + ": " + e.GetType().Name + ": " + e.Message, "event detection failed to start " + c.Id + ": " + e.GetType().Name + ": " + e.Message)); }
                 }
                 Synced = true;
             }
@@ -1680,7 +1735,7 @@ namespace UartHub
             void Run(long from)
             {
                 try { Sync(from, true); }
-                catch (Exception e) { hub.Log.WriteThrottled("events-run|" + c.Id, "사건 감지 오류 " + c.Id + ": " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { hub.Log.WriteThrottled("events-run|" + c.Id, L.T("사건 감지 오류 " + c.Id + ": " + e.GetType().Name + ": " + e.Message, "event detection error " + c.Id + ": " + e.GetType().Name + ": " + e.Message)); }
                 var rc = ring.OpenCursor(from);
                 long lastTick = 0;
                 while (true)
@@ -1702,7 +1757,8 @@ namespace UartHub
                                 break;
                             case RingReadStatus.Lost:
                                 line.Clear(); lineStart = -1;
-                                console?.Marker(hub.Clock.Now, "기록 놓침 " + rd.Skipped.ToString(CultureInfo.InvariantCulture) + "바이트(허브가 따라 읽기 전에 버퍼가 넘침)");
+                                console?.Marker(hub.Clock.Now, console.T("기록 놓침 " + rd.Skipped.ToString(CultureInfo.InvariantCulture) + "바이트(허브가 따라 읽기 전에 버퍼가 넘침)",
+                                                                         "Missed " + rd.Skipped.ToString(CultureInfo.InvariantCulture) + " bytes (the buffer overflowed before the hub read it)"));
                                 Scanner?.OnLost(rd.Skipped, hub.Clock.Now, now, ring.Format(rd.Offset));
                                 break;
                             case RingReadStatus.Timeout:
@@ -1717,7 +1773,7 @@ namespace UartHub
                                 DrainTx(long.MaxValue);
                                 CheckDetach(long.MaxValue, true);
                                 if (line.Count > 0) Complete(true);
-                                Scanner?.Close("허브 정지");
+                                Scanner?.Close(AgingLang.T(Scanner?.Lang, "허브 정지", "hub stopped"));
                                 console?.Close();                                     // 세션은 sessions.json 에 남는다(다시 켜지면 이어 감)
                                 Alive = false;
                                 lock (d.followers) d.followers.Remove(c);
@@ -1728,7 +1784,7 @@ namespace UartHub
                     }
                     catch (Exception e)
                     {
-                        hub.Log.WriteThrottled("events-run|" + c.Id, "사건 감지 오류 " + c.Id + ": " + e.GetType().Name + ": " + e.Message);
+                        hub.Log.WriteThrottled("events-run|" + c.Id, L.T("사건 감지 오류 " + c.Id + ": " + e.GetType().Name + ": " + e.Message, "event detection error " + c.Id + ": " + e.GetType().Name + ": " + e.Message));
                         line.Clear(); lineStart = -1;
                         Thread.Sleep(100);
                     }

@@ -78,11 +78,11 @@ namespace UartHub
     /// </summary>
     public static class InstallCopy
     {
-        public static readonly string[] StepsFirst = { "허브 켜기", "Claude 연결 정보 넣기", "확인" };
-        public static readonly string[] StepsReplace = { "켜진 허브 끄기", "새 버전 켜기", "Claude 연결 정보 넣기" };
-        public static readonly string[] StepsUninstall = { "허브 끄기", "아이콘과 Claude 연결 정보 지우기", "등록 정보 지우기" };
-        public const string FirstHead = "UART 허브를 켜는 중입니다.", ReplaceHead = "새 버전으로 바꾸는 중입니다.", UninstallHead = "UART 허브를 제거하는 중입니다.";
-        public const string AutoRunHow = "Win+R → shell:startup → exe를 오른쪽 버튼으로 끌어 '바로 가기 만들기'";
+        public static string[] StepsFirst => new[] { L.T("허브 켜기", "Start the hub"), L.T("Claude 연결 정보 넣기", "Add Claude connection info"), L.T("확인", "Check") };
+        public static string[] StepsReplace => new[] { L.T("켜진 허브 끄기", "Stop the running hub"), L.T("새 버전 켜기", "Start the new version"), L.T("Claude 연결 정보 넣기", "Add Claude connection info") };
+        public static string[] StepsUninstall => new[] { L.T("허브 끄기", "Stop the hub"), L.T("아이콘과 Claude 연결 정보 지우기", "Remove icons and Claude connection info"), L.T("등록 정보 지우기", "Remove registration info") };
+        public static string FirstHead => L.T("UART 허브를 켜는 중입니다.", "Starting UART Hub."); public static string ReplaceHead => L.T("새 버전으로 바꾸는 중입니다.", "Switching to the new version."); public static string UninstallHead => L.T("UART 허브를 제거하는 중입니다.", "Removing UART Hub.");
+        public static string AutoRunHow => L.T("Win+R → shell:startup → exe를 오른쪽 버튼으로 끌어 '바로 가기 만들기'", "Win+R → shell:startup → right-drag the exe there and choose 'Create shortcuts here'");
 
         /// <summary>Claude 연결 정보(skills)를 넣을 곳: "Windows, WSL Ubuntu-22.04".</summary>
         public static string SkillsPlaces(bool windows, IEnumerable<string> distros)
@@ -91,79 +91,80 @@ namespace UartHub
             if (windows) p.Add("Windows");
             var d = (distros ?? new string[0]).ToList();
             if (d.Count > 0) p.Add("WSL " + string.Join(", ", d));
-            return p.Count > 0 ? string.Join(", ", p) : "찾지 못했습니다. Claude Code를 설치한 뒤 exe를 다시 실행하면 넣습니다.";
+            return p.Count > 0 ? string.Join(", ", p) : L.T("찾지 못했습니다. Claude Code를 설치한 뒤 exe를 다시 실행하면 넣습니다.", "None found. Install Claude Code, then run the exe again to add them.");
         }
 
         public static UiText FirstRun(string logRoot, string places, string exe, string hubDir, string instJson) => new UiText
         {
-            Head = "UART 허브를 시작할까요?",
-            Body = "보드 UART를 터미널과 Claude가 같이 쓰게 해 주는 프로그램입니다. 설치하지 않고 이 폴더에서 실행합니다.",
-            Bullets = { "로그 저장 위치: " + logRoot, "Claude 연결 정보를 넣을 곳: " + places, "COM 포트는 '/connect-uart COM3'처럼 연결할 때만 엽니다." },
-            Details = { "exe 경로: " + exe, "허브 폴더: " + hubDir, "설정 파일: " + instJson, "자동 실행: " + AutoRunHow },
-            Ok = "시작", OkIsDefault = true,
+            Head = L.T("UART 허브를 시작할까요?", "Start UART Hub?"),
+            Body = L.T("보드 UART를 터미널과 Claude가 같이 쓰게 해 주는 프로그램입니다. 설치하지 않고 이 폴더에서 실행합니다.", "This program lets a terminal and Claude share the board UART. It is not installed; it runs from this folder."),
+            Bullets = { L.T("로그 저장 위치: " + logRoot, "Log location: " + logRoot), L.T("Claude 연결 정보를 넣을 곳: " + places, "Where Claude connection info goes: " + places), L.T("COM 포트는 '/connect-uart COM3'처럼 연결할 때만 엽니다.", "COM ports are opened only when you connect, as in '/connect-uart COM3'.") },
+            Details = { L.T("exe 경로: " + exe, "exe path: " + exe), L.T("허브 폴더: " + hubDir, "Hub folder: " + hubDir), L.T("설정 파일: " + instJson, "Settings file: " + instJson), L.T("자동 실행: " + AutoRunHow, "Auto start: " + AutoRunHow) },
+            Ok = L.T("시작", "Start"), OkIsDefault = true,
         };
 
         public static UiText Ready(string logRoot, string skills) => new UiText
         {
-            Head = "준비됐습니다.",
-            Body = "트레이에 UART 허브 아이콘이 생겼습니다.\n아이콘이 안 보이면 작업 표시줄 오른쪽 ^ 안에 있습니다.",
-            Details = { "로그 저장 위치: " + logRoot, "Claude 연결 정보: " + (skills ?? "-"), "자동 실행: " + AutoRunHow },
+            Head = L.T("준비됐습니다.", "Ready."),
+            Body = L.T("트레이에 UART 허브 아이콘이 생겼습니다.\n아이콘이 안 보이면 작업 표시줄 오른쪽 ^ 안에 있습니다.", "The UART Hub icon is now in the tray.\nIf you do not see it, look under the ^ at the right end of the taskbar."),
+            Details = { L.T("로그 저장 위치: " + logRoot, "Log location: " + logRoot), L.T("Claude 연결 정보: " + (skills ?? "-"), "Claude connection info: " + (skills ?? "-")), L.T("자동 실행: " + AutoRunHow, "Auto start: " + AutoRunHow) },
         };
 
         /// <summary>켜지 못함(오류 창): 로그 파일을 담당자에게 · [로그 폴더 열기]. tech = 예전 기술 문구(setup --yes 출력은 그대로).</summary>
         public static UiText Fail(string why, string logPath, string tech) => new UiText
         {
-            Head = "허브를 켜지 못했습니다.",
-            Body = "로그 파일을 담당자에게 보내 주세요:\n" + (logPath ?? "(로그 파일 없음)"),
-            Details = { "이유: " + why },
+            Head = L.T("허브를 켜지 못했습니다.", "Could not start the hub."),
+            Body = L.T("로그 파일을 담당자에게 보내 주세요:\n" + (logPath ?? "(로그 파일 없음)"), "Please send the log file to the person in charge:\n" + (logPath ?? "(no log file)")),
+            Details = { L.T("이유: " + why, "Reason: " + why) },
             LogPath = logPath, Error = true, Tech = tech,
         };
 
         /// <summary>새 버전으로 바꾸기 확인 창(Enter·Esc = 취소 — 열린 터미널이 끊긴다).</summary>
         public static UiText Replace(string runExe, string runVer, string newVer, string exe) => new UiText
         {
-            Head = "새 버전으로 바꿀까요?",
-            Body = "지금 켜진 허브" + (runVer != null ? "(" + runVer + ")" : "") + "를 끄고 이\u00A0버전(" + newVer + ")으로 다시 켭니다. 몇 초 멈추는 동안 열린 터미널은 연결이 끊깁니다.\n"
-                   + "포트 번호, 연결해 둔 COM, 설정, 로그는 그대로입니다.",
-            Details = { "지금 허브: " + (runExe ?? "(exe 경로 모름)"), "새 exe: " + exe },
-            Ok = "바꾸기",
+            Head = L.T("새 버전으로 바꿀까요?", "Switch to the new version?"),
+            Body = L.T("지금 켜진 허브" + (runVer != null ? "(" + runVer + ")" : "") + "를 끄고 이\u00A0버전(" + newVer + ")으로 다시 켭니다. 몇 초 멈추는 동안 열린 터미널은 연결이 끊깁니다.\n"
+                                      + "포트 번호, 연결해 둔 COM, 설정, 로그는 그대로입니다.", "The hub that is running now" + (runVer != null ? " (" + runVer + ")" : "") + " will be stopped and started again as this version (" + newVer + "). Open terminals lose their connection during the few seconds it pauses.\n"
+                   + "Port numbers, connected COM ports, settings and logs stay as they are."),
+            Details = { L.T("지금 허브: " + (runExe ?? "(exe 경로 모름)"), "Running hub: " + (runExe ?? "(exe path unknown)")), L.T("새 exe: " + exe, "New exe: " + exe) },
+            Ok = L.T("바꾸기", "Switch"),
         };
 
         public static UiText Replaced(string ver, string exe, string skills) => new UiText
         {
-            Head = "새 버전으로 바꿨습니다.",
-            Body = "끊긴 터미널은 바탕화면 보드 아이콘이나 트레이 메뉴에서 다시 열어 주세요.",
-            Details = { "버전: " + ver, "exe 경로: " + exe, "Claude 연결 정보: " + (skills ?? "그대로") },
+            Head = L.T("새 버전으로 바꿨습니다.", "Switched to the new version."),
+            Body = L.T("끊긴 터미널은 바탕화면 보드 아이콘이나 트레이 메뉴에서 다시 열어 주세요.", "Reopen any disconnected terminals from a desktop board icon or the tray menu."),
+            Details = { L.T("버전: " + ver, "Version: " + ver), L.T("exe 경로: " + exe, "exe path: " + exe), L.T("Claude 연결 정보: " + (skills ?? "그대로"), "Claude connection info: " + (skills ?? "unchanged")) },
         };
 
         /// <summary>휴대용 제거 확인 창(Enter·Esc = 취소).</summary>
         public static UiText Uninstall(string exe, string logRoot, string hubDir, string instJson) => new UiText
         {
             Title = Installer.UninstallTitle,
-            Head = "UART 허브를 제거할까요?",
-            Body = "허브를 끄고 바탕화면 보드 아이콘, Claude 연결 정보, 등록 정보를 지웁니다. 열린 터미널은 연결이 끊깁니다.",
-            Bullets = { "exe와 로그는 남습니다. 필요 없으면 직접 지워 주세요.", "자동 실행 바로 가기를 만들었다면 그것도 직접 지워 주세요(Win+R → shell:startup)." },
-            Details = { "exe 경로: " + exe, "로그 위치: " + (logRoot ?? "(모름)"), "허브 폴더: " + (hubDir ?? "(모름)"), "설정 파일: " + instJson },
-            Ok = "제거",
+            Head = L.T("UART 허브를 제거할까요?", "Remove UART Hub?"),
+            Body = L.T("허브를 끄고 바탕화면 보드 아이콘, Claude 연결 정보, 등록 정보를 지웁니다. 열린 터미널은 연결이 끊깁니다.", "This stops the hub and removes the desktop board icons, Claude connection info, and registration info. Open terminals will be disconnected."),
+            Bullets = { L.T("exe와 로그는 남습니다. 필요 없으면 직접 지워 주세요.", "The exe and logs stay. Delete them yourself if you do not need them."), L.T("자동 실행 바로 가기를 만들었다면 그것도 직접 지워 주세요(Win+R → shell:startup).", "If you made an auto-start shortcut, delete it yourself too (Win+R → shell:startup).") },
+            Details = { L.T("exe 경로: " + exe, "exe path: " + exe), L.T("로그 위치: " + (logRoot ?? "(모름)"), "Log location: " + (logRoot ?? "(unknown)")), L.T("허브 폴더: " + (hubDir ?? "(모름)"), "Hub folder: " + (hubDir ?? "(unknown)")), L.T("설정 파일: " + instJson, "Settings file: " + instJson) },
+            Ok = L.T("제거", "Remove"),
         };
 
         public static UiText Uninstalled(string exe, string logs) => new UiText
         {
-            Head = "UART 허브를 제거했습니다.",
-            Body = "exe와 로그는 남아 있습니다. 필요 없으면 직접 지워 주세요.",
-            Details = { "exe 경로: " + exe, "로그 위치: " + logs },
+            Head = L.T("UART 허브를 제거했습니다.", "UART Hub was removed."),
+            Body = L.T("exe와 로그는 남아 있습니다. 필요 없으면 직접 지워 주세요.", "The exe and logs are still there. Delete them yourself if you do not need them."),
+            Details = { L.T("exe 경로: " + exe, "exe path: " + exe), L.T("로그 위치: " + logs, "Log location: " + logs) },
         };
 
         public static UiText UninstallFail(IReadOnlyList<string> failed, string logPath)
         {
             var t = new UiText
             {
-                Head = "제거를 다 하지 못했습니다.",
-                Body = "로그 파일을 담당자에게 보내 주세요:\n" + (logPath ?? "(로그 파일 없음)"),
+                Head = L.T("제거를 다 하지 못했습니다.", "Removal did not finish."),
+                Body = L.T("로그 파일을 담당자에게 보내 주세요:\n" + (logPath ?? "(로그 파일 없음)"), "Please send the log file to the person in charge:\n" + (logPath ?? "(no log file)")),
                 LogPath = logPath, Error = true,
-                Tech = "UART 허브 제거를 다 하지 못했습니다: " + string.Join(" · ", failed) + "\n로그 파일: " + (logPath ?? "(없음)"),
+                Tech = L.T("UART 허브 제거를 다 하지 못했습니다: " + string.Join(" · ", failed) + "\n로그 파일: " + (logPath ?? "(없음)"), "UART Hub removal did not finish: " + string.Join(" · ", failed) + "\nLog file: " + (logPath ?? "(none)")),
             };
-            t.Details.AddRange(failed.Select(f => "실패: " + f));
+            t.Details.AddRange(failed.Select(f => L.T("실패: " + f, "Failed: " + f)));
             return t;
         }
     }
@@ -177,15 +178,15 @@ namespace UartHub
         public bool Confirm(UiText t)
         {
             int n = t.Bullets.Count + t.Details.Count;
-            log.Line("[ui] 확인 창(자동 응답=" + (answer ? t.Ok : t.Cancel) + "): " + t.Title + (t.Head != null ? " · " + t.Flat() : "") + " · " + n + "줄");
+            log.Line(L.T("[ui] 확인 창(자동 응답=" + (answer ? t.Ok : t.Cancel) + "): " + t.Title + (t.Head != null ? " · " + t.Flat() : "") + " · " + n + "줄", "[ui] confirm window (auto answer=" + (answer ? t.Ok : t.Cancel) + "): " + t.Title + (t.Head != null ? " · " + t.Flat() : "") + " · " + n + " lines"));
             return answer;
         }
-        public void Steps(string head, params string[] names) => log.Line("[ui] 진행 창: " + head + " 단계 " + string.Join(" → ", names));
+        public void Steps(string head, params string[] names) => log.Line(L.T("[ui] 진행 창: " + head + " 단계 " + string.Join(" → ", names), "[ui] progress window: " + head + " steps " + string.Join(" → ", names)));
         public void Stage(int index) { }
         public void Progress(string line) { }
         public void Detail(string line) { }
         public void Finish(bool ok, UiText t, int autoCloseMs)
-            => log.Line("[ui] " + (ok ? "완료 창(" + (autoCloseMs / 1000) + "초 뒤 닫힘): " : "오류 창: ") + t.LogText + (t.LogPath != null && t.Raw == null ? " [로그 폴더 열기]" : ""));
+            => log.Line(L.T("[ui] " + (ok ? "완료 창(" + (autoCloseMs / 1000) + "초 뒤 닫힘): " : "오류 창: ") + t.LogText + (t.LogPath != null && t.Raw == null ? " [로그 폴더 열기]" : ""), "[ui] " + (ok ? "done window (closes in " + (autoCloseMs / 1000) + " s): " : "error window: ") + t.LogText + (t.LogPath != null && t.Raw == null ? " [Open log folder]" : "")));
     }
 
     /// <summary>--yes(X7): 창 없이 진행 — 확인은 그 자리에서 '예'(등록·제거 요청 자체가 동의), 실패 안내는 로그 줄(표준 출력)로만. 글은 기술 문구(Tech) 그대로.</summary>
@@ -195,7 +196,7 @@ namespace UartHub
         public YesUi(InstallLog log) { this.log = log; }
         public bool Confirm(UiText t)
         {
-            log.Line("  --yes: 확인 창 없이 진행(" + t.Ok + ")");
+            log.Line(L.T("  --yes: 확인 창 없이 진행(" + t.Ok + ")", "  --yes: continuing without a confirm window (" + t.Ok + ")"));
             return true;
         }
         public void Steps(string head, params string[] names) { }
@@ -204,7 +205,7 @@ namespace UartHub
         public void Detail(string line) { }
         public void Finish(bool ok, UiText t, int autoCloseMs)
         {
-            if (!ok) log.Line("  오류: " + (t.Tech ?? t.LogText).Replace("\n", " "));
+            if (!ok) log.Line(L.T("  오류: " + (t.Tech ?? t.LogText).Replace("\n", " "), "  Error: " + (t.Tech ?? t.LogText).Replace("\n", " ")));
         }
     }
 
@@ -279,7 +280,8 @@ namespace UartHub
         /// <summary>교체 재시도(K8a: 공유 위반 20×250ms).</summary>
         const int ReplaceTries = 20, ReplaceWaitMs = 250;
         public const string StartupLnk = "UART 허브.lnk", MenuFolder = "UART 허브", MenuMain = "UART 허브.lnk", MenuUninstall = "UART 허브 제거.lnk";
-        public const string InstallTitle = "UART 허브 설치", UninstallTitle = "UART 허브 제거", PortableTitle = "UART 허브";
+        static readonly (string Ko, string En) InstallTitles = ("UART 허브 설치", "UART Hub setup"), UninstallTitles = ("UART 허브 제거", "UART Hub removal"), PortableTitles = ("UART 허브", "UART Hub");
+        public static string InstallTitle => L.T(InstallTitles.Ko, InstallTitles.En); public static string UninstallTitle => L.T(UninstallTitles.Ko, UninstallTitles.En); public static string PortableTitle => L.T(PortableTitles.Ko, PortableTitles.En);
         /// <summary>설치기가 config.json 이 없을 때만 만드는 내용(§2.3 n).</summary>
         public const string DefaultConfig = "{\"ask_new_cables\": true}\n";
         /// <summary>휴대용 첫 실행이 config.json 이 없을 때 만드는 내용(X5 부록 B.4 — 필요할 때만 연결).</summary>
@@ -290,6 +292,14 @@ namespace UartHub
         static string StartupLnkPath => Path.Combine(SystemAccess.Startup, StartupLnk);
         static string MenuDir => Path.Combine(SystemAccess.StartMenuPrograms, MenuFolder);
 
+        /// <summary>허브 폴더의 config.json 이 이미 있으면 거기서 언어("language")를 정한다(없으면 환경변수 → Windows 언어 그대로).</summary>
+        static void LoadLang(string hubDir)
+        {
+            if (string.IsNullOrEmpty(hubDir)) return;
+            string p = Path.Combine(hubDir, "config.json");
+            if (SystemAccess.FileExists(p)) L.ConfigureFromFile(p);
+        }
+
         /// <summary>
         /// 하위 명령 install·uninstall, 그리고 인자 없는 휴대용 실행(sub = "portable"). gui = (창 제목, 작업) → 종료코드: 확인 창·진행 창을 띄우고
         /// 작업을 백그라운드 스레드에서 돌린다(app/InstallForm.cs — Confirm·Finish 를 부르지 않으면 창은 보이지 않는다).
@@ -297,6 +307,9 @@ namespace UartHub
         /// </summary>
         public static int Main(string sub, string[] args, Func<string, Func<IInstallUi, int>, int> gui)
         {
+            try { LoadLang((SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null)?.HubDir); }   // 첫 글(인자 오류·창 제목·로그)부터 기존 허브의 언어
+            catch (TestIsolationViolation) { throw; }
+            catch (Exception) { }
             bool dry = false, repair = false, quiet = false, yes = false, json = false, noStart = false, allowDown = false;
             foreach (var a in args)
             {
@@ -309,13 +322,13 @@ namespace UartHub
                     case "--json": json = true; break;
                     case "--no-start": noStart = true; break;
                     case "--allow-downgrade": allowDown = true; break;
-                    default: ErrLine(sub + ": 알 수 없는 인자 " + a + " — setup [--yes] [--json] [--no-start] [--allow-downgrade] | install [--dry-run | --repair [--quiet]] | uninstall [--dry-run | --yes]"); return RcArgs;
+                    default: ErrLine(L.T(sub + ": 알 수 없는 인자 " + a + " — setup [--yes] [--json] [--no-start] [--allow-downgrade] | install [--dry-run | --repair [--quiet]] | uninstall [--dry-run | --yes]", sub + ": unknown argument " + a + " — setup [--yes] [--json] [--no-start] [--allow-downgrade] | install [--dry-run | --repair [--quiet]] | uninstall [--dry-run | --yes]")); return RcArgs;
                 }
             }
-            if ((repair && (dry || sub != "install")) || (quiet && !repair)) { ErrLine(sub + ": 인자 조합 오류 — --repair 는 install 에만, --quiet 는 --repair 와만"); return RcArgs; }
+            if ((repair && (dry || sub != "install")) || (quiet && !repair)) { ErrLine(L.T(sub + ": 인자 조합 오류 — --repair 는 install 에만, --quiet 는 --repair 와만", sub + ": invalid argument combination — --repair only with install, --quiet only with --repair")); return RcArgs; }
             if ((yes && sub != "setup" && sub != "uninstall") || (yes && dry) || (sub == "setup" && dry) || ((json || noStart || allowDown) && sub != "setup"))
             {
-                ErrLine(sub + ": 인자 조합 오류 — --yes 는 setup·uninstall 에만(--dry-run 과 함께 못 씀, setup 은 --yes 없으면 계획만), --json·--no-start·--allow-downgrade 는 setup 에만");
+                ErrLine(L.T(sub + ": 인자 조합 오류 — --yes 는 setup·uninstall 에만(--dry-run 과 함께 못 씀, setup 은 --yes 없으면 계획만), --json·--no-start·--allow-downgrade 는 setup 에만", sub + ": invalid argument combination — --yes only with setup/uninstall (not with --dry-run; setup without --yes only plans), --json/--no-start/--allow-downgrade only with setup"));
                 return RcArgs;
             }
             NativeHandles.DontInheritStd();                  // 띄우는 감독이 호출자(시험 하네스·WSL)의 파이프를 물고 남지 않게
@@ -336,12 +349,13 @@ namespace UartHub
                 if (yes)
                 {
                     // --yes(X7): 창을 건드리지 않고 중단으로 알린다(Claude 가 성공으로 읽지 않게)
-                    log.Line("# 다른 설치기·제거기가 이미 실행 중(" + mname + ") — 끝난 뒤 다시 실행하세요(exit 3)");
+                    log.Line(L.T("# 다른 설치기·제거기가 이미 실행 중(" + mname + ") — 끝난 뒤 다시 실행하세요(exit 3)", "# Another installer/uninstaller is already running (" + mname + ") — run again after it finishes (exit 3)"));
                     mtx.Dispose();
                     return RcBlocked;
                 }
-                bool front = SystemAccess.BringWindowToFront(InstallTitle) || SystemAccess.BringWindowToFront(UninstallTitle) || SystemAccess.BringWindowToFront(PortableTitle);
-                log.Line("# 다른 설치기가 이미 실행 중(" + mname + ") — " + (front ? "그 창을 앞으로 가져옴" : "앞으로 가져올 창 없음") + ", 이 실행은 끝냄(exit 0)");
+                // 먼저 뜬 설치기의 창 제목은 그 프로세스의 언어 — 두 언어 제목 모두로 찾는다
+                bool front = new[] { InstallTitles, UninstallTitles, PortableTitles }.SelectMany(t => new[] { t.Ko, t.En }).Any(SystemAccess.BringWindowToFront);
+                log.Line(L.T("# 다른 설치기가 이미 실행 중(" + mname + ") — " + (front ? "그 창을 앞으로 가져옴" : "앞으로 가져올 창 없음") + ", 이 실행은 끝냄(exit 0)", "# Another installer is already running (" + mname + ") — " + (front ? "brought its window to the front" : "no window to bring forward") + ", ending this run (exit 0)"));
                 mtx.Dispose();
                 return RcOk;
             }
@@ -396,50 +410,51 @@ namespace UartHub
         {
             string dir = SystemAccess.InstallDir, exe = SystemAccess.InstalledExe;
             var info = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
+            if (from != "sup") LoadLang(info?.HubDir);       // 감독 안(백그라운드 스레드)에서는 언어를 건드리지 않는다 — 감독 언어는 감독이 정한다
             // 휴대용(X4): 기록은 허브 폴더에(%LOCALAPPDATA%\uart_hub 에는 install.json 등 설정 파일만), 바로가기·설치본·옛 이미지는 다루지 않는다
             if (info != null && info.Portable && !string.IsNullOrEmpty(info.HubDir) && SystemAccess.DirExists(info.HubDir)) log.Attach(Path.Combine(info.HubDir, "install.log"));
             else if (SystemAccess.DirExists(dir)) log.Attach(InstLogPath);
             log.Line("== Repair(from=" + from + ", v=" + Hub.Version + ", pid=" + Environment.ProcessId + ")");
-            if (info == null) { log.Line("  install.json 없음 — 고칠 설치본이 없음"); return RcFailed; }
+            if (info == null) { log.Line(L.T("  install.json 없음 — 고칠 설치본이 없음", "  no install.json — nothing to repair")); return RcFailed; }
             if (info.Portable) exe = Environment.ProcessPath;
-            else if (!SystemAccess.FileExists(exe)) { log.Line("  " + exe + " 없음 — 받은 exe 를 다시 실행해야 함"); return RcFailed; }
+            else if (!SystemAccess.FileExists(exe)) { log.Line(L.T("  " + exe + " 없음 — 받은 exe 를 다시 실행해야 함", "  " + exe + " is missing — run the downloaded exe again")); return RcFailed; }
             string id = info.InstallId ?? Guid.NewGuid().ToString("N");
             if (from == "sup" && CoreMain.MutexExists(SystemAccess.MutexName("installer")))
             {
                 // C-14 경합(X7): 감독은 installer mutex 가 없을 때 판정했지만 그 뒤 setup·설치기가 시작됐다 — 그쪽이 install.json·skills 를 쓴다
-                log.Line("  설치기(setup·설치)가 그사이 시작됨 — Repair 그만둠(그 설치기가 install.json 을 씀)");
+                log.Line(L.T("  설치기(setup·설치)가 그사이 시작됨 — Repair 그만둠(그 설치기가 install.json 을 씀)", "  an installer (setup/install) started in the meantime — stopping Repair (that installer writes install.json)"));
                 return RcOk;
             }
             if (info.Portable)
             {
-                log.Line("  휴대용(portable): install.json exe·version 만 맞춤(바로가기·설치본 없음) — exe=" + exe);
+                log.Line(L.T("  휴대용(portable): install.json exe·version 만 맞춤(바로가기·설치본 없음) — exe=" + exe, "  portable: only aligning install.json exe/version (no shortcuts or installed copy) — exe=" + exe));
                 info.Version = Hub.Version; info.Exe = exe; info.InstallId = id; info.State = "installed";
                 SystemAccess.Guard(InstJson, "write");
-                if (!info.Save(InstJson)) { log.Line("  install.json 쓰기 실패"); return RcFailed; }
+                if (!info.Save(InstJson)) { log.Line(L.T("  install.json 쓰기 실패", "  failed to write install.json")); return RcFailed; }
                 log.Line("  install.json version=" + info.Version + " state=installed portable=true");
             }
             else
             {
-                EnsureLnk(log, StartupLnkPath, exe, "sup", "UART 허브 감독(로그온 때 자동 실행)", id);
-                EnsureLnk(log, Path.Combine(MenuDir, MenuMain), exe, "sup", "UART 허브 감독 시작", id);
-                EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), exe, "uninstall", "UART 허브 제거", id);
+                EnsureLnk(log, StartupLnkPath, exe, "sup", L.T("UART 허브 감독(로그온 때 자동 실행)", "UART Hub supervisor (auto start at logon)"), id);
+                EnsureLnk(log, Path.Combine(MenuDir, MenuMain), exe, "sup", L.T("UART 허브 감독 시작", "Start UART Hub supervisor"), id);
+                EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), exe, "uninstall", L.T("UART 허브 제거", "Remove UART Hub"), id);
                 info.Version = Hub.Version; info.Exe = exe; info.InstallId = id; info.State = "installed";
                 SystemAccess.Guard(InstJson, "write");
-                if (!info.Save(InstJson)) { log.Line("  install.json 쓰기 실패"); return RcFailed; }
+                if (!info.Save(InstJson)) { log.Line(L.T("  install.json 쓰기 실패", "  failed to write install.json")); return RcFailed; }
                 log.Line("  install.json version=" + info.Version + " state=installed");
                 DeleteOldImages(log, dir);
             }
-            log.Line("  skills 표시 맞추기(기록된 곳 + 새로 생긴 곳)");
+            log.Line(L.T("  skills 표시 맞추기(기록된 곳 + 새로 생긴 곳)", "  aligning skills markers (recorded places + new ones)"));
             try
             {
                 var placed = SkillsDeployer.Deploy(id, Hub.Version, exe, null, SkillsDeployer.Recorded(InstJson), log.Line);
                 info.SetRaw("skills", SkillsDeployer.ToJson(placed));
-                if (!info.Save(InstJson)) log.Line("  install.json skills[] 쓰기 실패(경고)");
+                if (!info.Save(InstJson)) log.Line(L.T("  install.json skills[] 쓰기 실패(경고)", "  failed to write install.json skills[] (warning)"));
                 log.Line("  skills: " + SkillsDeployer.Summary(placed));
             }
             catch (TestIsolationViolation) { throw; }
-            catch (Exception e) { log.Line("  경고: skills 표시 맞추기 실패(" + e.GetType().Name + ": " + e.Message + ")"); }
-            log.Line("  Repair 끝");
+            catch (Exception e) { log.Line(L.T("  경고: skills 표시 맞추기 실패(" + e.GetType().Name + ": " + e.Message + ")", "  warning: failed to align skills markers (" + e.GetType().Name + ": " + e.Message + ")")); }
+            log.Line(L.T("  Repair 끝", "  Repair done"));
             return RcOk;
         }
 
@@ -451,7 +466,7 @@ namespace UartHub
             {
                 var cur = ShellLink.Read(path);
                 bool ours = cur != null && (ShellLink.IsOurs(cur, exe, args) || (cur.Description ?? "").Contains(ShellLink.MarkerPrefix));
-                if (!ours) { log.Line("  남의 바로가기라 건드리지 않음: " + path + (cur != null ? " (대상 " + cur.Target + ")" : " (읽지 못함)")); return false; }
+                if (!ours) { log.Line(L.T("  남의 바로가기라 건드리지 않음: " + path + (cur != null ? " (대상 " + cur.Target + ")" : " (읽지 못함)"), "  not our shortcut, leaving it alone: " + path + (cur != null ? " (target " + cur.Target + ")" : " (could not read)"))); return false; }
             }
             ShellLink.Save(path, new ShellLinkInfo
             {
@@ -472,9 +487,9 @@ namespace UartHub
         {
             foreach (var f in SystemAccess.ListFiles(dir, "UartHub.old*.exe"))
             {
-                try { SystemAccess.DeleteFile(f); log.Line("  옛 이미지 삭제 " + Path.GetFileName(f)); }
+                try { SystemAccess.DeleteFile(f); log.Line(L.T("  옛 이미지 삭제 " + Path.GetFileName(f), "  deleted old image " + Path.GetFileName(f))); }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  옛 이미지 " + Path.GetFileName(f) + " 잠겨 있음(실행 중) — 다음 감독 기동 때 지움: " + e.GetType().Name); }
+                catch (Exception e) { log.Line(L.T("  옛 이미지 " + Path.GetFileName(f) + " 잠겨 있음(실행 중) — 다음 감독 기동 때 지움: " + e.GetType().Name, "  old image " + Path.GetFileName(f) + " is locked (running) — will be removed at the next supervisor start: " + e.GetType().Name)); }
             }
         }
 
@@ -508,7 +523,9 @@ namespace UartHub
             InstallInfo existing, info;
             // 업데이트: 설치된 판·받은 판, 교체 백업(되돌림에 씀), 0 단계 잔재 정리 안내
             string vA, vB = Hub.Version, oldBackup;
-            readonly List<string> residue = new List<string>();
+            readonly List<string> residue = new List<string>();  // 코드: A·B·C·D·exe-missing(언어와 무관한 비교용)
+            static string ResText(string c) => c switch { "A" => L.T("잔재 A", "residue A"), "B" => L.T("잔재 B", "residue B"), "C" => L.T("잔재 C", "residue C"), "D" => L.T("잔재 D", "residue D"), _ => L.T("exe 없음", "exe missing") };
+            static string ResJoin(IEnumerable<string> r) => string.Join("·", r.Distinct().Select(ResText));
             string logRoot, logRootWhy, hubDir, installId;
             List<string> distros = new List<string>();
             SkillsDeployer.Distros wsl;
@@ -564,10 +581,10 @@ namespace UartHub
 
             void Header(string kind)
             {
-                log.Line("# UART 허브 " + kind + " v" + Hub.Version + (dry ? " (dry-run — 시스템을 바꾸지 않음)" : ""));
-                log.Line("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName);
-                if (SystemAccess.IsTest) log.Line("# 시험 모드(C-13) root=" + SystemAccess.TestRoot);
-                log.Line("# 설치 위치=" + instDir);
+                log.Line(L.T("# UART 허브 " + kind + " v" + Hub.Version + (dry ? " (dry-run — 시스템을 바꾸지 않음)" : ""), "# UART Hub " + kind + " v" + Hub.Version + (dry ? " (dry-run — system is not changed)" : "")));
+                log.Line(L.T("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName, "# exe=" + self + " pid=" + Environment.ProcessId + " user=" + Environment.UserName));
+                if (SystemAccess.IsTest) log.Line(L.T("# 시험 모드(C-13) root=" + SystemAccess.TestRoot, "# test mode (C-13) root=" + SystemAccess.TestRoot));
+                log.Line(L.T("# 설치 위치=" + instDir, "# install location=" + instDir));
             }
 
             // -------------------------------------------------------------- mutex
@@ -577,7 +594,7 @@ namespace UartHub
                 var m = new Mutex(false, SystemAccess.MutexName("update"));
                 bool own;
                 try { own = m.WaitOne(5000); } catch (AbandonedMutexException) { own = true; }
-                if (!own) { m.Dispose(); throw new IOException("update mutex 를 5초 안에 얻지 못함 — 다른 설치기·업데이트가 실행 중"); }
+                if (!own) { m.Dispose(); throw new IOException(L.T("update mutex 를 5초 안에 얻지 못함 — 다른 설치기·업데이트가 실행 중", "could not get the update mutex within 5 s — another installer/update is running")); }
                 update = m;
             }
 
@@ -593,19 +610,19 @@ namespace UartHub
             // ============================================================== 설치
             int Install()
             {
-                Header("설치");
-                Step("0. 이전 제거 잔재(%TEMP%\\uart_hub_removed_*.exe)");
+                Header(L.T("설치", "setup"));
+                Step(L.T("0. 이전 제거 잔재(%TEMP%\\uart_hub_removed_*.exe)", "0. Leftovers from a previous removal (%TEMP%\\uart_hub_removed_*.exe)"));
                 var removed = SystemAccess.ListFiles(SystemAccess.Temp, "uart_hub_removed_*.exe");
-                if (removed.Length == 0) log.Line("  없음");
+                if (removed.Length == 0) log.Line(L.T("  없음", "  none"));
                 foreach (var f in removed)
-                    Act("지움 " + f, () => { try { SystemAccess.DeleteFile(f); } catch (TestIsolationViolation) { throw; } catch (Exception e) { log.Line("    실패(다음 설치 때 다시): " + e.Message); } });
+                    Act(L.T("지움 " + f, "delete " + f), () => { try { SystemAccess.DeleteFile(f); } catch (TestIsolationViolation) { throw; } catch (Exception e) { log.Line(L.T("    실패(다음 설치 때 다시): " + e.Message, "    failed (will retry at the next setup): " + e.Message)); } });
                 if (SystemAccess.FileExists(InstJson)) Residue();
 
-                Step("1. 사전 점검");
+                Step(L.T("1. 사전 점검", "1. Pre-checks"));
                 Precheck();
-                foreach (var w in warnings) log.Line("  경고: " + w);
+                foreach (var w in warnings) log.Line(L.T("  경고: " + w, "  warning: " + w));
                 int stop = blockers.Count > 0 ? RcBlocked : RcOk;
-                foreach (var b in blockers) log.Line("  중단: " + b);
+                foreach (var b in blockers) log.Line(L.T("  중단: " + b, "  blocked: " + b));
                 if (stop != RcOk)
                 {
                     if (!dry)
@@ -613,90 +630,90 @@ namespace UartHub
                         ui?.Finish(false, string.Join("\n", blockers), 0);
                         return stop;
                     }
-                    log.Line("  [dry-run] 실제 실행이면 여기서 중단(exit " + stop + ") — 아래는 막는 것이 없을 때의 단계");
+                    log.Line(L.T("  [dry-run] 실제 실행이면 여기서 중단(exit " + stop + ") — 아래는 막는 것이 없을 때의 단계", "  [dry-run] a real run would stop here (exit " + stop + ") — the steps below are what would run if nothing blocked it"));
                 }
-                else log.Line("  사전 점검 통과");
+                else log.Line(L.T("  사전 점검 통과", "  pre-checks passed"));
                 if (existing != null) return Update(stop);
 
-                Step("2. 확인 창(1회)");
+                Step(L.T("2. 확인 창(1회)", "2. Confirm window (once)"));
                 var lines = Summary();
                 foreach (var l in lines) log.Line("  | " + l);
-                if (!dry && !ui.Confirm(InstallTitle, "설치", lines))
+                if (!dry && !ui.Confirm(InstallTitle, L.T("설치", "Install"), lines))
                 {
-                    log.Line("  취소 — 아무것도 바꾸지 않음(exit 2)");
+                    log.Line(L.T("  취소 — 아무것도 바꾸지 않음(exit 2)", "  cancelled — nothing was changed (exit 2)"));
                     return RcCancelled;
                 }
-                if (dry) log.Line("  [dry-run] 확인 창을 띄우지 않음");
+                if (dry) log.Line(L.T("  [dry-run] 확인 창을 띄우지 않음", "  [dry-run] not showing the confirm window"));
 
                 try
                 {
-                    Step("3. update mutex → exe 복사·검증");
-                    Act("update mutex 획득(" + SystemAccess.MutexName("update") + ")", AcquireUpdate);
-                    Act("설치 폴더 " + instDir, () => SystemAccess.CreateDir(instDir));
+                    Step(L.T("3. update mutex → exe 복사·검증", "3. update mutex → copy and verify exe"));
+                    Act(L.T("update mutex 획득(" + SystemAccess.MutexName("update") + ")", "acquire update mutex (" + SystemAccess.MutexName("update") + ")"), AcquireUpdate);
+                    Act(L.T("설치 폴더 " + instDir, "install folder " + instDir), () => SystemAccess.CreateDir(instDir));
                     Act("install.log → " + InstLogPath, () => log.Attach(InstLogPath));
-                    Act("스트림 복사(MotW 없는 새 파일) " + self + " → " + NewExe, () => SystemAccess.CopyStream(self, NewExe));
-                    Act(Path.GetFileName(NewExe) + " version --json = 자기 버전(" + Hub.Version + ")·Core MVID 확인", () => VerifyCopy(NewExe));
-                    Act("이름 바꾸기 " + Path.GetFileName(NewExe) + " → " + instExe + " (재시도 20×250ms)", () => Retry(() => SystemAccess.MoveFile(NewExe, instExe, true)));
+                    Act(L.T("스트림 복사(MotW 없는 새 파일) " + self + " → " + NewExe, "stream copy (new file without MotW) " + self + " → " + NewExe), () => SystemAccess.CopyStream(self, NewExe));
+                    Act(L.T(Path.GetFileName(NewExe) + " version --json = 자기 버전(" + Hub.Version + ")·Core MVID 확인", "check " + Path.GetFileName(NewExe) + " version --json = own version (" + Hub.Version + ") and Core MVID"), () => VerifyCopy(NewExe));
+                    Act(L.T("이름 바꾸기 " + Path.GetFileName(NewExe) + " → " + instExe + " (재시도 20×250ms)", "rename " + Path.GetFileName(NewExe) + " → " + instExe + " (retry 20×250ms)"), () => Retry(() => SystemAccess.MoveFile(NewExe, instExe, true)));
 
-                    Step("4. 로그·허브 폴더, 토큰, config.json");
+                    Step(L.T("4. 로그·허브 폴더, 토큰, config.json", "4. Log and hub folders, token, config.json"));
                     foreach (var d in new[] { hubDir, Path.Combine(logRoot, "live") })
                     {
-                        if (SystemAccess.DirExists(d)) log.Line("  " + d + " 이미 있음");
-                        else Act("폴더 " + d, () => SystemAccess.CreateDir(d));
+                        if (SystemAccess.DirExists(d)) log.Line(L.T("  " + d + " 이미 있음", "  " + d + " already exists"));
+                        else Act(L.T("폴더 " + d, "folder " + d), () => SystemAccess.CreateDir(d));
                     }
                     bool haveTok = TokenFile.IsValid(TokenPath);
-                    Act("토큰 " + TokenPath + (haveTok ? " 이미 있음 → 유지" : " 새로 만듦(32자 hex)") + " + ACL(상속 끊기, 현재 사용자만 FullControl)", () =>
+                    Act(L.T("토큰 " + TokenPath + (haveTok ? " 이미 있음 → 유지" : " 새로 만듦(32자 hex)") + " + ACL(상속 끊기, 현재 사용자만 FullControl)", "token " + TokenPath + (haveTok ? " already exists → kept" : " created (32 hex chars)") + " + ACL (inheritance removed, FullControl for the current user only)"), () =>
                     {
                         TokenFile.Ensure(TokenPath);
                         log.Line("    ACL: " + TokenFile.Describe(TokenPath));
                     });
-                    if (cfgExists) log.Line("  config.json 이미 있음 — 건드리지 않음(" + cfgNote + ")");
-                    else Act("config.json 새로 만듦(" + cfgNote + "): " + cfgContent.Trim().Replace("\n", " "), () => SystemAccess.WriteText(CfgPath, cfgContent));
+                    if (cfgExists) log.Line(L.T("  config.json 이미 있음 — 건드리지 않음(" + cfgNote + ")", "  config.json already exists — left alone (" + cfgNote + ")"));
+                    else Act(L.T("config.json 새로 만듦(" + cfgNote + "): " + cfgContent.Trim().Replace("\n", " "), "create config.json (" + cfgNote + "): " + cfgContent.Trim().Replace("\n", " ")), () => SystemAccess.WriteText(CfgPath, cfgContent));
 
-                    Step("5. install.json(installing)·바로가기·prefs.json·이전 PS 작업");
+                    Step(L.T("5. install.json(installing)·바로가기·prefs.json·이전 PS 작업", "5. install.json (installing), shortcuts, prefs.json, old PS task"));
                     installId = Guid.NewGuid().ToString("N");
                     Act("install.json state=installing (install_id=" + installId + ", hub_dir=" + hubDir + ", log_root=" + logRoot + ")", () => WriteInstallJson("installing"));
-                    Act("시작프로그램 " + StartupLnkPath + " → \"" + instExe + "\" sup", () => EnsureLnk(log, StartupLnkPath, instExe, "sup", "UART 허브 감독(로그온 때 자동 실행)", installId));
-                    Act("시작 메뉴 " + Path.Combine(MenuDir, MenuMain) + " → sup", () => EnsureLnk(log, Path.Combine(MenuDir, MenuMain), instExe, "sup", "UART 허브 감독 시작", installId));
-                    Act("시작 메뉴 " + Path.Combine(MenuDir, MenuUninstall) + " → uninstall", () => EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), instExe, "uninstall", "UART 허브 제거", installId));
-                    if (SystemAccess.FileExists(PrefsPath)) log.Line("  prefs.json 이미 있음 — 그대로");
-                    else Act("prefs.json(터미널 auto, 찾은 것: " + TermText() + ")", WritePrefs);
-                    if (deletePsTask) Act("이전 PS 작업 \\uart_hub 삭제(동작이 uart_hub.ps1)", DeletePsTask);
-                    else log.Line("  이전 PS 작업 \\uart_hub: " + psTaskNote);
+                    Act(L.T("시작프로그램 " + StartupLnkPath + " → \"" + instExe + "\" sup", "startup " + StartupLnkPath + " → \"" + instExe + "\" sup"), () => EnsureLnk(log, StartupLnkPath, instExe, "sup", L.T("UART 허브 감독(로그온 때 자동 실행)", "UART Hub supervisor (auto start at logon)"), installId));
+                    Act(L.T("시작 메뉴 " + Path.Combine(MenuDir, MenuMain) + " → sup", "Start menu " + Path.Combine(MenuDir, MenuMain) + " → sup"), () => EnsureLnk(log, Path.Combine(MenuDir, MenuMain), instExe, "sup", L.T("UART 허브 감독 시작", "Start UART Hub supervisor"), installId));
+                    Act(L.T("시작 메뉴 " + Path.Combine(MenuDir, MenuUninstall) + " → uninstall", "Start menu " + Path.Combine(MenuDir, MenuUninstall) + " → uninstall"), () => EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), instExe, "uninstall", L.T("UART 허브 제거", "Remove UART Hub"), installId));
+                    if (SystemAccess.FileExists(PrefsPath)) log.Line(L.T("  prefs.json 이미 있음 — 그대로", "  prefs.json already exists — kept as is"));
+                    else Act(L.T("prefs.json(터미널 auto, 찾은 것: " + TermText() + ")", "prefs.json (terminal auto, found: " + TermText() + ")"), WritePrefs);
+                    if (deletePsTask) Act(L.T("이전 PS 작업 \\uart_hub 삭제(동작이 uart_hub.ps1)", "delete old PS task \\uart_hub (its action is uart_hub.ps1)"), DeletePsTask);
+                    else log.Line(L.T("  이전 PS 작업 \\uart_hub: " + psTaskNote, "  old PS task \\uart_hub: " + psTaskNote));
 
-                    Step("6. update mutex 닫기 → 감독 기동 → 건강 확인");
-                    Act("update mutex 닫기(ReleaseMutex + 핸들 닫기)", ReleaseUpdate);
-                    Act("\"" + instExe + "\" sup 분리 기동", () => started.Add(SystemAccess.StartDetached(instExe, new[] { "sup" })));
+                    Step(L.T("6. update mutex 닫기 → 감독 기동 → 건강 확인", "6. close update mutex → start supervisor → health check"));
+                    Act(L.T("update mutex 닫기(ReleaseMutex + 핸들 닫기)", "close update mutex (ReleaseMutex + close handle)"), ReleaseUpdate);
+                    Act(L.T("\"" + instExe + "\" sup 분리 기동", "start \"" + instExe + "\" sup detached"), () => started.Add(SystemAccess.StartDetached(instExe, new[] { "sup" })));
                     bool healthy = true;
-                    Act("건강 확인(sup.json state=running · core.pid control=listening, 합격선 " + HealthPassS + "초 · 중단 임계 " + HealthAbortS + "초)", () => healthy = Health());
-                    if (!healthy) return FirstFail("건강 확인 실패");
+                    Act(L.T("건강 확인(sup.json state=running · core.pid control=listening, 합격선 " + HealthPassS + "초 · 중단 임계 " + HealthAbortS + "초)", "health check (sup.json state=running, core.pid control=listening; pass within " + HealthPassS + " s, abort threshold " + HealthAbortS + " s)"), () => healthy = Health());
+                    if (!healthy) return FirstFail(L.T("건강 확인 실패", "health check failed"));
 
-                    Step("7. 마무리");
+                    Step(L.T("7. 마무리", "7. Finish"));
                     if (!dry) SystemAccess.TestDelay("finalize");                // finalize-race: 감독은 이 동안 C-14 에서 기다리기만 한다
-                    Act("install.json state=installed 확정", () => WriteInstallJson("installed"));
-                    if (dry) log.Line("  [dry-run] Claude skills 배치(~/.claude 가 있는 곳만, 배포판마다 탐침 30초 — dry-run 은 배포판을 깨우지 않음) — 후보: " + SkillsText());
+                    Act(L.T("install.json state=installed 확정", "finalize install.json state=installed"), () => WriteInstallJson("installed"));
+                    if (dry) log.Line(L.T("  [dry-run] Claude skills 배치(~/.claude 가 있는 곳만, 배포판마다 탐침 30초 — dry-run 은 배포판을 깨우지 않음) — 후보: " + SkillsText(), "  [dry-run] deploy Claude skills (only where ~/.claude exists; 30 s probe per distro — dry-run does not wake distros) — candidates: " + SkillsText()));
                     else DeploySkills(null);
-                    log.Line("  " + (dry ? "[dry-run] " : "") + "진행 창 \"완료\" 5초 뒤 저절로 닫힘. installer mutex 는 이 프로세스가 끝날 때 닫힘(감독의 C-14 는 그때까지 기다림)");
+                    log.Line(L.T("  " + (dry ? "[dry-run] " : "") + "진행 창 \"완료\" 5초 뒤 저절로 닫힘. installer mutex 는 이 프로세스가 끝날 때 닫힘(감독의 C-14 는 그때까지 기다림)", "  " + (dry ? "[dry-run] " : "") + "the progress window shows \"Done\" and closes by itself after 5 s. The installer mutex closes when this process ends (the supervisor's C-14 waits until then)"));
                     if (dry)
                     {
-                        Step("8. (건강 확인 실패 때만) 첫 설치 실패 정리");
-                        log.Line("  [dry-run] update mutex 재획득 → 감독·코어 shutdown → core.stop → 검증 PID kill → 시작프로그램·시작 메뉴 바로가기 삭제");
-                        log.Line("  [dry-run] install.log → " + Path.Combine(hubDir, "install_failed_<시각>.log") + " → 설치 폴더 " + instDir + " 삭제");
-                        log.Line("  [dry-run] 남김: 허브 폴더 " + hubDir + "(token·config.json·hub.log), 로그 폴더 " + logRoot + " → 오류 창(로그 파일 경로)");
+                        Step(L.T("8. (건강 확인 실패 때만) 첫 설치 실패 정리", "8. (only if the health check failed) clean up a failed first install"));
+                        log.Line(L.T("  [dry-run] update mutex 재획득 → 감독·코어 shutdown → core.stop → 검증 PID kill → 시작프로그램·시작 메뉴 바로가기 삭제", "  [dry-run] re-acquire update mutex → shut down supervisor and core → core.stop → kill verified PID → delete startup and Start menu shortcuts"));
+                        log.Line(L.T("  [dry-run] install.log → " + Path.Combine(hubDir, "install_failed_<시각>.log") + " → 설치 폴더 " + instDir + " 삭제", "  [dry-run] install.log → " + Path.Combine(hubDir, "install_failed_<time>.log") + " → delete install folder " + instDir));
+                        log.Line(L.T("  [dry-run] 남김: 허브 폴더 " + hubDir + "(token·config.json·hub.log), 로그 폴더 " + logRoot + " → 오류 창(로그 파일 경로)", "  [dry-run] kept: hub folder " + hubDir + " (token, config.json, hub.log), log folder " + logRoot + " → error window (log file path)"));
                         log.Line("");
-                        log.Line("# dry-run 끝 — 시스템을 바꾸지 않았습니다." + (stop != RcOk ? " 사전 점검이 실제 실행을 막습니다(exit " + stop + ")." : ""));
+                        log.Line(L.T("# dry-run 끝 — 시스템을 바꾸지 않았습니다." + (stop != RcOk ? " 사전 점검이 실제 실행을 막습니다(exit " + stop + ")." : ""), "# dry-run done — the system was not changed." + (stop != RcOk ? " The pre-checks would block a real run (exit " + stop + ")." : "")));
                         return stop;
                     }
                     log.Line("");
-                    log.Line("# 설치 완료 v" + Hub.Version);
-                    ui.Finish(true, "UART 허브를 설치했습니다. 트레이(숨겨진 아이콘 ^)에 UART 허브 아이콘이 있습니다.\n로그 위치: " + logRoot + "\nClaude skills: " + skillsSummary, 5000);
+                    log.Line(L.T("# 설치 완료 v" + Hub.Version, "# setup done v" + Hub.Version));
+                    ui.Finish(true, L.T("UART 허브를 설치했습니다. 트레이(숨겨진 아이콘 ^)에 UART 허브 아이콘이 있습니다.\n로그 위치: " + logRoot + "\nClaude skills: " + skillsSummary, "UART Hub is installed. Its icon is in the tray (under the hidden icons ^).\nLog location: " + logRoot + "\nClaude skills: " + skillsSummary), 5000);
                     return RcOk;
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    if (dry) { log.Line("  [dry-run] 오류: " + e.GetType().Name + ": " + e.Message); return RcFailed; }
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
+                    if (dry) { log.Line(L.T("  [dry-run] 오류: " + e.GetType().Name + ": " + e.Message, "  [dry-run] error: " + e.GetType().Name + ": " + e.Message)); return RcFailed; }
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
                     return FirstFail(e.GetType().Name + ": " + e.Message);
                 }
             }
@@ -711,15 +728,15 @@ namespace UartHub
 
             string UpdateKind()
             {
-                if (!SystemAccess.FileExists(instExe)) return "복구(UartHub.exe 없음 — 새로 놓음)";
+                if (!SystemAccess.FileExists(instExe)) return L.T("복구(UartHub.exe 없음 — 새로 놓음)", "repair (UartHub.exe is missing — placing a new one)");
                 int c = CompareVersions();
-                return c == 0 ? "같은 버전 — 복구(다시 설치)" : c > 0 ? "업데이트" : "더 오래된 판으로 바꿈(주의: 설치된 판이 더 새것)";
+                return c == 0 ? L.T("같은 버전 — 복구(다시 설치)", "same version — repair (reinstall)") : c > 0 ? L.T("업데이트", "update") : L.T("더 오래된 판으로 바꿈(주의: 설치된 판이 더 새것)", "switch to an older version (note: the installed one is newer)");
             }
 
             /// <summary>진행 창 안내 한 줄(시험 모드는 install.log 의 "[진행 창]" 줄로 본다).</summary>
             void Notice(string s)
             {
-                log.Line("  [진행 창] " + s);
+                log.Line(L.T("  [진행 창] " + s, "  [progress window] " + s));
                 ui?.Progress(s);
             }
 
@@ -730,43 +747,43 @@ namespace UartHub
             /// </summary>
             void Residue()
             {
-                Step("0a. 이전 업데이트 잔재(UartHub.exe 없음 · UartHub.new/old*/bad*.exe)");
+                Step(L.T("0a. 이전 업데이트 잔재(UartHub.exe 없음 · UartHub.new/old*/bad*.exe)", "0a. Leftovers from a previous update (UartHub.exe missing · UartHub.new/old*/bad*.exe)"));
                 if (!dry) log.Attach(InstLogPath);
                 bool exe = SystemAccess.FileExists(instExe), nw = SystemAccess.FileExists(NewExe);
                 var olds = SystemAccess.ListFiles(instDir, "UartHub.old*.exe");
                 var bads = SystemAccess.ListFiles(instDir, "UartHub.bad*.exe");
-                if (exe && !nw && olds.Length == 0 && bads.Length == 0) { log.Line("  없음"); return; }
+                if (exe && !nw && olds.Length == 0 && bads.Length == 0) { log.Line(L.T("  없음", "  none")); return; }
                 if (!exe && olds.Length > 0)
                 {
                     // 가장 최근 백업: UartHub.old.<n>.exe 는 old.exe 가 잠겨 있을 때만 생기므로 n 이 큰 쪽이 나중 것
                     string pick = olds.OrderByDescending(OldRank).First();
-                    residue.Add("잔재 A");
-                    Act("잔재 A(공백 중 끊김: UartHub.exe 없음 + " + Path.GetFileName(pick) + ") → UartHub.exe 로 되돌림", () => Retry(() => SystemAccess.MoveFile(pick, instExe, false)));
+                    residue.Add("A");
+                    Act(L.T("잔재 A(공백 중 끊김: UartHub.exe 없음 + " + Path.GetFileName(pick) + ") → UartHub.exe 로 되돌림", "residue A (interrupted during the gap: UartHub.exe missing + " + Path.GetFileName(pick) + ") → restore as UartHub.exe"), () => Retry(() => SystemAccess.MoveFile(pick, instExe, false)));
                 }
-                else if (exe && nw) residue.Add("잔재 B");
-                if (nw) Act("잔재 " + (exe ? "B" : "A") + ": " + Path.GetFileName(NewExe) + " 지움(교체 전에 끊긴 새 exe)", () => SystemAccess.DeleteFile(NewExe));
+                else if (exe && nw) residue.Add("B");
+                if (nw) Act(L.T("잔재 " + (exe ? "B" : "A") + ": " + Path.GetFileName(NewExe) + " 지움(교체 전에 끊긴 새 exe)", "residue " + (exe ? "B" : "A") + ": delete " + Path.GetFileName(NewExe) + " (new exe cut off before the swap)"), () => SystemAccess.DeleteFile(NewExe));
                 if (exe && !nw && olds.Length > 0)
                 {
-                    residue.Add("잔재 C");
-                    log.Line("  잔재 C(교체 뒤 마무리 전에 끊김: UartHub.exe + " + string.Join(", ", olds.Select(Path.GetFileName)) + ") — 감독의 C-14 가 맞추며, 이번 실행이 다시 덮는다");
+                    residue.Add("C");
+                    log.Line(L.T("  잔재 C(교체 뒤 마무리 전에 끊김: UartHub.exe + " + string.Join(", ", olds.Select(Path.GetFileName)) + ") — 감독의 C-14 가 맞추며, 이번 실행이 다시 덮는다", "  residue C (interrupted after the swap, before finishing: UartHub.exe + " + string.Join(", ", olds.Select(Path.GetFileName)) + ") — the supervisor's C-14 aligns it, and this run overwrites it again"));
                 }
                 foreach (var b in bads)
                 {
-                    residue.Add("잔재 D");
-                    Act("잔재 D(되돌림이 남긴 " + Path.GetFileName(b) + ") 지움", () =>
+                    residue.Add("D");
+                    Act(L.T("잔재 D(되돌림이 남긴 " + Path.GetFileName(b) + ") 지움", "residue D (left by a rollback: " + Path.GetFileName(b) + ") delete"), () =>
                     {
                         try { SystemAccess.DeleteFile(b); }
                         catch (TestIsolationViolation) { throw; }
-                        catch (Exception e) { log.Line("    지우지 못함(실행 중일 수 있음 — 다음 설치 때 다시): " + e.GetType().Name); }
+                        catch (Exception e) { log.Line(L.T("    지우지 못함(실행 중일 수 있음 — 다음 설치 때 다시): " + e.GetType().Name, "    could not delete (may be running — will retry at the next setup): " + e.GetType().Name)); }
                     });
                 }
                 if (!exe && olds.Length == 0)
                 {
-                    residue.Add("exe 없음");
-                    log.Line("  UartHub.exe 없음(old·new 도 없음 — 사용자가 지운 경우 등) → 같은 버전 업데이트(복구) 경로로 새로 놓음. 포트·설정·로그는 그대로");
+                    residue.Add("exe-missing");
+                    log.Line(L.T("  UartHub.exe 없음(old·new 도 없음 — 사용자가 지운 경우 등) → 같은 버전 업데이트(복구) 경로로 새로 놓음. 포트·설정·로그는 그대로", "  UartHub.exe is missing (no old or new either — e.g. the user deleted it) → placing a new one via the same-version update (repair) path. Ports, settings and logs are kept"));
                 }
-                if (residue.Any(x => x == "잔재 A" || x == "잔재 B")) Notice("이전 업데이트가 끝나지 않아 먼저 복구함(" + string.Join("·", residue.Distinct()) + ")");
-                else if (residue.Contains("exe 없음")) Notice("복구: UartHub.exe 가 없어 새로 놓음");
+                if (residue.Any(x => x == "A" || x == "B")) Notice(L.T("이전 업데이트가 끝나지 않아 먼저 복구함(" + ResJoin(residue) + ")", "The previous update had not finished, so it was repaired first (" + ResJoin(residue) + ")"));
+                else if (residue.Contains("exe-missing")) Notice(L.T("복구: UartHub.exe 가 없어 새로 놓음", "Repair: UartHub.exe was missing, so a new one was placed"));
             }
 
             static int OldRank(string f)
@@ -797,109 +814,109 @@ namespace UartHub
                 info = existing;
                 installId = existing.InstallId ?? Guid.NewGuid().ToString("N");
 
-                Step("U1. 확인 창(1회): v" + vA + " → v" + vB + " — " + kind);
+                Step(L.T("U1. 확인 창(1회): v" + vA + " → v" + vB + " — " + kind, "U1. Confirm window (once): v" + vA + " → v" + vB + " — " + kind));
                 var lines = new List<string>
                 {
-                    "설치된 판 v" + vA + " → 받은 판 v" + vB + " (" + kind + ")",
-                    "업데이트하는 동안 허브가 잠깐(수 초) 멈춥니다 — 열린 터미널 창(TeraTerm 등)은 연결이 끊겨 닫히고, Claude 의 긴 명령은 hub_down(103)으로 끝납니다",
-                    "포트 배정·설정(config.json)·제외한 케이블·토큰·로그는 그대로 둡니다",
-                    "설치 위치: " + instDir,
-                    "로그 위치: " + logRoot + "  (" + logRootWhy + ")",
-                    "Claude skills 갱신(설치 뒤): " + SkillsText(),
+                    L.T("설치된 판 v" + vA + " → 받은 판 v" + vB + " (" + kind + ")", "Installed v" + vA + " → received v" + vB + " (" + kind + ")"),
+                    L.T("업데이트하는 동안 허브가 잠깐(수 초) 멈춥니다 — 열린 터미널 창(TeraTerm 등)은 연결이 끊겨 닫히고, Claude 의 긴 명령은 hub_down(103)으로 끝납니다", "The hub stops for a few seconds during the update — open terminal windows (TeraTerm etc.) lose their connection and close, and Claude's long commands end with hub_down(103)"),
+                    L.T("포트 배정·설정(config.json)·제외한 케이블·토큰·로그는 그대로 둡니다", "Port assignments, settings (config.json), excluded cables, token and logs are kept as they are"),
+                    L.T("설치 위치: " + instDir, "Install location: " + instDir),
+                    L.T("로그 위치: " + logRoot + "  (" + logRootWhy + ")", "Log location: " + logRoot + "  (" + logRootWhy + ")"),
+                    L.T("Claude skills 갱신(설치 뒤): " + SkillsText(), "Claude skills update (after install): " + SkillsText()),
                 };
-                if (CompareVersions() < 0) lines.Insert(1, "주의: 받은 판 v" + vB + " 가 설치된 판 v" + vA + " 보다 오래되었습니다(되돌리기). 계속하면 옛 판으로 바꿉니다");
-                if (residue.Count > 0) lines.Add("이전 업데이트 잔재를 먼저 정리했습니다: " + string.Join("·", residue.Distinct()));
-                foreach (var w in warnings) lines.Add("경고: " + w);
+                if (CompareVersions() < 0) lines.Insert(1, L.T("주의: 받은 판 v" + vB + " 가 설치된 판 v" + vA + " 보다 오래되었습니다(되돌리기). 계속하면 옛 판으로 바꿉니다", "Note: the received version v" + vB + " is older than the installed v" + vA + " (downgrade). Continuing will switch to the older version"));
+                if (residue.Count > 0) lines.Add(L.T("이전 업데이트 잔재를 먼저 정리했습니다: " + ResJoin(residue), "Leftovers from a previous update were cleaned up first: " + ResJoin(residue)));
+                foreach (var w in warnings) lines.Add(L.T("경고: " + w, "Warning: " + w));
                 foreach (var l in lines) log.Line("  | " + l);
-                if (!dry && !ui.Confirm(InstallTitle + " — v" + vA + " → v" + vB, same ? "복구" : "업데이트", lines))
+                if (!dry && !ui.Confirm(InstallTitle + " — v" + vA + " → v" + vB, L.T(same ? "복구" : "업데이트", same ? "Repair" : "Update"), lines))
                 {
-                    log.Line("  취소 — 교체하지 않음(exit 2)");
+                    log.Line(L.T("  취소 — 교체하지 않음(exit 2)", "  cancelled — not replacing (exit 2)"));
                     return RcCancelled;
                 }
-                if (dry) log.Line("  [dry-run] 확인 창을 띄우지 않음");
+                if (dry) log.Line(L.T("  [dry-run] 확인 창을 띄우지 않음", "  [dry-run] not showing the confirm window"));
                 if (!dry && log.Path == null) log.Attach(InstLogPath);
 
                 // ---- 공백 전: 실패해도 허브는 그대로(vA)
-                Step("U1. 공백 전: update mutex → 새 exe 복사·검증(백신의 첫 검사도 여기서)");
+                Step(L.T("U1. 공백 전: update mutex → 새 exe 복사·검증(백신의 첫 검사도 여기서)", "U1. Before the gap: update mutex → copy and verify the new exe (the antivirus first scan also happens here)"));
                 try
                 {
-                    Act("update mutex 획득(" + SystemAccess.MutexName("update") + ") — 이후 감독 기동·C-9·C-11 자가 복구 없음", AcquireUpdate);
-                    Act("설치 폴더 " + instDir, () => SystemAccess.CreateDir(instDir));
-                    Act("스트림 복사(MotW 없는 새 파일) " + self + " → " + NewExe, () => SystemAccess.CopyStream(self, NewExe));
-                    Act(Path.GetFileName(NewExe) + " version --json = 자기 버전(" + vB + ")·Core MVID 확인", () => VerifyCopy(NewExe));
+                    Act(L.T("update mutex 획득(" + SystemAccess.MutexName("update") + ") — 이후 감독 기동·C-9·C-11 자가 복구 없음", "acquire update mutex (" + SystemAccess.MutexName("update") + ") — no supervisor start or C-9/C-11 self-repair from here"), AcquireUpdate);
+                    Act(L.T("설치 폴더 " + instDir, "install folder " + instDir), () => SystemAccess.CreateDir(instDir));
+                    Act(L.T("스트림 복사(MotW 없는 새 파일) " + self + " → " + NewExe, "stream copy (new file without MotW) " + self + " → " + NewExe), () => SystemAccess.CopyStream(self, NewExe));
+                    Act(L.T(Path.GetFileName(NewExe) + " version --json = 자기 버전(" + vB + ")·Core MVID 확인", "check " + Path.GetFileName(NewExe) + " version --json = own version (" + vB + ") and Core MVID"), () => VerifyCopy(NewExe));
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
                     try { SystemAccess.DeleteFile(NewExe); } catch (TestIsolationViolation) { throw; } catch (Exception) { }
                     ReleaseUpdate();
-                    log.Line("# 업데이트 실패(공백 전 — 허브는 그대로 v" + vA + ", exit 1)");
-                    ui.Finish(false, "업데이트를 시작하지 못했습니다(허브는 그대로 동작합니다).\n로그 파일: " + log.Path + "\n" + e.Message, 0);
+                    log.Line(L.T("# 업데이트 실패(공백 전 — 허브는 그대로 v" + vA + ", exit 1)", "# update failed (before the gap — hub unchanged at v" + vA + ", exit 1)"));
+                    ui.Finish(false, L.T("업데이트를 시작하지 못했습니다(허브는 그대로 동작합니다).\n로그 파일: " + log.Path + "\n" + e.Message, "Could not start the update (the hub keeps running as before).\nLog file: " + log.Path + "\n" + e.Message), 0);
                     return RcFailed;
                 }
                 if (dry)
                 {
-                    Step("U2. 공백 시작: 허브 정지");
-                    log.Line("  [dry-run] 감독에 shutdown(C-5, control.json 그대로) → 감독·코어 종료 ≤20초 → 무응답이면 core.stop(*** hub stop ***) 10초 → 그래도 안 되면 검증 PID kill");
-                    Step("U3. 교체");
-                    log.Line("  [dry-run] File.Replace(" + NewExe + " → " + instExe + ", 백업 UartHub.old.exe) 재시도 " + ReplaceTries + "×" + ReplaceWaitMs + "ms, 1176 = 둘 다 제자리 → 재시도, 1177 = old 를 즉시 되돌린 뒤 재시도");
-                    Step("U4. update mutex 닫기 → 새 감독 기동 → 건강 확인(공백 끝)");
-                    log.Line("  [dry-run] \"" + instExe + "\" sup 분리 기동 → sup.json running·core.pid listening·hub status 의 supervisor.version == core_version == v" + vB + " (합격선 " + HealthPassUpdateS + "초 · 중단 임계 " + HealthAbortS + "초)");
-                    Step("U5. 공백 뒤: 마무리(멱등)");
-                    log.Line("  [dry-run] 첫 설치 4~5 단계 재실행(토큰·config·state 는 그대로) → install.json version=" + vB + " → Claude skills 갱신(기록된 곳 + 새로 생긴 곳, 배포판마다 탐침 30초 — 공백 밖) → UartHub.old.exe 삭제(잠겨 있으면 다음 감독 기동 때)");
-                    Step("R. (U4 실패 때만) 되돌림");
-                    log.Line("  [dry-run] update mutex 재획득 → 새 감독·코어 정지 → UartHub.exe → UartHub.bad.exe, UartHub.old.exe → UartHub.exe → 옛 exe install --repair --quiet → update mutex 닫기 → 옛 sup → 오류 창");
+                    Step(L.T("U2. 공백 시작: 허브 정지", "U2. Gap starts: stop the hub"));
+                    log.Line(L.T("  [dry-run] 감독에 shutdown(C-5, control.json 그대로) → 감독·코어 종료 ≤20초 → 무응답이면 core.stop(*** hub stop ***) 10초 → 그래도 안 되면 검증 PID kill", "  [dry-run] shutdown to the supervisor (C-5, control.json unchanged) → supervisor and core exit within 20 s → if no response, core.stop (*** hub stop ***) for 10 s → if still alive, kill the verified PID"));
+                    Step(L.T("U3. 교체", "U3. Swap"));
+                    log.Line(L.T("  [dry-run] File.Replace(" + NewExe + " → " + instExe + ", 백업 UartHub.old.exe) 재시도 " + ReplaceTries + "×" + ReplaceWaitMs + "ms, 1176 = 둘 다 제자리 → 재시도, 1177 = old 를 즉시 되돌린 뒤 재시도", "  [dry-run] File.Replace(" + NewExe + " → " + instExe + ", backup UartHub.old.exe) retry " + ReplaceTries + "×" + ReplaceWaitMs + "ms, 1176 = both still in place → retry, 1177 = restore old immediately, then retry"));
+                    Step(L.T("U4. update mutex 닫기 → 새 감독 기동 → 건강 확인(공백 끝)", "U4. Close update mutex → start the new supervisor → health check (gap ends)"));
+                    log.Line(L.T("  [dry-run] \"" + instExe + "\" sup 분리 기동 → sup.json running·core.pid listening·hub status 의 supervisor.version == core_version == v" + vB + " (합격선 " + HealthPassUpdateS + "초 · 중단 임계 " + HealthAbortS + "초)", "  [dry-run] start \"" + instExe + "\" sup detached → sup.json running, core.pid listening, hub status supervisor.version == core_version == v" + vB + " (pass within " + HealthPassUpdateS + " s, abort threshold " + HealthAbortS + " s)"));
+                    Step(L.T("U5. 공백 뒤: 마무리(멱등)", "U5. After the gap: finish (idempotent)"));
+                    log.Line(L.T("  [dry-run] 첫 설치 4~5 단계 재실행(토큰·config·state 는 그대로) → install.json version=" + vB + " → Claude skills 갱신(기록된 곳 + 새로 생긴 곳, 배포판마다 탐침 30초 — 공백 밖) → UartHub.old.exe 삭제(잠겨 있으면 다음 감독 기동 때)", "  [dry-run] re-run first-install steps 4-5 (token, config, state unchanged) → install.json version=" + vB + " → update Claude skills (recorded places + new ones, 30 s probe per distro — outside the gap) → delete UartHub.old.exe (at the next supervisor start if locked)"));
+                    Step(L.T("R. (U4 실패 때만) 되돌림", "R. (only if U4 failed) rollback"));
+                    log.Line(L.T("  [dry-run] update mutex 재획득 → 새 감독·코어 정지 → UartHub.exe → UartHub.bad.exe, UartHub.old.exe → UartHub.exe → 옛 exe install --repair --quiet → update mutex 닫기 → 옛 sup → 오류 창", "  [dry-run] re-acquire update mutex → stop the new supervisor and core → UartHub.exe → UartHub.bad.exe, UartHub.old.exe → UartHub.exe → old exe install --repair --quiet → close update mutex → old sup → error window"));
                     log.Line("");
-                    log.Line("# dry-run 끝 — 시스템을 바꾸지 않았습니다." + (stop != RcOk ? " 사전 점검이 실제 실행을 막습니다(exit " + stop + ")." : ""));
+                    log.Line(L.T("# dry-run 끝 — 시스템을 바꾸지 않았습니다." + (stop != RcOk ? " 사전 점검이 실제 실행을 막습니다(exit " + stop + ")." : ""), "# dry-run done — the system was not changed." + (stop != RcOk ? " The pre-checks would block a real run (exit " + stop + ")." : "")));
                     return stop;
                 }
 
                 // ---- 공백
                 var gap = Stopwatch.StartNew();
-                Step("U2. 공백 시작: 허브 정지(감독 shutdown → core.stop → 검증 PID kill)");
+                Step(L.T("U2. 공백 시작: 허브 정지(감독 shutdown → core.stop → 검증 PID kill)", "U2. Gap starts: stop the hub (supervisor shutdown → core.stop → kill verified PID)"));
                 StopHub("update");
                 SystemAccess.TestDelay("pre-replace");
 
-                Step("U3. 교체: File.Replace(" + Path.GetFileName(NewExe) + " → UartHub.exe, 백업 UartHub.old.exe) 재시도 " + ReplaceTries + "×" + ReplaceWaitMs + "ms");
+                Step(L.T("U3. 교체: File.Replace(" + Path.GetFileName(NewExe) + " → UartHub.exe, 백업 UartHub.old.exe) 재시도 " + ReplaceTries + "×" + ReplaceWaitMs + "ms", "U3. Swap: File.Replace(" + Path.GetFileName(NewExe) + " → UartHub.exe, backup UartHub.old.exe) retry " + ReplaceTries + "×" + ReplaceWaitMs + "ms"));
                 string rr = ReplaceExe();
                 if (rr == "restore-failed")
                 {
-                    log.Line("  되돌림 이름 바꾸기 실패 — UartHub.exe 없음, " + Path.GetFileName(oldBackup ?? "UartHub.old.exe") + "(v" + vA + ")·" + Path.GetFileName(NewExe) + " 가 남음");
+                    log.Line(L.T("  되돌림 이름 바꾸기 실패 — UartHub.exe 없음, " + Path.GetFileName(oldBackup ?? "UartHub.old.exe") + "(v" + vA + ")·" + Path.GetFileName(NewExe) + " 가 남음", "  rollback rename failed — UartHub.exe is missing; " + Path.GetFileName(oldBackup ?? "UartHub.old.exe") + " (v" + vA + ") and " + Path.GetFileName(NewExe) + " remain"));
                     ReleaseUpdate();
-                    return Fail("업데이트하지 못했고 이전 판으로 되돌리지도 못했습니다(허브 꺼짐).\n받은 exe 를 다시 실행하면 복구됩니다.");
+                    return Fail(L.T("업데이트하지 못했고 이전 판으로 되돌리지도 못했습니다(허브 꺼짐).\n받은 exe 를 다시 실행하면 복구됩니다.", "The update failed and the previous version could not be restored (hub is off).\nRun the downloaded exe again to repair."));
                 }
                 if (rr != null) return KeepOld(rr);
 
-                Step("U4. update mutex 닫기 → 새 감독 기동 → 건강 확인(공백 끝)");
-                Act("update mutex 닫기(ReleaseMutex + 핸들 닫기)", ReleaseUpdate);
+                Step(L.T("U4. update mutex 닫기 → 새 감독 기동 → 건강 확인(공백 끝)", "U4. Close update mutex → start the new supervisor → health check (gap ends)"));
+                Act(L.T("update mutex 닫기(ReleaseMutex + 핸들 닫기)", "close update mutex (ReleaseMutex + close handle)"), ReleaseUpdate);
                 try
                 {
                     if (SystemAccess.TestFail("sup-start")) throw new IOException("시험 주입(UART_HUB_TEST_FAIL=sup-start): 새 감독 기동 실패");
-                    Act("\"" + instExe + "\" sup 분리 기동", () => started.Add(SystemAccess.StartDetached(instExe, new[] { "sup" })));
+                    Act(L.T("\"" + instExe + "\" sup 분리 기동", "start \"" + instExe + "\" sup detached"), () => started.Add(SystemAccess.StartDetached(instExe, new[] { "sup" })));
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  새 감독 기동 실패: " + e.Message);
-                    return Rollback("새 감독 기동 실패");
+                    log.Line(L.T("  새 감독 기동 실패: " + e.Message, "  failed to start the new supervisor: " + e.Message));
+                    return Rollback(L.T("새 감독 기동 실패", "failed to start the new supervisor"));
                 }
                 bool healthy = false;
-                Act("건강 확인(sup.json running · core.pid listening · supervisor.version == core_version == v" + vB + ", 합격선 " + HealthPassUpdateS + "초 · 중단 임계 " + HealthAbortS + "초)",
+                Act(L.T("건강 확인(sup.json running · core.pid listening · supervisor.version == core_version == v" + vB + ", 합격선 " + HealthPassUpdateS + "초 · 중단 임계 " + HealthAbortS + "초)", "health check (sup.json running, core.pid listening, supervisor.version == core_version == v" + vB + "; pass within " + HealthPassUpdateS + " s, abort threshold " + HealthAbortS + " s)"),
                     () => healthy = Health(vB, HealthPassUpdateS, true));
-                if (!healthy) return Rollback("건강 확인 실패");
-                log.Line("  공백(정지 시작 → 건강 확인) " + gap.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "초");
+                if (!healthy) return Rollback(L.T("건강 확인 실패", "health check failed"));
+                log.Line(L.T("  공백(정지 시작 → 건강 확인) " + gap.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "초", "  gap (stop start → health check) " + gap.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s"));
 
                 // ---- 공백 뒤: 실패는 경고만(새 감독의 C-14 가 마저 맞춘다)
-                Step("U5. 공백 뒤: 마무리(첫 설치 4~5 단계 멱등 재실행·install.json version·옛 이미지)");
+                Step(L.T("U5. 공백 뒤: 마무리(첫 설치 4~5 단계 멱등 재실행·install.json version·옛 이미지)", "U5. After the gap: finish (idempotent re-run of first-install steps 4-5, install.json version, old image)"));
                 SystemAccess.TestDelay("finalize");
                 try { FinishUpdate(); }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  경고: 5 단계 실패(" + e.GetType().Name + ": " + e.Message + ") — 새 감독이 설치기 종료 뒤 C-14 로 마저 맞춤"); }
+                catch (Exception e) { log.Line(L.T("  경고: 5 단계 실패(" + e.GetType().Name + ": " + e.Message + ") — 새 감독이 설치기 종료 뒤 C-14 로 마저 맞춤", "  warning: step 5 failed (" + e.GetType().Name + ": " + e.Message + ") — the new supervisor finishes it via C-14 after the installer exits")); }
                 log.Line("");
-                log.Line("# 업데이트 완료 v" + vA + " → v" + vB);
-                ui.Finish(true, "UART 허브를 v" + vB + " 로 " + (same ? "다시 설치(복구)" : "업데이트") + "했습니다.\n로그 위치: " + logRoot
-                                + (skillsSummary != null ? "\nClaude skills: " + skillsSummary : ""), 5000);
+                log.Line(L.T("# 업데이트 완료 v" + vA + " → v" + vB, "# update done v" + vA + " → v" + vB));
+                ui.Finish(true, L.T("UART 허브를 v" + vB + " 로 " + (same ? "다시 설치(복구)" : "업데이트") + "했습니다.\n로그 위치: " + logRoot
+                                + (skillsSummary != null ? "\nClaude skills: " + skillsSummary : ""), "UART Hub was " + (same ? "reinstalled (repaired)" : "updated") + " to v" + vB + ".\nLog location: " + logRoot + (skillsSummary != null ? "\nClaude skills: " + skillsSummary : "")), 5000);
                 return RcOk;
             }
 
@@ -907,19 +924,19 @@ namespace UartHub
             void FinishUpdate()
             {
                 foreach (var d in new[] { hubDir, Path.Combine(logRoot, "live") })
-                    if (!SystemAccess.DirExists(d)) Act("폴더 " + d, () => SystemAccess.CreateDir(d));
+                    if (!SystemAccess.DirExists(d)) Act(L.T("폴더 " + d, "folder " + d), () => SystemAccess.CreateDir(d));
                 bool made = TokenFile.Ensure(TokenPath);
-                log.Line("  토큰 " + (made ? "새로 만듦" : "그대로") + " · ACL: " + TokenFile.Describe(TokenPath));
-                if (cfgExists) log.Line("  config.json 그대로");
-                else Act("config.json 새로 만듦(" + cfgNote + ")", () => SystemAccess.WriteText(CfgPath, cfgContent));
-                Act("install.json version=" + vB + " state=installed (모르는 키 보존)", () => WriteInstallJson("installed"));
-                EnsureLnk(log, StartupLnkPath, instExe, "sup", "UART 허브 감독(로그온 때 자동 실행)", installId);
-                EnsureLnk(log, Path.Combine(MenuDir, MenuMain), instExe, "sup", "UART 허브 감독 시작", installId);
-                EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), instExe, "uninstall", "UART 허브 제거", installId);
-                log.Line("  시작프로그램·시작 메뉴 바로가기 확인");
-                if (!SystemAccess.FileExists(PrefsPath)) Act("prefs.json(터미널 auto)", WritePrefs);
-                else log.Line("  prefs.json 그대로");
-                if (deletePsTask) Act("이전 PS 작업 \\uart_hub 삭제(동작이 uart_hub.ps1)", DeletePsTask);
+                log.Line(L.T("  토큰 " + (made ? "새로 만듦" : "그대로") + " · ACL: " + TokenFile.Describe(TokenPath), "  token " + (made ? "created" : "unchanged") + " · ACL: " + TokenFile.Describe(TokenPath)));
+                if (cfgExists) log.Line(L.T("  config.json 그대로", "  config.json unchanged"));
+                else Act(L.T("config.json 새로 만듦(" + cfgNote + ")", "create config.json (" + cfgNote + ")"), () => SystemAccess.WriteText(CfgPath, cfgContent));
+                Act(L.T("install.json version=" + vB + " state=installed (모르는 키 보존)", "install.json version=" + vB + " state=installed (unknown keys preserved)"), () => WriteInstallJson("installed"));
+                EnsureLnk(log, StartupLnkPath, instExe, "sup", L.T("UART 허브 감독(로그온 때 자동 실행)", "UART Hub supervisor (auto start at logon)"), installId);
+                EnsureLnk(log, Path.Combine(MenuDir, MenuMain), instExe, "sup", L.T("UART 허브 감독 시작", "Start UART Hub supervisor"), installId);
+                EnsureLnk(log, Path.Combine(MenuDir, MenuUninstall), instExe, "uninstall", L.T("UART 허브 제거", "Remove UART Hub"), installId);
+                log.Line(L.T("  시작프로그램·시작 메뉴 바로가기 확인", "  checked startup and Start menu shortcuts"));
+                if (!SystemAccess.FileExists(PrefsPath)) Act(L.T("prefs.json(터미널 auto)", "prefs.json (terminal auto)"), WritePrefs);
+                else log.Line(L.T("  prefs.json 그대로", "  prefs.json unchanged"));
+                if (deletePsTask) Act(L.T("이전 PS 작업 \\uart_hub 삭제(동작이 uart_hub.ps1)", "delete old PS task \\uart_hub (its action is uart_hub.ps1)"), DeletePsTask);
                 DeploySkills(SkillsDeployer.Recorded(InstJson));
                 DeleteOldImages(log, instDir);
             }
@@ -931,7 +948,7 @@ namespace UartHub
             string ReplaceExe()
             {
                 string backup = FreeName("UartHub.old");
-                if (!backup.EndsWith("UartHub.old.exe", StringComparison.OrdinalIgnoreCase)) log.Line("  UartHub.old.exe 가 잠겨 있음(실행 중인 옛 이미지) → 백업 이름 " + Path.GetFileName(backup));
+                if (!backup.EndsWith("UartHub.old.exe", StringComparison.OrdinalIgnoreCase)) log.Line(L.T("  UartHub.old.exe 가 잠겨 있음(실행 중인 옛 이미지) → 백업 이름 " + Path.GetFileName(backup), "  UartHub.old.exe is locked (old image still running) → backup name " + Path.GetFileName(backup)));
                 for (int i = 1; i <= ReplaceTries; i++)
                 {
                     try
@@ -940,19 +957,19 @@ namespace UartHub
                         {
                             SystemAccess.MoveFile(NewExe, instExe, false);
                             oldBackup = null;
-                            log.Line("  UartHub.exe 없음 → 이름 바꾸기 " + Path.GetFileName(NewExe) + " → UartHub.exe (되돌릴 백업 없음)");
+                            log.Line(L.T("  UartHub.exe 없음 → 이름 바꾸기 " + Path.GetFileName(NewExe) + " → UartHub.exe (되돌릴 백업 없음)", "  UartHub.exe is missing → rename " + Path.GetFileName(NewExe) + " → UartHub.exe (no backup to restore)"));
                             return null;
                         }
                         InjectReplace(i, backup);
                         SystemAccess.ReplaceFile(NewExe, instExe, backup);
                         oldBackup = backup;
-                        log.Line("  교체 OK(" + i + "번째 시도): UartHub.exe = v" + vB + ", 백업 " + Path.GetFileName(backup) + " = v" + vA);
+                        log.Line(L.T("  교체 OK(" + i + "번째 시도): UartHub.exe = v" + vB + ", 백업 " + Path.GetFileName(backup) + " = v" + vA, "  swap OK (attempt " + i + "): UartHub.exe = v" + vB + ", backup " + Path.GetFileName(backup) + " = v" + vA));
                         return null;
                     }
                     catch (TestIsolationViolation) { throw; }
                     catch (Exception e)
                     {
-                        log.Line("  교체 실패 " + i + "/" + ReplaceTries + ": " + e.GetType().Name + "(" + (e.HResult & 0xFFFF) + ") " + e.Message);
+                        log.Line(L.T("  교체 실패 " + i + "/" + ReplaceTries + ": " + e.GetType().Name + "(" + (e.HResult & 0xFFFF) + ") " + e.Message, "  swap failed " + i + "/" + ReplaceTries + ": " + e.GetType().Name + "(" + (e.HResult & 0xFFFF) + ") " + e.Message));
                         if (!SystemAccess.FileExists(instExe) && SystemAccess.FileExists(backup))
                         {
                             // 1177: 원본은 백업 이름으로만 남고 UartHub.exe 가 없다(잔재 A 상태) — 즉시 되돌린 뒤 재시도
@@ -965,10 +982,10 @@ namespace UartHub
                                     if (SystemAccess.TestFail("rollback-rename")) throw new IOException("시험 주입(UART_HUB_TEST_FAIL=rollback-rename): 이름 바꾸기 실패");
                                     SystemAccess.MoveFile(backup, instExe, false);
                                 });
-                                log.Line("    " + Path.GetFileName(backup) + " → UartHub.exe 즉시 되돌림(1177 상태 해소)");
+                                log.Line(L.T("    " + Path.GetFileName(backup) + " → UartHub.exe 즉시 되돌림(1177 상태 해소)", "    " + Path.GetFileName(backup) + " → UartHub.exe restored immediately (clears the 1177 state)"));
                             }
                             catch (TestIsolationViolation) { throw; }
-                            catch (Exception e2) { log.Line("    되돌리지 못함: " + e2.Message); return "restore-failed"; }
+                            catch (Exception e2) { log.Line(L.T("    되돌리지 못함: " + e2.Message, "    could not restore: " + e2.Message)); return "restore-failed"; }
                         }
                         if (i < ReplaceTries) Thread.Sleep(ReplaceWaitMs);
                     }
@@ -994,11 +1011,11 @@ namespace UartHub
             int KeepOld(string why)
             {
                 log.Line("");
-                log.Line("== R. 교체하지 못함(" + why + ") → v" + vA + " 그대로 다시 기동");
-                try { SystemAccess.DeleteFile(NewExe); log.Line("  " + Path.GetFileName(NewExe) + " 지움"); }
+                log.Line(L.T("== R. 교체하지 못함(" + why + ") → v" + vA + " 그대로 다시 기동", "== R. could not swap (" + why + ") → starting v" + vA + " again as it was"));
+                try { SystemAccess.DeleteFile(NewExe); log.Line(L.T("  " + Path.GetFileName(NewExe) + " 지움", "  deleted " + Path.GetFileName(NewExe))); }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  " + Path.GetFileName(NewExe) + " 지우지 못함(다음 설치기가 잔재 B 로 지움): " + e.Message); }
-                return StartOld("업데이트하지 못했습니다(파일 교체 실패) — 이전 판 v" + vA + " 로 계속 동작합니다.");
+                catch (Exception e) { log.Line(L.T("  " + Path.GetFileName(NewExe) + " 지우지 못함(다음 설치기가 잔재 B 로 지움): " + e.Message, "  could not delete " + Path.GetFileName(NewExe) + " (the next installer removes it as residue B): " + e.Message)); }
+                return StartOld(L.T("업데이트하지 못했습니다(파일 교체 실패) — 이전 판 v" + vA + " 로 계속 동작합니다.", "The update failed (file swap failed) — continuing with the previous version v" + vA + "."));
             }
 
             /// <summary>
@@ -1008,16 +1025,16 @@ namespace UartHub
             int Rollback(string why)
             {
                 log.Line("");
-                log.Line("== R. 되돌림: " + why + " → v" + vA);
-                try { AcquireUpdate(); log.Line("  update mutex 재획득"); }
+                log.Line(L.T("== R. 되돌림: " + why + " → v" + vA, "== R. rollback: " + why + " → v" + vA));
+                try { AcquireUpdate(); log.Line(L.T("  update mutex 재획득", "  re-acquired update mutex")); }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  update mutex 재획득 실패(계속): " + e.Message); }
+                catch (Exception e) { log.Line(L.T("  update mutex 재획득 실패(계속): " + e.Message, "  failed to re-acquire update mutex (continuing): " + e.Message)); }
                 StopHub("rollback");
                 if (oldBackup == null || !SystemAccess.FileExists(oldBackup))
                 {
-                    log.Line("  되돌릴 이전 판 없음(업데이트 전에 UartHub.exe 가 없었음)");
+                    log.Line(L.T("  되돌릴 이전 판 없음(업데이트 전에 UartHub.exe 가 없었음)", "  no previous version to restore (UartHub.exe was missing before the update)"));
                     ReleaseUpdate();
-                    return Fail("업데이트하지 못했습니다(되돌릴 이전 판 없음 — 허브 꺼짐).\n받은 exe 를 다시 실행하세요.");
+                    return Fail(L.T("업데이트하지 못했습니다(되돌릴 이전 판 없음 — 허브 꺼짐).\n받은 exe 를 다시 실행하세요.", "The update failed (no previous version to restore — hub is off).\nRun the downloaded exe again."));
                 }
                 string bad = FreeName("UartHub.bad");
                 try
@@ -1034,40 +1051,40 @@ namespace UartHub
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  되돌림 이름 바꾸기 실패: " + e.Message + " — " + string.Join("·", SystemAccess.ListFiles(instDir, "UartHub*.exe").Select(Path.GetFileName)) + " 가 남음, UartHub.exe 없음");
+                    log.Line(L.T("  되돌림 이름 바꾸기 실패: " + e.Message + " — " + string.Join("·", SystemAccess.ListFiles(instDir, "UartHub*.exe").Select(Path.GetFileName)) + " 가 남음, UartHub.exe 없음", "  rollback rename failed: " + e.Message + " — " + string.Join("·", SystemAccess.ListFiles(instDir, "UartHub*.exe").Select(Path.GetFileName)) + " remain, UartHub.exe is missing"));
                     ReleaseUpdate();
-                    return Fail("업데이트하지 못했고 이전 판으로 되돌리지도 못했습니다(허브 꺼짐).\n받은 exe 를 다시 실행하면 복구됩니다.");
+                    return Fail(L.T("업데이트하지 못했고 이전 판으로 되돌리지도 못했습니다(허브 꺼짐).\n받은 exe 를 다시 실행하면 복구됩니다.", "The update failed and the previous version could not be restored (hub is off).\nRun the downloaded exe again to repair."));
                 }
                 var r = SystemAccess.RunCapture(instExe, new[] { "install", "--repair", "--quiet" }, 60000);
-                log.Line("  옛 exe install --repair --quiet → rc=" + r.Code + (r.Code != 0 ? " " + Trunc(r.OutText + r.Err, 300) : ""));
-                return StartOld("업데이트하지 못해 이전 판 v" + vA + " 로 되돌렸습니다(" + why + ").");
+                log.Line(L.T("  옛 exe install --repair --quiet → rc=" + r.Code + (r.Code != 0 ? " " + Trunc(r.OutText + r.Err, 300) : ""), "  old exe install --repair --quiet → rc=" + r.Code + (r.Code != 0 ? " " + Trunc(r.OutText + r.Err, 300) : "")));
+                return StartOld(L.T("업데이트하지 못해 이전 판 v" + vA + " 로 되돌렸습니다(" + why + ").", "The update failed, so v" + vA + " was restored (" + why + ")."));
             }
 
             /// <summary>update mutex 닫기 → 옛 sup(주입 환경변수 없이) → 건강 확인 → 오류 창. 언제나 exit 1.</summary>
             int StartOld(string message)
             {
                 ReleaseUpdate();
-                log.Line("  update mutex 닫기");
+                log.Line(L.T("  update mutex 닫기", "  closed update mutex"));
                 try
                 {
                     if (SystemAccess.TestFail("old-sup-start")) throw new IOException("시험 주입(UART_HUB_TEST_FAIL=old-sup-start): 옛 감독 기동 실패");
                     started.Add(SystemAccess.StartDetached(instExe, new[] { "sup" }, true));
-                    log.Line("  옛 감독(v" + vA + ") 분리 기동");
+                    log.Line(L.T("  옛 감독(v" + vA + ") 분리 기동", "  starting the old supervisor (v" + vA + ") detached"));
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  옛 감독 기동 실패: " + e.Message + " — 허브 꺼짐(v" + vA + " 파일은 제자리)");
-                    return Fail(message + "\n이전 판의 허브도 다시 켜지 못했습니다(허브 꺼짐). 받은 exe 를 다시 실행하세요.");
+                    log.Line(L.T("  옛 감독 기동 실패: " + e.Message + " — 허브 꺼짐(v" + vA + " 파일은 제자리)", "  failed to start the old supervisor: " + e.Message + " — hub is off (v" + vA + " files are in place)"));
+                    return Fail(L.T(message + "\n이전 판의 허브도 다시 켜지 못했습니다(허브 꺼짐). 받은 exe 를 다시 실행하세요.", message + "\nThe previous version of the hub could not be started again either (hub is off). Run the downloaded exe again."));
                 }
                 bool ok = Health(vA, HealthPassUpdateS, false);
-                return Fail(message + (ok ? "" : "\n(이전 판의 건강 확인도 실패 — hub.log 를 확인하세요)") + "\n받은 exe 를 다시 실행하면 복구됩니다.");
+                return Fail(L.T(message + (ok ? "" : "\n(이전 판의 건강 확인도 실패 — hub.log 를 확인하세요)") + "\n받은 exe 를 다시 실행하면 복구됩니다.", message + (ok ? "" : "\n(the health check of the previous version failed too — check hub.log)") + "\nRun the downloaded exe again to repair."));
             }
 
             int Fail(string message)
             {
-                log.Line("# 업데이트 실패(exit 1) — 로그 " + log.Path);
-                ui.Finish(false, message + "\n로그 파일: " + log.Path, 0);
+                log.Line(L.T("# 업데이트 실패(exit 1) — 로그 " + log.Path, "# update failed (exit 1) — log " + log.Path));
+                ui.Finish(false, L.T(message + "\n로그 파일: " + log.Path, message + "\nLog file: " + log.Path), 0);
                 return RcFailed;
             }
 
@@ -1078,16 +1095,16 @@ namespace UartHub
                 // 일반 권한으로 다시 실행할 방법이 없다 — 시작프로그램·감독도 같은 토큰으로 돌므로 경고만 하고 진행한다.
                 var elev = SystemAccess.ElevationState;
                 log.Line("  elevated=" + (elev == SystemAccess.Elevation.Normal ? "false" : elev == SystemAccess.Elevation.Elevated ? "true" : "true(uac_off)"));
-                if (elev == SystemAccess.Elevation.Elevated) blockers.Add("관리자 권한으로 실행됨 — 일반 권한으로 다시 실행하세요(설치는 현재 사용자 폴더에만 씁니다, UAC 필요 없음)");
-                else if (elev == SystemAccess.Elevation.UacOff) warnings.Add("이 PC 는 UAC 가 꺼져 있어(EnableLUA=0) 모든 프로그램이 관리자 토큰으로 돕니다 — 그대로 설치합니다(감독·시작프로그램도 같은 토큰)");
-                if (SystemAccess.SamePath(self, instExe)) blockers.Add("설치 위치의 exe 로 install 을 실행함 — 받은 exe 를 실행하세요");
+                if (elev == SystemAccess.Elevation.Elevated) blockers.Add(L.T("관리자 권한으로 실행됨 — 일반 권한으로 다시 실행하세요(설치는 현재 사용자 폴더에만 씁니다, UAC 필요 없음)", "running as administrator — run again without elevation (setup writes only to the current user's folders; no UAC needed)"));
+                else if (elev == SystemAccess.Elevation.UacOff) warnings.Add(L.T("이 PC 는 UAC 가 꺼져 있어(EnableLUA=0) 모든 프로그램이 관리자 토큰으로 돕니다 — 그대로 설치합니다(감독·시작프로그램도 같은 토큰)", "UAC is off on this PC (EnableLUA=0), so every program runs with an administrator token — installing as is (the supervisor and startup entry use the same token)"));
+                if (SystemAccess.SamePath(self, instExe)) blockers.Add(L.T("설치 위치의 exe 로 install 을 실행함 — 받은 exe 를 실행하세요", "install was run from the exe in the install location — run the downloaded exe instead"));
 
                 // PS 판·구 브리지(install.ps1:299-302 확장, WMI 명령줄). 자동 kill 하지 않는다.
                 var how = new Dictionary<string, string>
                 {
-                    ["uart_hub.ps1"] = "PS 판 감독 — 트레이 아이콘의 '감독 끝내기'(또는 <허브 폴더>\\sup\\req 에 quit 요청)",
-                    ["hub_core.ps1"] = "PS 판 코어 — 그 PS 판의 `uart hub stop --json`(UART_HUB_DIR 를 그 허브 폴더로) 뒤 감독 끝내기",
-                    ["uart_bridge.ps1"] = "구 브리지 — 그 브리지의 `bridge.sh stop`",
+                    ["uart_hub.ps1"] = L.T("PS 판 감독 — 트레이 아이콘의 '감독 끝내기'(또는 <허브 폴더>\\sup\\req 에 quit 요청)", "PS-version supervisor — use 'End supervisor' on its tray icon (or write a quit request to <hub folder>\\sup\\req)"),
+                    ["hub_core.ps1"] = L.T("PS 판 코어 — 그 PS 판의 `uart hub stop --json`(UART_HUB_DIR 를 그 허브 폴더로) 뒤 감독 끝내기", "PS-version core — run that PS version's `uart hub stop --json` (with UART_HUB_DIR set to its hub folder), then end the supervisor"),
+                    ["uart_bridge.ps1"] = L.T("구 브리지 — 그 브리지의 `bridge.sh stop`", "old bridge — run that bridge's `bridge.sh stop`"),
                 };
                 var ps = SystemAccess.ScriptHosts();
                 int found = 0;
@@ -1098,30 +1115,30 @@ namespace UartHub
                     {
                         if (cmd.IndexOf(kv.Key, StringComparison.OrdinalIgnoreCase) < 0) continue;
                         found++;
-                        blockers.Add("PowerShell 판 프로세스 실행 중: pid " + p.Pid + " (" + p.Name + ", " + kv.Key + ") — 정지 방법: " + kv.Value + ". 자동으로 끄지 않습니다. 끈 뒤 다시 실행하세요");
+                        blockers.Add(L.T("PowerShell 판 프로세스 실행 중: pid " + p.Pid + " (" + p.Name + ", " + kv.Key + ") — 정지 방법: " + kv.Value + ". 자동으로 끄지 않습니다. 끈 뒤 다시 실행하세요", "a PowerShell-version process is running: pid " + p.Pid + " (" + p.Name + ", " + kv.Key + ") — how to stop it: " + kv.Value + ". It is not stopped automatically. Stop it, then run again"));
                         break;
                     }
                 }
-                log.Line("  PowerShell 판·구 브리지 프로세스: " + (found == 0 ? "없음" : found + "개"));
+                log.Line(L.T("  PowerShell 판·구 브리지 프로세스: " + (found == 0 ? "없음" : found + "개"), "  PowerShell-version and old bridge processes: " + (found == 0 ? "none" : found.ToString())));
 
                 // 기존 설치본(업데이트 경로)
-                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
+                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null; LoadLang(existing?.HubDir);
                 if (existing != null)
                 {
                     vA = existing.Version ?? "?";
-                    log.Line("  기존 설치본: " + InstJson + " v" + vA + " state=" + (existing.State ?? "?") + " → " + UpdateKind());
+                    log.Line(L.T("  기존 설치본: " + InstJson + " v" + vA + " state=" + (existing.State ?? "?") + " → " + UpdateKind(), "  existing installation: " + InstJson + " v" + vA + " state=" + (existing.State ?? "?") + " → " + UpdateKind()));
                 }
-                else log.Line("  기존 설치본: 없음 → 첫 설치");
+                else log.Line(L.T("  기존 설치본: 없음 → 첫 설치", "  existing installation: none → first install"));
                 if (existing == null && CoreMain.MutexExists(SystemAccess.MutexName("sup")))
-                    blockers.Add("다른 UART 허브 감독이 이미 실행 중(" + SystemAccess.MutexName("sup") + ") — 그 감독을 끝낸 뒤 다시 실행하세요");
+                    blockers.Add(L.T("다른 UART 허브 감독이 이미 실행 중(" + SystemAccess.MutexName("sup") + ") — 그 감독을 끝낸 뒤 다시 실행하세요", "another UART Hub supervisor is already running (" + SystemAccess.MutexName("sup") + ") — end it, then run again"));
                 if (CoreMain.MutexExists(SystemAccess.MutexName("update")))
-                    blockers.Add("다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ")");
+                    blockers.Add(L.T("다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ")", "another installer/update is swapping files (" + SystemAccess.MutexName("update") + ")"));
 
                 // 로그 위치(§2.3 j)
                 DecideLogRoot();
-                log.Line("  로그 위치: " + logRoot + " (" + logRootWhy + ")");
-                log.Line("  허브 폴더: " + hubDir);
-                if (HubFiles.IsStopped(hubDir)) warnings.Add("허브 폴더의 control.json 이 stopped:true — 감독이 코어를 띄우지 않습니다(트레이 '시작'으로 재개)");
+                log.Line(L.T("  로그 위치: " + logRoot + " (" + logRootWhy + ")", "  log location: " + logRoot + " (" + logRootWhy + ")"));
+                log.Line(L.T("  허브 폴더: " + hubDir, "  hub folder: " + hubDir));
+                if (HubFiles.IsStopped(hubDir)) warnings.Add(L.T("허브 폴더의 control.json 이 stopped:true — 감독이 코어를 띄우지 않습니다(트레이 '시작'으로 재개)", "control.json in the hub folder has stopped:true — the supervisor will not start the core (resume with 'Start' in the tray)"));
 
                 CheckConfig();
                 CheckPorts();
@@ -1139,17 +1156,17 @@ namespace UartHub
                 {
                     bool ask = false;
                     try { ask = Config.Load(SystemAccess.Guard(CfgPath, "read")).AskNewCables; } catch (Exception) { }
-                    cfgNote = "새 케이블 질문: " + (ask ? "켜짐" : "꺼짐") + "(기존 config.json)";
+                    cfgNote = L.T("새 케이블 질문: " + (ask ? "켜짐" : "꺼짐") + "(기존 config.json)", "new-cable prompt: " + (ask ? "on" : "off") + " (existing config.json)");
                 }
                 else if (SystemAccess.IsTest)
                 {
                     cfgContent = SystemAccess.ReadText(SystemAccess.TestFile("seed_config.json"));
                     if (cfgContent == null) throw SystemAccess.Violation("시험 모드인데 seed_config.json 없음 — 기본 config 는 실제 포트(7200·7001~)와 실제 FTDI 열거를 씀");
-                    cfgNote = "새 케이블 질문: " + (cfgContent.Contains("\"ask_new_cables\": true") || cfgContent.Contains("\"ask_new_cables\":true") ? "켜짐" : "꺼짐") + "(시험: seed_config.json)";
+                    cfgNote = L.T("새 케이블 질문: " + (cfgContent.Contains("\"ask_new_cables\": true") || cfgContent.Contains("\"ask_new_cables\":true") ? "켜짐" : "꺼짐") + "(시험: seed_config.json)", "new-cable prompt: " + (cfgContent.Contains("\"ask_new_cables\": true") || cfgContent.Contains("\"ask_new_cables\":true") ? "on" : "off") + " (test: seed_config.json)");
                 }
-                else if (sub == "portable" || sub == "setup") { cfgContent = PortableDefaultConfig; cfgNote = "연결: 필요할 때만(/connect-uart COMx — 꽂아도 잡지 않음, 새 config.json)"; }
-                else { cfgContent = DefaultConfig; cfgNote = "새 케이블 질문: 켜짐(새 config.json)"; }
-                log.Line("  config.json: " + (cfgExists ? "있음" : "없음 → 새로 만듦") + " · " + cfgNote);
+                else if (sub == "portable" || sub == "setup") { cfgContent = PortableDefaultConfig; cfgNote = L.T("연결: 필요할 때만(/connect-uart COMx — 꽂아도 잡지 않음, 새 config.json)", "connect: only when needed (/connect-uart COMx — plugging in does not connect, new config.json)"); }
+                else { cfgContent = DefaultConfig; cfgNote = L.T("새 케이블 질문: 켜짐(새 config.json)", "new-cable prompt: on (new config.json)"); }
+                log.Line(L.T("  config.json: " + (cfgExists ? "있음" : "없음 → 새로 만듦") + " · " + cfgNote, "  config.json: " + (cfgExists ? "exists" : "missing → will be created") + " · " + cfgNote));
             }
 
             /// <summary>skills 를 넣을 후보: WSL 배포판 이름만 + Windows %USERPROFILE%\.claude 유무.</summary>
@@ -1159,10 +1176,10 @@ namespace UartHub
                 wsl = SkillsDeployer.ListDistros();
                 distros = wsl.Names;
                 wslNote = wsl.Note;
-                log.Line("  WSL 배포판: " + wslNote);
+                log.Line(L.T("  WSL 배포판: " + wslNote, "  WSL distros: " + wslNote));
                 string wc = Path.Combine(SystemAccess.UserProfile, ".claude");
                 winClaude = SystemAccess.DirExists(wc) ? Path.Combine(wc, "skills", "uart") : null;
-                log.Line("  Windows Claude(" + wc + "): " + (winClaude != null ? "있음" : "없음"));
+                log.Line(L.T("  Windows Claude(" + wc + "): " + (winClaude != null ? "있음" : "없음"), "  Windows Claude (" + wc + "): " + (winClaude != null ? "found" : "not found")));
             }
 
             void PsTaskAndTerminals()
@@ -1173,10 +1190,10 @@ namespace UartHub
                     string x = q.OutText;
                     string act = string.Join(" ", Regex.Matches(x, @"<(Command|Arguments)>(.*?)</\1>", RegexOptions.Singleline).Select(m => m.Groups[2].Value));
                     deletePsTask = act.IndexOf("uart_hub.ps1", StringComparison.OrdinalIgnoreCase) >= 0;
-                    psTaskNote = deletePsTask ? "있음(동작 = uart_hub.ps1) → 삭제" : "있음(동작이 uart_hub.ps1 아님: " + Trunc(act, 120) + ") → 그대로 둠";
+                    psTaskNote = L.T(deletePsTask ? "있음(동작 = uart_hub.ps1) → 삭제" : "있음(동작이 uart_hub.ps1 아님: " + Trunc(act, 120) + ") → 그대로 둠", deletePsTask ? "exists (action = uart_hub.ps1) → will be deleted" : "exists (action is not uart_hub.ps1: " + Trunc(act, 120) + ") → left alone");
                 }
-                else psTaskNote = "없음";
-                log.Line("  이전 PS 작업 \\uart_hub: " + psTaskNote);
+                else psTaskNote = L.T("없음", "none");
+                log.Line(L.T("  이전 PS 작업 \\uart_hub: " + psTaskNote, "  old PS task \\uart_hub: " + psTaskNote));
 
                 // 터미널(경로 후보만 — 정밀화는 T3)
                 var cands = new[]
@@ -1187,7 +1204,7 @@ namespace UartHub
                     new[] { Path.Combine(SystemAccess.ProgramFilesX86, "Mobatek", "MobaXterm", "MobaXterm.exe"), Path.Combine(SystemAccess.ProgramFiles, "Mobatek", "MobaXterm", "MobaXterm.exe") },
                 };
                 for (int i = 0; i < 3; i++) terms[i] = cands[i].FirstOrDefault(SystemAccess.FileExists);
-                log.Line("  터미널: " + TermText());
+                log.Line(L.T("  터미널: " + TermText(), "  terminal: " + TermText()));
             }
 
             void DecideLogRoot()
@@ -1196,21 +1213,21 @@ namespace UartHub
                 {
                     hubDir = existing.HubDir;
                     logRoot = !string.IsNullOrEmpty(existing.LogRoot) ? existing.LogRoot : Path.GetDirectoryName(hubDir.TrimEnd('\\'));
-                    logRootWhy = "이전 설치(install.json)의 허브 폴더";
+                    logRootWhy = L.T("이전 설치(install.json)의 허브 폴더", "hub folder of the previous install (install.json)");
                     return;
                 }
                 var d = SystemAccess.Drive("D");
                 string dLogs = Path.Combine(d.Root, "uart_logs"), uLogs = Path.Combine(SystemAccess.UserProfile, "uart_logs");
                 if (d.Exists && d.Ready && SystemAccess.FileExists(Path.Combine(dLogs, "hub", "token")))
-                { logRoot = dLogs; logRootWhy = "이전 허브 폴더 재사용(D:\\uart_logs\\hub\\token 있음)"; }
+                { logRoot = dLogs; LoadLang(Path.Combine(dLogs, "hub")); logRootWhy = L.T("이전 허브 폴더 재사용(D:\\uart_logs\\hub\\token 있음)", "reusing the previous hub folder (D:\\uart_logs\\hub\\token exists)"); }
                 else if (SystemAccess.FileExists(Path.Combine(uLogs, "hub", "token")))
-                { logRoot = uLogs; logRootWhy = "이전 허브 폴더 재사용(%USERPROFILE%\\uart_logs\\hub\\token 있음)"; }
+                { logRoot = uLogs; LoadLang(Path.Combine(uLogs, "hub")); logRootWhy = L.T("이전 허브 폴더 재사용(%USERPROFILE%\\uart_logs\\hub\\token 있음)", "reusing the previous hub folder (%USERPROFILE%\\uart_logs\\hub\\token exists)"); }
                 else if (d.Type == "Fixed" && d.Ready)
-                { logRoot = dLogs; logRootWhy = "D: 가 로컬 고정 디스크"; }
+                { logRoot = dLogs; logRootWhy = L.T("D: 가 로컬 고정 디스크", "D: is a local fixed disk"); }
                 else
                 {
-                    string why = !d.Exists ? "없음" : d.Type == "Removable" ? "이동식" : d.Type == "Network" ? "네트워크" : !d.Ready ? "준비 안 됨" : d.Type;
-                    logRoot = uLogs; logRootWhy = "D: " + why + " → 사용자 폴더";
+                    string why = !d.Exists ? L.T("없음", "missing") : d.Type == "Removable" ? L.T("이동식", "removable") : d.Type == "Network" ? L.T("네트워크", "network") : !d.Ready ? L.T("준비 안 됨", "not ready") : d.Type;
+                    logRoot = uLogs; logRootWhy = L.T("D: " + why + " → 사용자 폴더", "D: " + why + " → user folder");
                 }
                 hubDir = Path.Combine(logRoot, "hub");
             }
@@ -1230,34 +1247,34 @@ namespace UartHub
                 var owners = SystemAccess.TcpListeners(ports);
                 if (skipOurs) owners = owners.Where(o => !(o.Name ?? "").StartsWith("UartHub", StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (var o in owners)
-                    warnings.Add("포트 " + o.Port + " 를 다른 프로그램이 쓰는 중(pid " + o.Pid + " " + (o.Name ?? "?") + ") — 허브가 이 포트를 못 쓸 수 있음(config.json 의 control_port·base_port 로 바꿀 수 있음)");
-                log.Line("  포트 " + ctl + "·" + bas + "~" + (bas + 9) + ": " + (owners.Count == 0 ? "사용 중 없음" : owners.Count + "개 사용 중(경고만)"));
+                    warnings.Add(L.T("포트 " + o.Port + " 를 다른 프로그램이 쓰는 중(pid " + o.Pid + " " + (o.Name ?? "?") + ") — 허브가 이 포트를 못 쓸 수 있음(config.json 의 control_port·base_port 로 바꿀 수 있음)", "port " + o.Port + " is in use by another program (pid " + o.Pid + " " + (o.Name ?? "?") + ") — the hub may not be able to use it (change control_port/base_port in config.json)"));
+                log.Line(L.T("  포트 " + ctl + "·" + bas + "~" + (bas + 9) + ": " + (owners.Count == 0 ? "사용 중 없음" : owners.Count + "개 사용 중(경고만)"), "  ports " + ctl + ", " + bas + "-" + (bas + 9) + ": " + (owners.Count == 0 ? "none in use" : owners.Count + " in use (warning only)")));
             }
 
             string TermText()
             {
                 var l = Enumerable.Range(0, 3).Where(i => terms[i] != null).Select(i => TermNames[i] + "=" + terms[i]).ToList();
-                return l.Count == 0 ? "없음" : string.Join(", ", l);
+                return l.Count == 0 ? L.T("없음", "none") : string.Join(", ", l);
             }
 
             string SkillsText()
-                => "Windows " + (winClaude ?? "(없음 — %USERPROFILE%\\.claude 없음)") + " · WSL " + (distros.Count > 0 ? string.Join(", ", distros) : "(" + wslNote + ")");
+                => L.T("Windows " + (winClaude ?? "(없음 — %USERPROFILE%\\.claude 없음)") + " · WSL " + (distros.Count > 0 ? string.Join(", ", distros) : "(" + wslNote + ")"), "Windows " + (winClaude ?? "(none — no %USERPROFILE%\\.claude)") + " · WSL " + (distros.Count > 0 ? string.Join(", ", distros) : "(" + wslNote + ")"));
 
             List<string> Summary()
             {
                 var l = new List<string>
                 {
-                    "설치 위치: " + instDir,
-                    "로그 위치: " + logRoot + "  (" + logRootWhy + ")",
-                    "허브 폴더: " + hubDir,
-                    "자동 실행: 로그온 때 시작 — " + StartupLnkPath,
-                    "시작 메뉴: " + MenuDir + "\\{" + MenuMain + ", " + MenuUninstall + "}",
+                    L.T("설치 위치: " + instDir, "Install location: " + instDir),
+                    L.T("로그 위치: " + logRoot + "  (" + logRootWhy + ")", "Log location: " + logRoot + "  (" + logRootWhy + ")"),
+                    L.T("허브 폴더: " + hubDir, "Hub folder: " + hubDir),
+                    L.T("자동 실행: 로그온 때 시작 — " + StartupLnkPath, "Auto start: at logon — " + StartupLnkPath),
+                    L.T("시작 메뉴: " + MenuDir + "\\{" + MenuMain + ", " + MenuUninstall + "}", "Start menu: " + MenuDir + "\\{" + MenuMain + ", " + MenuUninstall + "}"),
                     cfgNote,
-                    "Claude skills 를 넣을 곳(설치 뒤): " + SkillsText(),
-                    "바탕화면 아이콘: 보드 케이블을 꽂으면 '<보드> (<포트>)' 아이콘이 생깁니다(더블클릭 = 터미널)",
-                    "이전 PS 작업 \\uart_hub: " + psTaskNote,
+                    L.T("Claude skills 를 넣을 곳(설치 뒤): " + SkillsText(), "Where Claude skills go (after install): " + SkillsText()),
+                    L.T("바탕화면 아이콘: 보드 케이블을 꽂으면 '<보드> (<포트>)' 아이콘이 생깁니다(더블클릭 = 터미널)", "Desktop icons: plugging in a board cable creates a '<board> (<port>)' icon (double-click = terminal)"),
+                    L.T("이전 PS 작업 \\uart_hub: " + psTaskNote, "Old PS task \\uart_hub: " + psTaskNote),
                 };
-                foreach (var w in warnings) l.Add("경고: " + w);
+                foreach (var w in warnings) l.Add(L.T("경고: " + w, "Warning: " + w));
                 return l;
             }
 
@@ -1268,8 +1285,8 @@ namespace UartHub
             /// </summary>
             void DeploySkills(List<SkillsDeployer.Place> recorded, IList<SkillsDeployer.Place> plan = null, DateTime? deadlineUtc = null)
             {
-                log.Line("  Claude skills 배치(~/.claude 가 있는 곳만 — Windows " + Path.Combine(SystemAccess.UserProfile, ".claude") + " · WSL 배포판마다 탐침 30초)");
-                ui?.Progress("Claude skills 배치 중…");
+                log.Line(L.T("  Claude skills 배치(~/.claude 가 있는 곳만 — Windows " + Path.Combine(SystemAccess.UserProfile, ".claude") + " · WSL 배포판마다 탐침 30초)", "  deploying Claude skills (only where ~/.claude exists — Windows " + Path.Combine(SystemAccess.UserProfile, ".claude") + " · 30 s probe per WSL distro)"));
+                ui?.Progress(L.T("Claude skills 배치 중…", "Deploying Claude skills…"));
                 try
                 {
                     var placed = SkillsDeployer.Deploy(installId, Hub.Version, instExe, wsl, recorded, log.Line, plan, deadlineUtc);
@@ -1277,10 +1294,10 @@ namespace UartHub
                     skillsSummary = SkillsDeployer.Summary(placed);
                     info.SetRaw("skills", SkillsDeployer.ToJson(placed));
                     SystemAccess.Guard(InstJson, "write");
-                    if (!info.Save(InstJson)) log.Line("  경고: install.json skills[] 쓰기 실패");
+                    if (!info.Save(InstJson)) log.Line(L.T("  경고: install.json skills[] 쓰기 실패", "  warning: failed to write install.json skills[]"));
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { skillsSummary = "실패(" + e.Message + ")"; log.Line("  경고: skills 배치 실패(" + e.GetType().Name + ": " + e.Message + ") — 설치는 계속"); }
+                catch (Exception e) { skillsSummary = L.T("실패(" + e.Message + ")", "failed (" + e.Message + ")"); log.Line(L.T("  경고: skills 배치 실패(" + e.GetType().Name + ": " + e.Message + ") — 설치는 계속", "  warning: skills deployment failed (" + e.GetType().Name + ": " + e.Message + ") — continuing setup")); }
                 log.Line("  skills: " + skillsSummary);
                 ui?.Progress("Claude skills: " + skillsSummary);
             }
@@ -1288,7 +1305,7 @@ namespace UartHub
             void VerifyCopy(string exe)
             {
                 var r = SystemAccess.RunCapture(exe, new[] { "version", "--json" }, 30000);
-                if (r.Code != 0) throw new IOException("복사본 version --json 실패 rc=" + r.Code + " " + Trunc(r.Err, 200));
+                if (r.Code != 0) throw new IOException(L.T("복사본 version --json 실패 rc=" + r.Code + " " + Trunc(r.Err, 200), "copy version --json failed rc=" + r.Code + " " + Trunc(r.Err, 200)));
                 string v = null, m = null;
                 try
                 {
@@ -1297,8 +1314,8 @@ namespace UartHub
                 }
                 catch (JsonException) { }
                 string myM = typeof(Hub).Module.ModuleVersionId.ToString();
-                if (v != Hub.Version || m != myM) throw new IOException("복사본이 다름: version=" + v + " core_mvid=" + m + " (기대 " + Hub.Version + " · " + myM + ")");
-                log.Line("    version=" + v + " core_mvid=" + m + " — 일치");
+                if (v != Hub.Version || m != myM) throw new IOException(L.T("복사본이 다름: version=" + v + " core_mvid=" + m + " (기대 " + Hub.Version + " · " + myM + ")", "the copy differs: version=" + v + " core_mvid=" + m + " (expected " + Hub.Version + " · " + myM + ")"));
+                log.Line(L.T("    version=" + v + " core_mvid=" + m + " — 일치", "    version=" + v + " core_mvid=" + m + " — match"));
             }
 
             void WriteInstallJson(string state)
@@ -1308,7 +1325,7 @@ namespace UartHub
                 info.IconsDir = SystemAccess.Desktop; info.State = state;
                 info.Portable = sub == "portable" || sub == "setup";
                 SystemAccess.Guard(InstJson, "write");
-                if (!info.Save(InstJson)) throw new IOException("install.json 쓰기 실패");
+                if (!info.Save(InstJson)) throw new IOException(L.T("install.json 쓰기 실패", "failed to write install.json"));
             }
 
             void WritePrefs()
@@ -1321,7 +1338,7 @@ namespace UartHub
             void DeletePsTask()
             {
                 var r = SystemAccess.Schtasks(new[] { "/delete", "/tn", "\\uart_hub", "/f" }, 10000);
-                if (r.Code != 0) log.Line("    삭제 실패 rc=" + r.Code + " " + Trunc(r.Err, 200) + " — 계속 진행(작업은 pwsh 판 감독을 띄우려 하지만 사전 점검처럼 공존하지 않게 사용법에 안내)");
+                if (r.Code != 0) log.Line(L.T("    삭제 실패 rc=" + r.Code + " " + Trunc(r.Err, 200) + " — 계속 진행(작업은 pwsh 판 감독을 띄우려 하지만 사전 점검처럼 공존하지 않게 사용법에 안내)", "    delete failed rc=" + r.Code + " " + Trunc(r.Err, 200) + " — continuing (the task would start a pwsh-version supervisor, but the usage notes keep the two from coexisting, as the pre-check does)"));
             }
 
             /// <summary>
@@ -1339,12 +1356,12 @@ namespace UartHub
                 {
                     if (HealthOk(out why, expect, out bool stopped))
                     {
-                        if (stopped && !stoppedLogged) { log.Line("    허브는 정지 상태(control.json stopped) — 감독만 확인"); stoppedLogged = true; }
+                        if (stopped && !stoppedLogged) { log.Line(L.T("    허브는 정지 상태(control.json stopped) — 감독만 확인", "    hub is stopped (control.json stopped) — checking the supervisor only")); stoppedLogged = true; }
                         if (expect == null || stopped || CliVersions(expect, out why))
                         {
                             double s = sw.Elapsed.TotalSeconds;
-                            log.Line("    건강 확인 OK " + s.ToString("0.0", CultureInfo.InvariantCulture) + "초 (합격선 " + pass + "초" + (s > pass ? " 초과 — 경고" : " 이내") + ")");
-                            if (inject && SystemAccess.TestFail("health")) { log.Line("    시험 주입(UART_HUB_TEST_FAIL=health): 건강 확인 실패로 처리"); return false; }
+                            log.Line(L.T("    건강 확인 OK " + s.ToString("0.0", CultureInfo.InvariantCulture) + "초 (합격선 " + pass + "초" + (s > pass ? " 초과 — 경고" : " 이내") + ")", "    health check OK " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s (pass within " + pass + " s" + (s > pass ? " — exceeded, warning" : " — within") + ")"));
+                            if (inject && SystemAccess.TestFail("health")) { log.Line(L.T("    시험 주입(UART_HUB_TEST_FAIL=health): 건강 확인 실패로 처리", "    test injection (UART_HUB_TEST_FAIL=health): treated as health check failure")); return false; }
                             return true;
                         }
                         Thread.Sleep(400);
@@ -1352,7 +1369,7 @@ namespace UartHub
                     }
                     Thread.Sleep(100);
                 }
-                log.Line("    건강 확인 실패: " + abort.ToString("0", CultureInfo.InvariantCulture) + "초 안에 준비되지 않음(" + why + ")");
+                log.Line(L.T("    건강 확인 실패: " + abort.ToString("0", CultureInfo.InvariantCulture) + "초 안에 준비되지 않음(" + why + ")", "    health check failed: not ready within " + abort.ToString("0", CultureInfo.InvariantCulture) + " s (" + why + ")"));
                 return false;
             }
 
@@ -1360,16 +1377,16 @@ namespace UartHub
             {
                 stopped = false;
                 var s = HubFiles.ReadJson(HubFiles.SupState(hubDir));
-                if (!s.HasValue) { why = "sup.json 없음"; return false; }
+                if (!s.HasValue) { why = L.T("sup.json 없음", "sup.json missing"); return false; }
                 string st = HubFiles.Str(s.Value, "state");
-                if (!HubFiles.IsAlive(HubFiles.Long(s.Value, "pid"), HubFiles.Long(s.Value, "start_ticks"))) { why = "sup.json 의 감독이 살아 있지 않음"; return false; }
+                if (!HubFiles.IsAlive(HubFiles.Long(s.Value, "pid"), HubFiles.Long(s.Value, "start_ticks"))) { why = L.T("sup.json 의 감독이 살아 있지 않음", "the supervisor in sup.json is not alive"); return false; }
                 if (expect != null && HubFiles.Str(s.Value, "version") != expect) { why = "sup.json version=" + HubFiles.Str(s.Value, "version"); return false; }
                 if (st == "stopped" && HubFiles.IsStopped(hubDir)) { why = null; stopped = true; return true; }
                 if (st != "running") { why = "sup.json state=" + st; return false; }
                 var c = HubFiles.ReadJson(HubFiles.CorePid(hubDir));
-                if (!c.HasValue) { why = "core.pid 없음"; return false; }
+                if (!c.HasValue) { why = L.T("core.pid 없음", "core.pid missing"); return false; }
                 if (HubFiles.Str(c.Value, "control") != "listening") { why = "core.pid control=" + HubFiles.Str(c.Value, "control"); return false; }
-                if (!HubFiles.IsAlive(HubFiles.Long(c.Value, "pid"), HubFiles.Long(c.Value, "start_ticks"))) { why = "core.pid 의 코어가 살아 있지 않음"; return false; }
+                if (!HubFiles.IsAlive(HubFiles.Long(c.Value, "pid"), HubFiles.Long(c.Value, "start_ticks"))) { why = L.T("core.pid 의 코어가 살아 있지 않음", "the core in core.pid is not alive"); return false; }
                 if (expect != null && HubFiles.Str(c.Value, "version") != expect) { why = "core.pid version=" + HubFiles.Str(c.Value, "version"); return false; }
                 why = null;
                 return true;
@@ -1389,7 +1406,7 @@ namespace UartHub
                 catch (JsonException) { }
                 why = "hub status rc=" + r.Code + " version=" + core + " supervisor.version=" + sv + " supervisor.core_version=" + svCore;
                 bool ok = r.Code == 0 && core == expect && sv == expect && svCore == expect;
-                if (ok) log.Line("    " + why + " — 모두 v" + expect);
+                if (ok) log.Line(L.T("    " + why + " — 모두 v" + expect, "    " + why + " — all v" + expect));
                 return ok;
             }
 
@@ -1397,8 +1414,8 @@ namespace UartHub
             int FirstFail(string why)
             {
                 log.Line("");
-                log.Line("== 8. 첫 설치 실패 정리: " + why);
-                try { AcquireUpdate(); log.Line("  update mutex 재획득"); } catch (Exception e) { log.Line("  update mutex 재획득 실패(계속): " + e.Message); }
+                log.Line(L.T("== 8. 첫 설치 실패 정리: " + why, "== 8. first-install failure cleanup: " + why));
+                try { AcquireUpdate(); log.Line(L.T("  update mutex 재획득", "  re-acquired update mutex")); } catch (Exception e) { log.Line(L.T("  update mutex 재획득 실패(계속): " + e.Message, "  failed to re-acquire update mutex (continuing): " + e.Message)); }
                 StopHub("install-first-fail");
                 RemoveStartShortcuts();
                 string failed = Path.Combine(hubDir, "install_failed_" + ts + ".log");
@@ -1409,59 +1426,62 @@ namespace UartHub
                     log.Line("  install.log → " + failed);
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  install.log 복사 실패: " + e.Message); failed = log.Path ?? "(없음)"; }
+                catch (Exception e) { log.Line(L.T("  install.log 복사 실패: " + e.Message, "  failed to copy install.log: " + e.Message)); failed = log.Path ?? L.T("(없음)", "(none)"); }
                 try
                 {
                     Retry(() => SystemAccess.DeleteDir(instDir));
-                    log.Line("  설치 폴더 삭제 " + instDir);
+                    log.Line(L.T("  설치 폴더 삭제 " + instDir, "  deleted install folder " + instDir));
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  설치 폴더 삭제 실패: " + e.Message); }
-                log.Line("  남김: 허브 폴더 " + hubDir + "(token·config.json·hub.log), 로그 폴더 " + logRoot + " — 다음 설치가 다시 씀");
-                log.Line("  skills: 아직 배치 전 — 할 일 없음");
+                catch (Exception e) { log.Line(L.T("  설치 폴더 삭제 실패: " + e.Message, "  failed to delete install folder: " + e.Message)); }
+                log.Line(L.T("  남김: 허브 폴더 " + hubDir + "(token·config.json·hub.log), 로그 폴더 " + logRoot + " — 다음 설치가 다시 씀", "  kept: hub folder " + hubDir + " (token, config.json, hub.log), log folder " + logRoot + " — the next setup reuses them"));
+                log.Line(L.T("  skills: 아직 배치 전 — 할 일 없음", "  skills: not deployed yet — nothing to do"));
                 ReleaseUpdate();
-                log.Line("# 설치 실패(exit 1) — 로그 " + failed);
-                ui?.Finish(false, "설치하지 못했습니다. 로그 파일: " + failed + "\n이 파일을 담당자에게 보내 주세요.", 0);
+                log.Line(L.T("# 설치 실패(exit 1) — 로그 " + failed, "# setup failed (exit 1) — log " + failed));
+                ui?.Finish(false, L.T("설치하지 못했습니다. 로그 파일: " + failed + "\n이 파일을 담당자에게 보내 주세요.", "Setup failed. Log file: " + failed + "\nPlease send this file to the person in charge."), 0);
                 return RcFailed;
             }
 
             /// <summary>감독·코어를 내린다: 감독에 shutdown(C-5) → 20초 → 코어에 core.stop → 10초 → 검증 PID kill(install.ps1:85-92 규칙).</summary>
             void StopHub(string from)
             {
-                if (string.IsNullOrEmpty(hubDir)) { log.Line("  허브 폴더 모름 — 정지 건너뜀"); return; }
+                if (string.IsNullOrEmpty(hubDir)) { log.Line(L.T("  허브 폴더 모름 — 정지 건너뜀", "  hub folder unknown — skipping the stop")); return; }
                 var sup = Rec(HubFiles.SupState(hubDir));
                 var core = Rec(HubFiles.CorePid(hubDir));
                 var mine = started.Where(p => HubFiles.IsAlive(p.Pid, p.St)).ToList();
                 bool supAlive = HubFiles.IsAlive(sup.Pid, sup.St) || mine.Count > 0;
-                log.Line("  감독 " + (supAlive ? "pid=" + (sup.Pid > 0 ? sup.Pid : mine[0].Pid) : "없음") + " · 코어 " + (HubFiles.IsAlive(core.Pid, core.St) ? "pid=" + core.Pid : "없음"));
+                log.Line(L.T("  감독 " + (supAlive ? "pid=" + (sup.Pid > 0 ? sup.Pid : mine[0].Pid) : "없음") + " · 코어 " + (HubFiles.IsAlive(core.Pid, core.St) ? "pid=" + core.Pid : "없음"), "  supervisor " + (supAlive ? "pid=" + (sup.Pid > 0 ? sup.Pid : mine[0].Pid) : "none") + " · core " + (HubFiles.IsAlive(core.Pid, core.St) ? "pid=" + core.Pid : "none")));
                 if (supAlive)
                 {
-                    if (SystemAccess.TestFail("shutdown")) log.Line("  감독 요청 shutdown → 무응답(시험 주입 UART_HUB_TEST_FAIL=shutdown — 요청을 처리하지 않는 감독으로 둠)");
+                    if (SystemAccess.TestFail("shutdown")) log.Line(L.T("  감독 요청 shutdown → 무응답(시험 주입 UART_HUB_TEST_FAIL=shutdown — 요청을 처리하지 않는 감독으로 둠)", "  shutdown request to the supervisor → no response (test injection UART_HUB_TEST_FAIL=shutdown — leaving the supervisor as one that ignores requests)"));
                     else
                     {
                         var r = SupervisorChannel.Request(hubDir, "shutdown", from, 10000);
-                        log.Line("  감독 요청 shutdown → " + r);
+                        log.Line(L.T("  감독 요청 shutdown → " + r, "  shutdown request to the supervisor → " + r));
                         WaitGone(new[] { sup, core }.Concat(mine), 20000);
                     }
                 }
                 core = Rec(HubFiles.CorePid(hubDir)).Pid > 0 ? Rec(HubFiles.CorePid(hubDir)) : core;
                 if (HubFiles.IsAlive(core.Pid, core.St))
                 {
-                    if (SystemAccess.TestFail("core.stop")) log.Line("  대체 경로: core.stop(pid=" + core.Pid + ") → 무응답(시험 주입 UART_HUB_TEST_FAIL=core.stop — 쓰지 않음)");
+                    if (SystemAccess.TestFail("core.stop")) log.Line(L.T("  대체 경로: core.stop(pid=" + core.Pid + ") → 무응답(시험 주입 UART_HUB_TEST_FAIL=core.stop — 쓰지 않음)", "  fallback: core.stop (pid=" + core.Pid + ") → no response (test injection UART_HUB_TEST_FAIL=core.stop — not used)"));
                     else
                     {
                         var o = new JObj().Set("pid", (long)core.Pid).Set("reason", from).Set("at", HubFiles.Iso(DateTime.Now));
                         SystemAccess.WriteText(HubFiles.CoreStop(hubDir), o.ToString());
-                        log.Line("  대체 경로: 감독이 내리지 못함 → core.stop(pid=" + core.Pid + ") 정상 종료 10초 대기");
+                        log.Line(L.T("  대체 경로: 감독이 내리지 못함 → core.stop(pid=" + core.Pid + ") 정상 종료 10초 대기", "  fallback: the supervisor could not stop it → core.stop (pid=" + core.Pid + "), waiting 10 s for a clean exit"));
                         WaitGone(new[] { core }, 10000);
                     }
                 }
                 // 남은 것은 검증 PID 만 kill. 감독 먼저(살아 있는 감독이 코어를 다시 띄우지 못하게 — 코어의 C-11 은 update mutex 때문에 감독을 띄우지 않는다)
                 foreach (var p in new[] { sup }.Concat(mine).Concat(new[] { core }).Distinct())
                     if (HubFiles.IsAlive(p.Pid, p.St))
-                        log.Line("  대체 경로: 검증 PID kill pid=" + p.Pid + " → " + (SystemAccess.KillVerified(p.Pid, p.St) ? "끝남" : "실패"));
+                    {
+                        bool killed = SystemAccess.KillVerified(p.Pid, p.St);      // 한 번만(L.T 인자 안에서 부르면 두 번 죽이고 영어는 늘 "failed")
+                        log.Line(L.T("  대체 경로: 검증 PID kill pid=" + p.Pid + " → " + (killed ? "끝남" : "실패"), "  fallback: kill verified PID pid=" + p.Pid + " → " + (killed ? "ended" : "failed")));
+                    }
                 bool any = new[] { core, sup }.Concat(mine).Any(p => HubFiles.IsAlive(p.Pid, p.St));
-                log.Line("  허브 정지 " + (any ? "실패 — 남은 프로세스 있음" : "완료"));
+                log.Line(L.T("  허브 정지 " + (any ? "실패 — 남은 프로세스 있음" : "완료"), "  hub stop " + (any ? "failed — processes remain" : "done")));
             }
 
             static (int Pid, long St) Rec(string file)
@@ -1482,8 +1502,8 @@ namespace UartHub
             {
                 if (SystemAccess.FileExists(StartupLnkPath))
                 {
-                    if (IsOurLnk(StartupLnkPath, instExe, "sup")) { Retry(() => SystemAccess.DeleteFile(StartupLnkPath)); log.Line("  삭제 " + StartupLnkPath); }
-                    else log.Line("  남의 바로가기라 남김: " + StartupLnkPath);
+                    if (IsOurLnk(StartupLnkPath, instExe, "sup")) { Retry(() => SystemAccess.DeleteFile(StartupLnkPath)); log.Line(L.T("  삭제 " + StartupLnkPath, "  deleted " + StartupLnkPath)); }
+                    else log.Line(L.T("  남의 바로가기라 남김: " + StartupLnkPath, "  not our shortcut, kept: " + StartupLnkPath));
                 }
                 RemoveMenu();
             }
@@ -1494,13 +1514,13 @@ namespace UartHub
                 {
                     string p = Path.Combine(MenuDir, n);
                     if (!SystemAccess.FileExists(p)) continue;
-                    if (IsOurLnk(p, instExe, a)) { Retry(() => SystemAccess.DeleteFile(p)); log.Line("  삭제 " + p); }
-                    else log.Line("  남의 바로가기라 남김: " + p);
+                    if (IsOurLnk(p, instExe, a)) { Retry(() => SystemAccess.DeleteFile(p)); log.Line(L.T("  삭제 " + p, "  deleted " + p)); }
+                    else log.Line(L.T("  남의 바로가기라 남김: " + p, "  not our shortcut, kept: " + p));
                 }
                 if (SystemAccess.DirExists(MenuDir) && SystemAccess.ListFiles(MenuDir, "*").Length == 0 && SystemAccess.ListDirs(MenuDir).Length == 0)
                 {
                     Retry(() => SystemAccess.DeleteDir(MenuDir));
-                    log.Line("  삭제 " + MenuDir);
+                    log.Line(L.T("  삭제 " + MenuDir, "  deleted " + MenuDir));
                 }
             }
 
@@ -1512,30 +1532,32 @@ namespace UartHub
             int Portable()
             {
                 instExe = self;
-                log.Line("# UART 허브 시작(휴대용) v" + Hub.Version);
-                log.Line("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName);
-                if (SystemAccess.IsTest) log.Line("# 시험 모드(C-13) root=" + SystemAccess.TestRoot);
-                log.Line("# 설정 파일=" + InstJson + " (실행 파일·바로가기는 두지 않음)");
-                Step("1. 상태");
-                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
+                log.Line(L.T("# UART 허브 시작(휴대용) v" + Hub.Version, "# UART Hub start (portable) v" + Hub.Version));
+                log.Line(L.T("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName, "# exe=" + self + " pid=" + Environment.ProcessId + " user=" + Environment.UserName));
+                if (SystemAccess.IsTest) log.Line(L.T("# 시험 모드(C-13) root=" + SystemAccess.TestRoot, "# test mode (C-13) root=" + SystemAccess.TestRoot));
+                log.Line(L.T("# 설정 파일=" + InstJson + " (실행 파일·바로가기는 두지 않음)", "# settings file=" + InstJson + " (no executable or shortcuts are placed)"));
+                Step(L.T("1. 상태", "1. State"));
+                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null; LoadLang(existing?.HubDir);
                 if (existing != null && !existing.Portable)
-                    return Blocked("이전 방식으로 설치된 UART 허브가 있습니다(" + instDir + ", install.json state=" + (existing.State ?? "?") + ").\n"
+                    return Blocked(L.T("이전 방식으로 설치된 UART 허브가 있습니다(" + instDir + ", install.json state=" + (existing.State ?? "?") + ").\n"
                                    + "먼저 제거하세요: 시작 메뉴 'UART 허브 제거' 또는 " + SystemAccess.InstalledExe + " uninstall — 로그·설정은 남습니다. 그 뒤 이 exe 를 다시 실행하세요.\n"
-                                   + "(설치가 중간에 끊겨 제거되지 않으면 " + instDir + " 폴더와 시작 메뉴 'UART 허브' 폴더를 직접 지우세요)");
-                if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) return Blocked("다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ") — 끝난 뒤 다시 실행하세요");
+                                   + "(설치가 중간에 끊겨 제거되지 않으면 " + instDir + " 폴더와 시작 메뉴 'UART 허브' 폴더를 직접 지우세요)", "A UART Hub installed the old way exists (" + instDir + ", install.json state=" + (existing.State ?? "?") + ").\n"
+                                   + "Remove it first: Start menu 'Remove UART Hub' or " + SystemAccess.InstalledExe + " uninstall — logs and settings are kept. Then run this exe again.\n"
+                                   + "(If setup was interrupted and removal does not work, delete the " + instDir + " folder and the Start menu 'UART Hub' folder yourself)"));
+                if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) return Blocked(L.T("다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ") — 끝난 뒤 다시 실행하세요", "another installer/update is swapping files (" + SystemAccess.MutexName("update") + ") — run again after it finishes"));
                 bool first = existing == null || existing.State != "installed" || string.IsNullOrEmpty(existing.HubDir);
                 if (first) existing = null;
                 DecideLogRoot();
                 bool supUp = CoreMain.MutexExists(SystemAccess.MutexName("sup"));
                 string runExe = null, runVer = null;
                 if (supUp) RunningSup(out runExe, out runVer);
-                log.Line("  install.json: " + (first ? "없음(처음 실행)" : "v" + existing.Version + " exe=" + existing.Exe));
-                log.Line("  로그 위치: " + logRoot + " (" + logRootWhy + ")");
-                log.Line("  허브 폴더: " + hubDir);
-                log.Line("  감독: " + (supUp ? "실행 중 exe=" + (runExe ?? "(모름)") + " v" + (runVer ?? "?") : "없음"));
+                log.Line(L.T("  install.json: " + (first ? "없음(처음 실행)" : "v" + existing.Version + " exe=" + existing.Exe), "  install.json: " + (first ? "none (first run)" : "v" + existing.Version + " exe=" + existing.Exe)));
+                log.Line(L.T("  로그 위치: " + logRoot + " (" + logRootWhy + ")", "  log location: " + logRoot + " (" + logRootWhy + ")"));
+                log.Line(L.T("  허브 폴더: " + hubDir, "  hub folder: " + hubDir));
+                log.Line(L.T("  감독: " + (supUp ? "실행 중 exe=" + (runExe ?? "(모름)") + " v" + (runVer ?? "?") : "없음"), "  supervisor: " + (supUp ? "running exe=" + (runExe ?? "(unknown)") + " v" + (runVer ?? "?") : "none")));
                 if (first)
                 {
-                    if (supUp) return Blocked("다른 UART 허브 감독이 이미 실행 중(" + SystemAccess.MutexName("sup") + ", exe=" + (runExe ?? "모름") + ") — 그 허브를 끈 뒤 다시 실행하세요");
+                    if (supUp) return Blocked(L.T("다른 UART 허브 감독이 이미 실행 중(" + SystemAccess.MutexName("sup") + ", exe=" + (runExe ?? "모름") + ") — 그 허브를 끈 뒤 다시 실행하세요", "another UART Hub supervisor is already running (" + SystemAccess.MutexName("sup") + ", exe=" + (runExe ?? "unknown") + ") — stop that hub, then run again"));
                     return PortableFirst();
                 }
                 if (!supUp && Older(Hub.Version, existing.Version) && !string.IsNullOrEmpty(existing.Exe) && !SystemAccess.SamePath(existing.Exe, self) && SystemAccess.FileExists(existing.Exe))
@@ -1543,8 +1565,8 @@ namespace UartHub
                 if (supUp && runExe != null && SystemAccess.SamePath(runExe, self))
                 {
                     var r = SupervisorChannel.Request(hubDir, "notice_running", "portable", 5000);
-                    log.Line("  이미 실행 중(같은 exe) — 트레이 풍선으로 알림: " + r);
-                    log.Line("# 이미 실행 중 — 바꾼 것 없음");
+                    log.Line(L.T("  이미 실행 중(같은 exe) — 트레이 풍선으로 알림: " + r, "  already running (same exe) — notified with a tray balloon: " + r));
+                    log.Line(L.T("# 이미 실행 중 — 바꾼 것 없음", "# already running — nothing changed"));
                     return RcOk;
                 }
                 return PortableStart(supUp, runExe, runVer);
@@ -1559,34 +1581,34 @@ namespace UartHub
                 info = existing;
                 installId = existing.InstallId;
                 instExe = existing.Exe;
-                log.Line("  이 exe(v" + Hub.Version + ")가 등록된 exe(" + existing.Exe + " v" + existing.Version + ")보다 오래됨 — 등록은 그대로 두고 등록된 exe 로 켬(옛 바로 가기로 판이 되돌아가지 않게)");
+                log.Line(L.T("  이 exe(v" + Hub.Version + ")가 등록된 exe(" + existing.Exe + " v" + existing.Version + ")보다 오래됨 — 등록은 그대로 두고 등록된 exe 로 켬(옛 바로 가기로 판이 되돌아가지 않게)", "  this exe (v" + Hub.Version + ") is older than the registered exe (" + existing.Exe + " v" + existing.Version + ") — leaving the registration alone and starting the registered exe (so an old shortcut cannot roll the version back)"));
                 try
                 {
                     if (SystemAccess.DirExists(hubDir)) log.Attach(Path.Combine(hubDir, "install.log"));
-                    Step("2. 등록된 exe 로 감독 기동 → 건강 확인");
-                    Act("\"" + existing.Exe + "\" sup 분리 기동(등록된 새 판)", () => started.Add(SystemAccess.StartDetached(existing.Exe, new[] { "sup", "--icons-dir", SupIconsDir }, false, new[] { "UART_HUB_DIR" })));
+                    Step(L.T("2. 등록된 exe 로 감독 기동 → 건강 확인", "2. Start the supervisor from the registered exe → health check"));
+                    Act(L.T("\"" + existing.Exe + "\" sup 분리 기동(등록된 새 판)", "start \"" + existing.Exe + "\" sup detached (registered newer version)"), () => started.Add(SystemAccess.StartDetached(existing.Exe, new[] { "sup", "--icons-dir", SupIconsDir }, false, new[] { "UART_HUB_DIR" })));
                     if (!Health(existing.Version))
                     {
-                        log.Line("# 시작 실패(exit 1) — 로그 " + log.Path);
-                        ui.Finish(false, FailText("등록된 exe " + existing.Exe + " 의 건강 확인 실패", "UART 허브를 시작하지 못했습니다(등록된 exe " + existing.Exe + " 의 건강 확인 실패). 로그 파일: " + log.Path), 0);
+                        log.Line(L.T("# 시작 실패(exit 1) — 로그 " + log.Path, "# start failed (exit 1) — log " + log.Path));
+                        ui.Finish(false, FailText(L.T("등록된 exe " + existing.Exe + " 의 건강 확인 실패", "health check of the registered exe " + existing.Exe + " failed"), L.T("UART 허브를 시작하지 못했습니다(등록된 exe " + existing.Exe + " 의 건강 확인 실패). 로그 파일: " + log.Path, "Could not start UART Hub (health check of the registered exe " + existing.Exe + " failed). Log file: " + log.Path)), 0);
                         return RcFailed;
                     }
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
-                    ui.Finish(false, FailText(e.GetType().Name + ": " + e.Message, "UART 허브를 시작하지 못했습니다: " + e.Message + "\n로그 파일: " + (log.Path ?? "(없음)")), 0);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
+                    ui.Finish(false, FailText(e.GetType().Name + ": " + e.Message, L.T("UART 허브를 시작하지 못했습니다: " + e.Message + "\n로그 파일: " + (log.Path ?? "(없음)"), "Could not start UART Hub: " + e.Message + "\nLog file: " + (log.Path ?? "(none)"))), 0);
                     return RcFailed;
                 }
                 log.Line("");
-                log.Line("# 시작 완료(휴대용) — 등록된 새 판 v" + existing.Version + " 로 켬(이 exe v" + Hub.Version + " 은 쓰지 않음, 등록 그대로)");
+                log.Line(L.T("# 시작 완료(휴대용) — 등록된 새 판 v" + existing.Version + " 로 켬(이 exe v" + Hub.Version + " 은 쓰지 않음, 등록 그대로)", "# start done (portable) — started the registered newer version v" + existing.Version + " (this exe v" + Hub.Version + " is not used; registration unchanged)"));
                 return RcOk;
             }
 
             int Blocked(string why)
             {
-                log.Line("  중단: " + why.Replace("\n", " "));
+                log.Line(L.T("  중단: " + why.Replace("\n", " "), "  blocked: " + why.Replace("\n", " ")));
                 ui?.Finish(false, why, 0);
                 return RcBlocked;
             }
@@ -1617,25 +1639,25 @@ namespace UartHub
             /// </summary>
             void EnsureHubFiles()
             {
-                if (SystemAccess.DirExists(hubDir)) log.Line("  " + hubDir + " 이미 있음");
-                else Act("폴더 " + hubDir, () => SystemAccess.CreateDir(hubDir));
+                if (SystemAccess.DirExists(hubDir)) log.Line(L.T("  " + hubDir + " 이미 있음", "  " + hubDir + " already exists"));
+                else Act(L.T("폴더 " + hubDir, "folder " + hubDir), () => SystemAccess.CreateDir(hubDir));
                 bool haveTok = TokenFile.IsValid(TokenPath);
-                Act("토큰 " + TokenPath + (haveTok ? " 이미 있음 → 유지" : " 새로 만듦(32자 hex) + ACL(상속 끊기, 현재 사용자만 FullControl)"), () => TokenFile.Ensure(TokenPath));
-                if (cfgExists) { log.Line("  config.json 이미 있음(" + cfgNote + ")"); EnsureOnDemand(); EnsureLogLayout(); }
+                Act(L.T("토큰 " + TokenPath + (haveTok ? " 이미 있음 → 유지" : " 새로 만듦(32자 hex) + ACL(상속 끊기, 현재 사용자만 FullControl)"), "token " + TokenPath + (haveTok ? " already exists → kept" : " created (32 hex chars) + ACL (inheritance removed, FullControl for the current user only)")), () => TokenFile.Ensure(TokenPath));
+                if (cfgExists) { log.Line(L.T("  config.json 이미 있음(" + cfgNote + ")", "  config.json already exists (" + cfgNote + ")")); EnsureOnDemand(); EnsureLogLayout(); }
                 else
                 {
                     string c = Config.WithLogLayout(cfgContent, out _) ?? cfgContent;     // 시험 seed 에도(휴대용 기본값에는 이미 있음)
-                    Act("config.json 새로 만듦(" + cfgNote + "): " + c.Trim().Replace("\n", " "), () => SystemAccess.WriteText(CfgPath, c));
+                    Act(L.T("config.json 새로 만듦(" + cfgNote + "): " + c.Trim().Replace("\n", " "), "create config.json (" + cfgNote + "): " + c.Trim().Replace("\n", " ")), () => SystemAccess.WriteText(CfgPath, c));
                 }
                 var rc = ResolvedConfig();
                 if (rc.LogLayout >= 2)
                 {
-                    if (CoreMain.MutexExists(SystemAccess.MutexName("core"))) log.Line("  로그 폴더 정리: 코어가 아직 실행 중이라 옮기지 않음(다음 시작 때 다시)");
+                    if (CoreMain.MutexExists(SystemAccess.MutexName("core"))) log.Line(L.T("  로그 폴더 정리: 코어가 아직 실행 중이라 옮기지 않음(다음 시작 때 다시)", "  log folder cleanup: the core is still running, so nothing was moved (will retry at the next start)"));
                     else LogMigration.Run(rc.BaseRoot, hubDir, log.Line);
                 }
                 string live = Path.Combine(rc.LogRoot, "live");
-                if (SystemAccess.DirExists(live)) log.Line("  " + live + " 이미 있음");
-                else Act("폴더 " + live, () => SystemAccess.CreateDir(live));
+                if (SystemAccess.DirExists(live)) log.Line(L.T("  " + live + " 이미 있음", "  " + live + " already exists"));
+                else Act(L.T("폴더 " + live, "folder " + live), () => SystemAccess.CreateDir(live));
             }
 
             /// <summary>
@@ -1647,7 +1669,7 @@ namespace UartHub
                 string text = SystemAccess.ReadText(CfgPath);
                 string n = Config.WithLogLayout(text, out string why);
                 if (n == null) { log.Line("  config.json log_layout: " + why); return; }
-                Act("config.json 에 \"log_layout\": " + Config.CurrentLogLayout + " 보장(에이징 세션 — 다른 키·주석 그대로, " + (text ?? "").Length + "→" + n.Length + "자)", () => SystemAccess.WriteText(CfgPath, n));
+                Act(L.T("config.json 에 \"log_layout\": " + Config.CurrentLogLayout + " 보장(에이징 세션 — 다른 키·주석 그대로, " + (text ?? "").Length + "→" + n.Length + "자)", "ensure \"log_layout\": " + Config.CurrentLogLayout + " in config.json (aging runs — other keys and comments untouched, " + (text ?? "").Length + "→" + n.Length + " chars)"), () => SystemAccess.WriteText(CfgPath, n));
             }
 
             /// <summary>코어·CLI 와 같은 규칙으로 푼 설정(Config.ResolveLogRoot — 기준 폴더·콘솔 로그·사건 폴더). 읽지 못하면 기본값(log_root = install.json 의 기준).</summary>
@@ -1672,7 +1694,7 @@ namespace UartHub
                 string text = SystemAccess.ReadText(CfgPath);
                 string n = Config.WithOnDemand(text, out string why);
                 if (n == null) { log.Line("  config.json on_demand: " + why); return; }
-                Act("config.json 에 \"on_demand\": true 더함(필요할 때만 연결 — 다른 키·주석 그대로, " + (text ?? "").Length + "→" + n.Length + "자)", () => SystemAccess.WriteText(CfgPath, n));
+                Act(L.T("config.json 에 \"on_demand\": true 더함(필요할 때만 연결 — 다른 키·주석 그대로, " + (text ?? "").Length + "→" + n.Length + "자)", "add \"on_demand\": true to config.json (connect only when needed — other keys and comments untouched, " + (text ?? "").Length + "→" + n.Length + " chars)"), () => SystemAccess.WriteText(CfgPath, n));
             }
 
             /// <summary>처음 실행: 확인 창 1회 → 허브 폴더·토큰·config → install.json(portable) → sup → 건강 확인 → skills → 완료 창(5초).</summary>
@@ -1680,34 +1702,34 @@ namespace UartHub
             {
                 CheckConfig();
                 CheckSkillsTargets();
-                Step("2. 확인 창(처음 한 번)");
+                Step(L.T("2. 확인 창(처음 한 번)", "2. Confirm window (first time only)"));
                 var lines = new List<string>
                 {
-                    "이 exe 를 지금 있는 곳에서 그대로 씁니다(설치·복사 없음): " + self,
-                    "로그 위치: " + logRoot + "  (" + logRootWhy + ")",
-                    "허브 폴더: " + hubDir,
+                    L.T("이 exe 를 지금 있는 곳에서 그대로 씁니다(설치·복사 없음): " + self, "This exe is used right where it is (no install or copy): " + self),
+                    L.T("로그 위치: " + logRoot + "  (" + logRootWhy + ")", "Log location: " + logRoot + "  (" + logRootWhy + ")"),
+                    L.T("허브 폴더: " + hubDir, "Hub folder: " + hubDir),
                     cfgNote,
-                    "Claude skills 를 넣을 곳: " + SkillsText(),
-                    "설정 파일: " + InstJson + " (실행 파일은 두지 않음)",
-                    "자동 실행은 직접: exe 를 오른쪽 버튼으로 끌어 shell:startup 폴더(Win+R → shell:startup)에 '바로 가기 만들기'(트레이 → 시작프로그램 폴더 열기)",
-                    "바탕화면 아이콘: 보드 케이블을 꽂으면 '<보드> (<포트>)' 아이콘이 생깁니다(더블클릭 = 터미널)",
-                    "끄기·업데이트: 트레이 아이콘 → 종료(허브 끄기) 뒤 exe 를 바꾸고 다시 더블클릭",
+                    L.T("Claude skills 를 넣을 곳: " + SkillsText(), "Where Claude skills go: " + SkillsText()),
+                    L.T("설정 파일: " + InstJson + " (실행 파일은 두지 않음)", "Settings file: " + InstJson + " (no executable is placed)"),
+                    L.T("자동 실행은 직접: exe 를 오른쪽 버튼으로 끌어 shell:startup 폴더(Win+R → shell:startup)에 '바로 가기 만들기'(트레이 → 시작프로그램 폴더 열기)", "Auto start is up to you: right-drag the exe into the shell:startup folder (Win+R → shell:startup) and choose 'Create shortcuts here' (tray → open startup folder)"),
+                    L.T("바탕화면 아이콘: 보드 케이블을 꽂으면 '<보드> (<포트>)' 아이콘이 생깁니다(더블클릭 = 터미널)", "Desktop icons: plugging in a board cable creates a '<board> (<port>)' icon (double-click = terminal)"),
+                    L.T("끄기·업데이트: 트레이 아이콘 → 종료(허브 끄기) 뒤 exe 를 바꾸고 다시 더블클릭", "Stop / update: tray icon → Quit hub, then replace the exe and double-click it again"),
                 };
                 foreach (var l in lines) log.Line("  | " + l);
-                if (!ui.Confirm(FirstRunText())) { log.Line("  취소 — 아무것도 바꾸지 않음(exit 2)"); return RcCancelled; }
-                ui.Steps(InstallCopy.FirstHead, StepsFirst);
+                if (!ui.Confirm(FirstRunText())) { log.Line(L.T("  취소 — 아무것도 바꾸지 않음(exit 2)", "  cancelled — nothing was changed (exit 2)")); return RcCancelled; }
+                ui.Steps(InstallCopy.FirstHead, InstallCopy.StepsFirst);
                 try
                 {
                     ui.Stage(0);
-                    Step("3. 허브 폴더·토큰·config.json");
+                    Step(L.T("3. 허브 폴더·토큰·config.json", "3. Hub folder, token, config.json"));
                     EnsureHubFiles();
                     log.Attach(Path.Combine(hubDir, "install.log"));
                     Step("4. install.json(portable)");
                     installId = Guid.NewGuid().ToString("N");
                     Act("install.json state=installed portable=true (exe=" + self + ", install_id=" + installId + ", hub_dir=" + hubDir + ")", () => WriteInstallJson("installed"));
-                    Step("5. 감독 기동 → 건강 확인");
-                    Act("\"" + self + "\" sup 분리 기동(이 exe 그대로)", StartSup);
-                    if (!Health()) return PortableFirstFail("건강 확인 실패");
+                    Step(L.T("5. 감독 기동 → 건강 확인", "5. Start the supervisor → health check"));
+                    Act(L.T("\"" + self + "\" sup 분리 기동(이 exe 그대로)", "start \"" + self + "\" sup detached (this exe as is)"), StartSup);
+                    if (!Health()) return PortableFirstFail(L.T("건강 확인 실패", "health check failed"));
                     ui.Stage(1);
                     Step("6. Claude skills");
                     DeploySkills(null);
@@ -1716,17 +1738,16 @@ namespace UartHub
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
                     return PortableFirstFail(e.GetType().Name + ": " + e.Message);
                 }
                 log.Line("");
-                log.Line("# 시작 완료(휴대용) v" + Hub.Version);
+                log.Line(L.T("# 시작 완료(휴대용) v" + Hub.Version, "# start done (portable) v" + Hub.Version));
                 ui.Finish(true, ReadyText(), 5000);
                 return RcOk;
             }
 
             // ---- 화면 글(InstallCopy, UI_COPY.md). install.log 의 "  | " 줄은 기술 기록으로 그대로 둔다.
-            static readonly string[] StepsFirst = InstallCopy.StepsFirst, StepsReplace = InstallCopy.StepsReplace;
             UiText FirstRunText() => InstallCopy.FirstRun(logRoot, InstallCopy.SkillsPlaces(winClaude != null, distros), self, hubDir, InstJson);
             UiText ReadyText() => InstallCopy.Ready(logRoot, skillsSummary);
             UiText FailText(string why, string tech) => InstallCopy.Fail(why, log.Path, tech);
@@ -1735,15 +1756,15 @@ namespace UartHub
             int PortableFirstFail(string why)
             {
                 log.Line("");
-                log.Line("== 처음 실행 실패 정리: " + why);
-                try { AcquireUpdate(); } catch (Exception e) { log.Line("  update mutex 재획득 실패(계속): " + e.Message); }
+                log.Line(L.T("== 처음 실행 실패 정리: " + why, "== first-run failure cleanup: " + why));
+                try { AcquireUpdate(); } catch (Exception e) { log.Line(L.T("  update mutex 재획득 실패(계속): " + e.Message, "  failed to re-acquire update mutex (continuing): " + e.Message)); }
                 StopHub("portable-first-fail");
-                try { if (SystemAccess.FileExists(InstJson)) { SystemAccess.DeleteFile(InstJson); log.Line("  install.json 삭제"); } }
+                try { if (SystemAccess.FileExists(InstJson)) { SystemAccess.DeleteFile(InstJson); log.Line(L.T("  install.json 삭제", "  deleted install.json")); } }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  install.json 삭제 실패: " + e.Message); }
+                catch (Exception e) { log.Line(L.T("  install.json 삭제 실패: " + e.Message, "  failed to delete install.json: " + e.Message)); }
                 ReleaseUpdate();
-                log.Line("# 시작 실패(exit 1) — 로그 " + log.Path);
-                ui.Finish(false, FailText(why, "UART 허브를 시작하지 못했습니다. 로그 파일: " + (log.Path ?? "(없음)") + "\n이 파일을 담당자에게 보내 주세요."), 0);
+                log.Line(L.T("# 시작 실패(exit 1) — 로그 " + log.Path, "# start failed (exit 1) — log " + log.Path));
+                ui.Finish(false, FailText(why, L.T("UART 허브를 시작하지 못했습니다. 로그 파일: " + (log.Path ?? "(없음)") + "\n이 파일을 담당자에게 보내 주세요.", "Could not start UART Hub. Log file: " + (log.Path ?? "(none)") + "\nPlease send this file to the person in charge.")), 0);
                 return RcFailed;
             }
 
@@ -1757,56 +1778,56 @@ namespace UartHub
                 installId = existing.InstallId ?? Guid.NewGuid().ToString("N");
                 if (replace)
                 {
-                    Step("2. 확인 창: 기존 허브를 끄고 새 exe 로 바꿀까요?");
+                    Step(L.T("2. 확인 창: 기존 허브를 끄고 새 exe 로 바꿀까요?", "2. Confirm window: stop the existing hub and switch to the new exe?"));
                     var lines = new List<string>
                     {
-                        "실행 중인 허브: " + (runExe ?? "(exe 경로 모름)") + " v" + (runVer ?? "?"),
-                        "새 exe: " + self + " v" + Hub.Version,
-                        "기존 허브(감독·코어)를 끄고 이 exe 로 다시 켭니다 — 잠깐(수 초) 멈추며 열린 터미널 창은 연결이 끊깁니다",
-                        "포트 배정·설정(config.json)·제외한 케이블·토큰·로그는 그대로 둡니다",
+                        L.T("실행 중인 허브: " + (runExe ?? "(exe 경로 모름)") + " v" + (runVer ?? "?"), "Running hub: " + (runExe ?? "(exe path unknown)") + " v" + (runVer ?? "?")),
+                        L.T("새 exe: " + self + " v" + Hub.Version, "New exe: " + self + " v" + Hub.Version),
+                        L.T("기존 허브(감독·코어)를 끄고 이 exe 로 다시 켭니다 — 잠깐(수 초) 멈추며 열린 터미널 창은 연결이 끊깁니다", "The existing hub (supervisor and core) is stopped and started again from this exe — it pauses for a few seconds and open terminal windows lose their connection"),
+                        L.T("포트 배정·설정(config.json)·제외한 케이블·토큰·로그는 그대로 둡니다", "Port assignments, settings (config.json), excluded cables, token and logs are kept as they are"),
                     };
                     foreach (var l in lines) log.Line("  | " + l);
-                    if (!ui.Confirm(ReplaceText(runExe, runVer))) { log.Line("  취소 — 기존 허브 그대로(exit 2)"); return RcCancelled; }
-                    ui.Steps(InstallCopy.ReplaceHead, StepsReplace);
+                    if (!ui.Confirm(ReplaceText(runExe, runVer))) { log.Line(L.T("  취소 — 기존 허브 그대로(exit 2)", "  cancelled — existing hub unchanged (exit 2)")); return RcCancelled; }
+                    ui.Steps(InstallCopy.ReplaceHead, InstallCopy.StepsReplace);
                     ui.Stage(0);
                 }
                 CheckConfig();
                 try
                 {
-                    Step("3. " + (replace ? "기존 허브 끄기(shutdown) → " : "") + "install.json·아이콘");
+                    Step(L.T("3. " + (replace ? "기존 허브 끄기(shutdown) → " : "") + "install.json·아이콘", "3. " + (replace ? "stop the existing hub (shutdown) → " : "") + "install.json and icons"));
                     AcquireUpdate();                                  // 공백 동안 C-9·C-11 이 옛 감독을 다시 띄우지 않게
                     if (replace) StopHub("portable");
                     bool exeChanged = !SystemAccess.SamePath(existing.Exe, self), verChanged = existing.Version != Hub.Version;
                     if (exeChanged && !string.IsNullOrEmpty(existing.Exe)) RetargetIcons(existing.Exe, self);
-                    if (exeChanged || verChanged) Act("install.json exe=" + self + " version=" + Hub.Version + " (이전 exe=" + existing.Exe + " v" + existing.Version + ")", () => WriteInstallJson("installed"));
-                    else log.Line("  install.json 그대로(exe·version 같음)");
+                    if (exeChanged || verChanged) Act(L.T("install.json exe=" + self + " version=" + Hub.Version + " (이전 exe=" + existing.Exe + " v" + existing.Version + ")", "install.json exe=" + self + " version=" + Hub.Version + " (previous exe=" + existing.Exe + " v" + existing.Version + ")"), () => WriteInstallJson("installed"));
+                    else log.Line(L.T("  install.json 그대로(exe·version 같음)", "  install.json unchanged (same exe and version)"));
                     EnsureHubFiles();
                     log.Attach(Path.Combine(hubDir, "install.log"));
                     ReleaseUpdate();
                     if (replace) ui.Stage(1);
-                    Step("4. 감독 기동 → 건강 확인");
-                    Act("\"" + self + "\" sup 분리 기동(이 exe 그대로)", StartSup);
+                    Step(L.T("4. 감독 기동 → 건강 확인", "4. Start the supervisor → health check"));
+                    Act(L.T("\"" + self + "\" sup 분리 기동(이 exe 그대로)", "start \"" + self + "\" sup detached (this exe as is)"), StartSup);
                     if (!(replace ? Health(Hub.Version, HealthPassUpdateS, true) : Health()))
                     {
-                        log.Line("# 시작 실패(exit 1) — 로그 " + log.Path);
-                        ui.Finish(false, FailText("건강 확인 실패", "UART 허브를 시작하지 못했습니다(건강 확인 실패). 로그 파일: " + log.Path), 0);
+                        log.Line(L.T("# 시작 실패(exit 1) — 로그 " + log.Path, "# start failed (exit 1) — log " + log.Path));
+                        ui.Finish(false, FailText(L.T("건강 확인 실패", "health check failed"), L.T("UART 허브를 시작하지 못했습니다(건강 확인 실패). 로그 파일: " + log.Path, "Could not start UART Hub (health check failed). Log file: " + log.Path)), 0);
                         return RcFailed;
                     }
                     if (replace) ui.Stage(2);
                     Step("5. Claude skills");
                     if (exeChanged || verChanged) DeploySkills(SkillsDeployer.Recorded(InstJson));
-                    else log.Line("  skills 그대로(exe·version 같음)");
+                    else log.Line(L.T("  skills 그대로(exe·version 같음)", "  skills unchanged (same exe and version)"));
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
                     ReleaseUpdate();
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
-                    ui.Finish(false, FailText(e.GetType().Name + ": " + e.Message, "UART 허브를 시작하지 못했습니다: " + e.Message + "\n로그 파일: " + (log.Path ?? "(없음)")), 0);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
+                    ui.Finish(false, FailText(e.GetType().Name + ": " + e.Message, L.T("UART 허브를 시작하지 못했습니다: " + e.Message + "\n로그 파일: " + (log.Path ?? "(없음)"), "Could not start UART Hub: " + e.Message + "\nLog file: " + (log.Path ?? "(none)"))), 0);
                     return RcFailed;
                 }
                 log.Line("");
-                log.Line("# 시작 완료(휴대용) v" + Hub.Version + (replace ? " — 기존 허브(" + (runExe ?? "?") + ")를 이 exe 로 바꿈" : ""));
+                log.Line(L.T("# 시작 완료(휴대용) v" + Hub.Version + (replace ? " — 기존 허브(" + (runExe ?? "?") + ")를 이 exe 로 바꿈" : ""), "# start done (portable) v" + Hub.Version + (replace ? " — replaced the existing hub (" + (runExe ?? "?") + ") with this exe" : "")));
                 if (replace) ui.Finish(true, InstallCopy.Replaced(Hub.Version, self, skillsSummary), 5000);
                 return RcOk;
             }
@@ -1819,18 +1840,18 @@ namespace UartHub
                 instExe = existing.Exe ?? self;
                 hubDir = existing.HubDir; logRoot = existing.LogRoot; installId = existing.InstallId;
                 log.Line("  install.json: v" + existing.Version + " portable=true exe=" + instExe + " install_id=" + installId);
-                log.Line("  허브 폴더: " + (hubDir ?? "(모름)") + " · 로그 위치: " + (logRoot ?? "(모름)"));
-                Step("2. 확인 창(1회)");
+                log.Line(L.T("  허브 폴더: " + (hubDir ?? "(모름)") + " · 로그 위치: " + (logRoot ?? "(모름)"), "  hub folder: " + (hubDir ?? "(unknown)") + " · log location: " + (logRoot ?? "(unknown)")));
+                Step(L.T("2. 확인 창(1회)", "2. Confirm window (once)"));
                 var lines = new List<string>
                 {
-                    "지울 것: 바탕화면 허브 아이콘(자기 것만), 넣은 Claude skills(표시가 맞을 때만), 설정 파일 " + InstJson,
-                    "남길 것: exe " + instExe + ", 로그·설정 " + (logRoot ?? "(모름)") + " (허브 폴더 " + (hubDir ?? "(모름)") + ")",
-                    "허브를 끕니다(열린 터미널 연결이 끊깁니다)",
-                    "자동 실행 바로 가기를 만들었다면 직접 지우세요(Win+R → shell:startup)",
+                    L.T("지울 것: 바탕화면 허브 아이콘(자기 것만), 넣은 Claude skills(표시가 맞을 때만), 설정 파일 " + InstJson, "To delete: desktop hub icons (our own only), Claude skills we placed (only if the marker matches), settings file " + InstJson),
+                    L.T("남길 것: exe " + instExe + ", 로그·설정 " + (logRoot ?? "(모름)") + " (허브 폴더 " + (hubDir ?? "(모름)") + ")", "To keep: exe " + instExe + ", logs and settings " + (logRoot ?? "(unknown)") + " (hub folder " + (hubDir ?? "(unknown)") + ")"),
+                    L.T("허브를 끕니다(열린 터미널 연결이 끊깁니다)", "The hub is stopped (open terminals lose their connection)"),
+                    L.T("자동 실행 바로 가기를 만들었다면 직접 지우세요(Win+R → shell:startup)", "If you made an auto-start shortcut, delete it yourself (Win+R → shell:startup)"),
                 };
                 foreach (var l in lines) log.Line("  | " + l);
-                if (!dry && !ui.Confirm(InstallCopy.Uninstall(instExe, logRoot, hubDir, InstJson))) { log.Line("  취소 — 아무것도 바꾸지 않음(exit 2)"); return RcCancelled; }
-                if (dry) log.Line("  [dry-run] 확인 창을 띄우지 않음");
+                if (!dry && !ui.Confirm(InstallCopy.Uninstall(instExe, logRoot, hubDir, InstJson))) { log.Line(L.T("  취소 — 아무것도 바꾸지 않음(exit 2)", "  cancelled — nothing was changed (exit 2)")); return RcCancelled; }
+                if (dry) log.Line(L.T("  [dry-run] 확인 창을 띄우지 않음", "  [dry-run] not showing the confirm window"));
                 if (!dry && !string.IsNullOrEmpty(hubDir) && SystemAccess.DirExists(hubDir)) log.Attach(Path.Combine(hubDir, "uninstall_" + ts + ".log"));
                 if (!dry) { ui.Steps(InstallCopy.UninstallHead, InstallCopy.StepsUninstall); ui.Stage(0); }
 
@@ -1840,25 +1861,25 @@ namespace UartHub
                 {
                     try { a(); }
                     catch (TestIsolationViolation) { throw; }
-                    catch (Exception e) { failed.Add(what + "(" + e.GetType().Name + ": " + e.Message + ")"); log.Line("  오류: " + what + " — " + e.GetType().Name + ": " + e.Message + " (다음 단계는 계속)"); }
+                    catch (Exception e) { failed.Add(what + "(" + e.GetType().Name + ": " + e.Message + ")"); log.Line(L.T("  오류: " + what + " — " + e.GetType().Name + ": " + e.Message + " (다음 단계는 계속)", "  error: " + what + " — " + e.GetType().Name + ": " + e.Message + " (continuing with the next step)")); }
                 }
-                Step("3. update mutex 획득(제거 중 C-9·C-11 이 감독을 다시 띄우지 않게)");
-                Try("update mutex", () => Act("update mutex 획득(" + SystemAccess.MutexName("update") + ")", AcquireUpdate));
-                Step("4. 허브 정지(감독 shutdown → core.stop → 검증 PID kill)");
-                if (string.IsNullOrEmpty(hubDir)) log.Line("  허브 폴더 모름 — 건너뜀");
-                else Try("허브 정지", () => Act("감독에 shutdown(C-5, control.json stopped 는 건드리지 않음) — 응답 없으면 core.stop·검증 PID kill", () => StopHub("uninstall")));
+                Step(L.T("3. update mutex 획득(제거 중 C-9·C-11 이 감독을 다시 띄우지 않게)", "3. Acquire update mutex (so C-9/C-11 do not restart the supervisor during removal)"));
+                Try("update mutex", () => Act(L.T("update mutex 획득(" + SystemAccess.MutexName("update") + ")", "acquire update mutex (" + SystemAccess.MutexName("update") + ")"), AcquireUpdate));
+                Step(L.T("4. 허브 정지(감독 shutdown → core.stop → 검증 PID kill)", "4. Stop the hub (supervisor shutdown → core.stop → kill verified PID)"));
+                if (string.IsNullOrEmpty(hubDir)) log.Line(L.T("  허브 폴더 모름 — 건너뜀", "  hub folder unknown — skipped"));
+                else Try(L.T("허브 정지", "stop hub"), () => Act(L.T("감독에 shutdown(C-5, control.json stopped 는 건드리지 않음) — 응답 없으면 core.stop·검증 PID kill", "shutdown to the supervisor (C-5; control.json stopped is left alone) — if no response, core.stop and kill verified PID"), () => StopHub("uninstall")));
                 if (!dry) ui.Stage(1);
-                Step("5. 바탕화면 아이콘 삭제(대상 = " + instExe + " 이고 인자 open <포트> 인 것만, E1)");
-                Try("바탕화면 아이콘", RemoveIcons);
+                Step(L.T("5. 바탕화면 아이콘 삭제(대상 = " + instExe + " 이고 인자 open <포트> 인 것만, E1)", "5. Delete desktop icons (only those whose target = " + instExe + " with the argument open <port>, E1)"));
+                Try(L.T("바탕화면 아이콘", "desktop icons"), RemoveIcons);
                 string iconsJson = Path.Combine(instDir, "icons.json");
-                Try("icons.json", () => { if (SystemAccess.FileExists(iconsJson)) Act("icons.json 삭제", () => Retry(() => SystemAccess.DeleteFile(iconsJson))); });
-                Step("6. skills(.uart_hub 의 install_id 가 같을 때만)");
+                Try("icons.json", () => { if (SystemAccess.FileExists(iconsJson)) Act(L.T("icons.json 삭제", "delete icons.json"), () => Retry(() => SystemAccess.DeleteFile(iconsJson))); });
+                Step(L.T("6. skills(.uart_hub 의 install_id 가 같을 때만)", "6. skills (only when install_id in .uart_hub matches)"));
                 var recorded = SkillsDeployer.Recorded(InstJson);
                 Try("skills", () =>
                 {
-                    if (dry) log.Line("  [dry-run] 후보: Windows " + Path.Combine(SystemAccess.UserProfile, ".claude", "skills", "uart") + " · WSL "
-                                      + (recorded.Any(x => x.Env == "wsl" && x.Placed) ? string.Join(", ", recorded.Where(x => x.Env == "wsl" && x.Placed).Select(x => x.Distro)) : "(기록 없음)")
-                                      + " — .uart_hub 의 install_id=" + (installId ?? "(모름)") + " 일 때만 지움");
+                    if (dry) log.Line(L.T("  [dry-run] 후보: Windows ", "  [dry-run] candidates: Windows ") + Path.Combine(SystemAccess.UserProfile, ".claude", "skills", "uart") + " · WSL "
+                                      + (recorded.Any(x => x.Env == "wsl" && x.Placed) ? string.Join(", ", recorded.Where(x => x.Env == "wsl" && x.Placed).Select(x => x.Distro)) : L.T("(기록 없음)", "(no record)"))
+                                      + L.T(" — .uart_hub 의 install_id=" + (installId ?? "(모름)") + " 일 때만 지움", " — deleted only if install_id in .uart_hub is " + (installId ?? "(unknown)")));
                     else
                     {
                         var rm = SkillsDeployer.Remove(installId, recorded, log.Line);
@@ -1866,23 +1887,23 @@ namespace UartHub
                         if (rm.Any(x => x.Result == "failed")) throw new IOException(SkillsDeployer.Summary(rm.Where(x => x.Result == "failed")));
                     }
                 });
-                Step("7. 옛 설치 방식 잔재(자기 것만 — 표시 있는 시작프로그램·시작 메뉴 바로가기, 설치 폴더의 UartHub*.exe)");
-                Try("옛 설치 잔재", RemoveLegacyRemnants);
+                Step(L.T("7. 옛 설치 방식 잔재(자기 것만 — 표시 있는 시작프로그램·시작 메뉴 바로가기, 설치 폴더의 UartHub*.exe)", "7. Leftovers of the old install method (our own only — marked startup and Start menu shortcuts, UartHub*.exe in the install folder)"));
+                Try(L.T("옛 설치 잔재", "old install leftovers"), RemoveLegacyRemnants);
                 if (!dry) ui.Stage(2);
-                Step("8. install.json 삭제");
-                Try("install.json", () => Act("삭제 " + InstJson, () => Retry(() => SystemAccess.DeleteFile(InstJson))));
-                Step("9. 남김");
-                log.Line("  exe " + instExe + ", 로그 " + (logRoot ?? "(모름)") + ", 허브 폴더 " + (hubDir ?? "(모름)") + ", " + instDir + " 폴더(설정 파일 prefs.json 등). 자기 이미지는 옮기지 않음");
+                Step(L.T("8. install.json 삭제", "8. Delete install.json"));
+                Try("install.json", () => Act(L.T("삭제 " + InstJson, "delete " + InstJson), () => Retry(() => SystemAccess.DeleteFile(InstJson))));
+                Step(L.T("9. 남김", "9. Kept"));
+                log.Line(L.T("  exe " + instExe + ", 로그 " + (logRoot ?? "(모름)") + ", 허브 폴더 " + (hubDir ?? "(모름)") + ", " + instDir + " 폴더(설정 파일 prefs.json 등). 자기 이미지는 옮기지 않음", "  exe " + instExe + ", logs " + (logRoot ?? "(unknown)") + ", hub folder " + (hubDir ?? "(unknown)") + ", folder " + instDir + " (settings such as prefs.json). The running image is not moved"));
                 if (!dry) ReleaseUpdate();
                 log.Line("");
-                if (dry) { log.Line("# dry-run 끝 — 시스템을 바꾸지 않았습니다."); return RcOk; }
+                if (dry) { log.Line(L.T("# dry-run 끝 — 시스템을 바꾸지 않았습니다.", "# dry-run done — the system was not changed.")); return RcOk; }
                 if (failed.Count > 0)
                 {
-                    log.Line("# 제거 일부 실패(exit 1): " + string.Join(" · ", failed));
+                    log.Line(L.T("# 제거 일부 실패(exit 1): " + string.Join(" · ", failed), "# removal partly failed (exit 1): " + string.Join(" · ", failed)));
                     ui.Finish(false, InstallCopy.UninstallFail(failed, log.Path), 0);
                     return RcFailed;
                 }
-                log.Line("# 제거 완료(휴대용)");
+                log.Line(L.T("# 제거 완료(휴대용)", "# removal done (portable)"));
                 ui.Finish(true, InstallCopy.Uninstalled(instExe, logRoot ?? hubDir), 5000);
                 return RcOk;
             }
@@ -1913,24 +1934,24 @@ namespace UartHub
             {
                 instExe = self;
                 setupDeadline = DateTime.UtcNow.AddSeconds(SystemAccess.TestNumber("UART_HUB_TEST_SETUP_BUDGET_S", 0, SetupBudgetS));
-                log.Line("# UART 허브 setup v" + Hub.Version + (dry ? " — 계획만(아무것도 바꾸지 않음 — 실행은 setup --yes)" : " --yes" + (NoStart ? " --no-start" : "") + (AllowDowngrade ? " --allow-downgrade" : "")));
-                log.Line("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName);
-                if (SystemAccess.IsTest) log.Line("# 시험 모드(C-13) root=" + SystemAccess.TestRoot);
-                log.Line("# 설정 파일=" + InstJson + " · 결과 파일=" + SetupLast + " (실행 파일·바로가기는 두지 않음)");
+                log.Line(L.T("# UART 허브 setup v" + Hub.Version + (dry ? " — 계획만(아무것도 바꾸지 않음 — 실행은 setup --yes)" : " --yes" + (NoStart ? " --no-start" : "") + (AllowDowngrade ? " --allow-downgrade" : "")), "# UART Hub setup v" + Hub.Version + (dry ? " — plan only (nothing is changed — run setup --yes to apply)" : " --yes" + (NoStart ? " --no-start" : "") + (AllowDowngrade ? " --allow-downgrade" : ""))));
+                log.Line(L.T("# exe=" + self + " pid=" + Environment.ProcessId + " 사용자=" + Environment.UserName, "# exe=" + self + " pid=" + Environment.ProcessId + " user=" + Environment.UserName));
+                if (SystemAccess.IsTest) log.Line(L.T("# 시험 모드(C-13) root=" + SystemAccess.TestRoot, "# test mode (C-13) root=" + SystemAccess.TestRoot));
+                log.Line(L.T("# 설정 파일=" + InstJson + " · 결과 파일=" + SetupLast + " (실행 파일·바로가기는 두지 않음)", "# settings file=" + InstJson + " · result file=" + SetupLast + " (no executable or shortcuts are placed)"));
                 WriteLast(new JObj().Set("command", "setup").Set("mode", dry ? "plan" : "apply").Set("result", "running").Null("rc")
-                                    .Set("message", "setup 실행 중(또는 중간에 끊김)").Set("version", Hub.Version).Set("exe", self).Set("at", HubFiles.Iso(DateTime.Now)).ToString());
+                                    .Set("message", L.T("setup 실행 중(또는 중간에 끊김)", "setup is running (or was interrupted)")).Set("version", Hub.Version).Set("exe", self).Set("at", HubFiles.Iso(DateTime.Now)).ToString());
                 Mutex inst = null;
                 try
                 {
                     string mname = SystemAccess.MutexName("installer");
                     if (dry ? CoreMain.MutexExists(mname) : !TryOwn(mname, out inst))
-                        return SetupEnd(RcBlocked, "blocked", "다른 설치기·제거기(UART 허브 창)가 실행 중(" + mname + ") — 그 창을 닫은 뒤 다시 실행하세요");
+                        return SetupEnd(RcBlocked, "blocked", L.T("다른 설치기·제거기(UART 허브 창)가 실행 중(" + mname + ") — 그 창을 닫은 뒤 다시 실행하세요", "another installer/uninstaller (UART Hub window) is running (" + mname + ") — close that window, then run again"));
                     try { return SetupRun(); }
                     catch (TestIsolationViolation) { throw; }
                     catch (Exception e)
                     {
-                        log.Line("  내부 오류: " + e.GetType().Name + ": " + e.Message);
-                        return SetupEnd(RcFailed, "failed", "내부 오류(" + e.GetType().Name + ": " + e.Message + ") — 로그 " + (log.Path ?? "(없음)"));
+                        log.Line(L.T("  내부 오류: " + e.GetType().Name + ": " + e.Message, "  internal error: " + e.GetType().Name + ": " + e.Message));
+                        return SetupEnd(RcFailed, "failed", L.T("내부 오류(" + e.GetType().Name + ": " + e.Message + ") — 로그 " + (log.Path ?? "(없음)"), "internal error (" + e.GetType().Name + ": " + e.Message + ") — log " + (log.Path ?? "(none)")));
                     }
                 }
                 finally
@@ -1950,26 +1971,26 @@ namespace UartHub
 
             int SetupRun()
             {
-                Step("1. 상태(읽기만)");
-                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
+                Step(L.T("1. 상태(읽기만)", "1. State (read only)"));
+                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null; LoadLang(existing?.HubDir);
                 string selfForCheck = SystemAccess.IsTest && SystemAccess.FileExists(SystemAccess.TestFile("fake_self_path.txt"))
                                       ? SystemAccess.ReadText(SystemAccess.TestFile("fake_self_path.txt")).Trim() : self;     // 시험(C-13): 위치 검사만 이 경로로
                 location = SystemAccess.ExeLocationProblem(selfForCheck);
                 zoneId = SystemAccess.ZoneId(self);
-                log.Line("  exe: " + self + " v" + Hub.Version + (location == null ? " (로컬 고정 디스크)" : " — 위치 문제: " + location));
-                log.Line("  MotW(Zone.Identifier): " + (zoneId == null ? "없음" : zoneId == "unknown" ? "확인 못 함(대체 데이터 스트림이 없는 파일 시스템 등)"
-                         : "있음(ZoneId=" + zoneId + (zoneId == "3" ? " — 인터넷에서 받은 파일" : "") + ") — 지우지 않음(사용자가 exe 속성 → '차단 해제')"));
+                log.Line(L.T("  exe: " + self + " v" + Hub.Version + (location == null ? " (로컬 고정 디스크)" : " — 위치 문제: " + location), "  exe: " + self + " v" + Hub.Version + (location == null ? " (local fixed disk)" : " — location problem: " + location)));
+                log.Line("  MotW(Zone.Identifier): " + (zoneId == null ? L.T("없음", "none") : zoneId == "unknown" ? L.T("확인 못 함(대체 데이터 스트림이 없는 파일 시스템 등)", "could not check (e.g. a file system without alternate data streams)")
+                         : L.T("있음(ZoneId=" + zoneId + (zoneId == "3" ? " — 인터넷에서 받은 파일" : "") + ") — 지우지 않음(사용자가 exe 속성 → '차단 해제')", "present (ZoneId=" + zoneId + (zoneId == "3" ? " — downloaded from the internet" : "") + ") — not removed (the user can use exe Properties → 'Unblock')")));
                 Legacy();
-                log.Line("  옛 설치 방식 잔재: " + (legacy.Count == 0 ? "없음" : string.Join(" · ", legacy)));
+                log.Line(L.T("  옛 설치 방식 잔재: " + (legacy.Count == 0 ? "없음" : string.Join(" · ", legacy)), "  leftovers of the old install method: " + (legacy.Count == 0 ? "none" : string.Join(" · ", legacy))));
                 sFirst = existing == null || !existing.Portable || existing.State != "installed" || string.IsNullOrEmpty(existing.HubDir);
-                log.Line("  등록(install.json): " + (existing == null ? "없음(처음 등록)"
+                log.Line(L.T("  등록(install.json): ", "  registration (install.json): ") + (existing == null ? L.T("없음(처음 등록)", "none (first registration)")
                          : "v" + existing.Version + " exe=" + existing.Exe + " portable=" + (existing.Portable ? "true" : "false") + " state=" + (existing.State ?? "?")
-                           + (sFirst ? " → 처음 등록으로 다시 씀" : SystemAccess.SamePath(existing.Exe, self) ? " (이 exe)" : " (다른 exe)")));
+                           + (sFirst ? L.T(" → 처음 등록으로 다시 씀", " → rewritten as a first registration") : SystemAccess.SamePath(existing.Exe, self) ? L.T(" (이 exe)", " (this exe)") : L.T(" (다른 exe)", " (other exe)"))));
                 if (sFirst && existing != null && existing.Portable) existing = null;           // 끝나지 않은 휴대용 기록은 처음 등록으로(옛 설치 방식 기록은 허브 폴더 표시에만 씀)
                 DecideLogRoot();
                 sStopped = HubFiles.IsStopped(hubDir);
-                log.Line("  로그 위치: " + logRoot + " (" + logRootWhy + ")");
-                log.Line("  허브 폴더: " + hubDir + (sStopped ? " — control.json stopped(트레이 '정지' 상태: 허브가 COM 을 잡지 않음)" : ""));
+                log.Line(L.T("  로그 위치: " + logRoot + " (" + logRootWhy + ")", "  log location: " + logRoot + " (" + logRootWhy + ")"));
+                log.Line(L.T("  허브 폴더: " + hubDir + (sStopped ? " — control.json stopped(트레이 '정지' 상태: 허브가 COM 을 잡지 않음)" : ""), "  hub folder: " + hubDir + (sStopped ? " — control.json stopped (tray 'Stop' state: the hub does not hold any COM port)" : "")));
                 sSupUp = CoreMain.MutexExists(SystemAccess.MutexName("sup"));
                 if (sSupUp)
                 {
@@ -1978,44 +1999,44 @@ namespace UartHub
                     runPidS = HubFiles.IsAlive(sr.Pid, sr.St) ? sr.Pid : 0;
                 }
                 bool unidentified = sSupUp && (runPidS == 0 || string.IsNullOrEmpty(runExeS));
-                log.Line("  실행 중 허브: " + (!sSupUp ? "없음" : unidentified ? "감독 mutex 는 있는데 sup.json 으로 확인되지 않음(누구인지 모름)"
-                         : "pid " + runPidS + " v" + (runVerS ?? "?") + " exe=" + runExeS + (SystemAccess.SamePath(runExeS, self) ? " (이 exe)" : " (다른 exe)")));
+                log.Line(L.T("  실행 중 허브: ", "  running hub: ") + (!sSupUp ? L.T("없음", "none") : unidentified ? L.T("감독 mutex 는 있는데 sup.json 으로 확인되지 않음(누구인지 모름)", "the supervisor mutex exists but sup.json does not identify it (owner unknown)")
+                         : "pid " + runPidS + " v" + (runVerS ?? "?") + " exe=" + runExeS + (SystemAccess.SamePath(runExeS, self) ? L.T(" (이 exe)", " (this exe)") : L.T(" (다른 exe)", " (other exe)"))));
                 string newest = new[] { sFirst ? null : existing?.Version, sSupUp ? runVerS : null }.Where(v => Older(Hub.Version, v)).OrderByDescending(v => v, StringComparer.Ordinal).FirstOrDefault();
                 downgradeFrom = newest;
-                if (newest != null) log.Line("  되돌리기: 이 exe v" + Hub.Version + " 가 " + (sSupUp && runVerS == newest ? "실행 중" : "등록된") + " 판 v" + newest + " 보다 오래됨" + (AllowDowngrade ? " — --allow-downgrade 로 허용" : ""));
+                if (newest != null) log.Line(L.T("  되돌리기: 이 exe v" + Hub.Version + " 가 " + (sSupUp && runVerS == newest ? "실행 중" : "등록된") + " 판 v" + newest + " 보다 오래됨" + (AllowDowngrade ? " — --allow-downgrade 로 허용" : ""), "  downgrade: this exe v" + Hub.Version + " is older than the " + (sSupUp && runVerS == newest ? "running" : "registered") + " version v" + newest + (AllowDowngrade ? " — allowed by --allow-downgrade" : "")));
                 CheckConfig();
                 if (cfgExists)
                 {
                     onDemandAdd = Config.WithOnDemand(SystemAccess.ReadText(CfgPath), out string odWhy);
-                    log.Line("  config.json on_demand: " + (onDemandAdd != null ? "없음 → \"on_demand\": true 를 더함" : odWhy));
+                    log.Line("  config.json on_demand: " + (onDemandAdd != null ? L.T("없음 → \"on_demand\": true 를 더함", "missing → adding \"on_demand\": true") : odWhy));
                     layoutAdd = Config.WithLogLayout(SystemAccess.ReadText(CfgPath), out string lyWhy);
-                    log.Line("  config.json log_layout: " + (layoutAdd != null ? "\"log_layout\": " + Config.CurrentLogLayout + " 로 맞춤(없으면 더하고 2 면 바꿈)" : lyWhy));
+                    log.Line("  config.json log_layout: " + (layoutAdd != null ? L.T("\"log_layout\": " + Config.CurrentLogLayout + " 로 맞춤(없으면 더하고 2 면 바꿈)", "set to \"log_layout\": " + Config.CurrentLogLayout + " (added if missing, changed if 2)") : lyWhy));
                 }
                 CheckPorts(true);
                 var task = SystemAccess.Schtasks(new[] { "/query", "/tn", "\\uart_hub", "/xml" }, 10000);
-                if (task.Code == 0) warnings.Add("PowerShell 판이 등록한 작업 스케줄러 작업 \\uart_hub 가 남아 있음 — 로그온 때 PS 판 허브를 띄워 COM 을 다툴 수 있음(사용자가 작업 스케줄러에서 지우기 — setup 은 건드리지 않음)");
+                if (task.Code == 0) warnings.Add(L.T("PowerShell 판이 등록한 작업 스케줄러 작업 \\uart_hub 가 남아 있음 — 로그온 때 PS 판 허브를 띄워 COM 을 다툴 수 있음(사용자가 작업 스케줄러에서 지우기 — setup 은 건드리지 않음)", "the Task Scheduler task \\uart_hub registered by the PowerShell version is still there — it can start the PS-version hub at logon and compete for COM ports (the user should delete it in Task Scheduler — setup does not touch it)"));
                 string envDir = Environment.GetEnvironmentVariable("UART_HUB_DIR");
                 if (!string.IsNullOrEmpty(envDir))
-                    warnings.Add("환경변수 UART_HUB_DIR=" + envDir + " 가 설정됨 — 그 셸의 uart·허브 명령은 등록된 허브 폴더 대신 그 폴더를 씀(사용자가 지우기 — setup 이 띄우는 감독은 물려받지 않음)");
-                foreach (var w in warnings) log.Line("  경고: " + w);
+                    warnings.Add(L.T("환경변수 UART_HUB_DIR=" + envDir + " 가 설정됨 — 그 셸의 uart·허브 명령은 등록된 허브 폴더 대신 그 폴더를 씀(사용자가 지우기 — setup 이 띄우는 감독은 물려받지 않음)", "environment variable UART_HUB_DIR=" + envDir + " is set — uart and hub commands in that shell use that folder instead of the registered hub folder (the user should unset it — the supervisor setup starts does not inherit it)"));
+                foreach (var w in warnings) log.Line(L.T("  경고: " + w, "  warning: " + w));
                 foreach (var f in SystemAccess.ListFiles(SystemAccess.Startup, "*.lnk"))
                 {
                     var i = ShellLink.Read(f);
                     if (i?.Target != null && Path.GetFileName(i.Target).StartsWith("UartHub", StringComparison.OrdinalIgnoreCase)) autostart.Add((f, i.Target));
                 }
-                log.Line("  자동 실행(shell:startup): " + (autostart.Count == 0 ? "없음(사용자가 직접 만듦)"
-                         : string.Join(" · ", autostart.Select(a => a.Path + " → " + a.Target + (SystemAccess.SamePath(a.Target, self) ? " (이 exe)" : " (다른 exe)")))));
+                log.Line(L.T("  자동 실행(shell:startup): ", "  auto start (shell:startup): ") + (autostart.Count == 0 ? L.T("없음(사용자가 직접 만듦)", "none (the user creates it)")
+                         : string.Join(" · ", autostart.Select(a => a.Path + " → " + a.Target + (SystemAccess.SamePath(a.Target, self) ? L.T(" (이 exe)", " (this exe)") : L.T(" (다른 exe)", " (other exe)"))))));
                 CheckSkillsTargets();
                 // 계획만: 켜진 배포판만 탐침(꺼진 것은 unknown — 깨우지 않음). --yes: 모두 탐침하고 그 결과를 배치가 다시 쓴다. 둘 다 setup 시간 예산 안에서만
                 skillPlan = SkillsDeployer.Plan(sFirst ? null : existing.InstallId, Hub.Version, self, wsl, log.Line, setupDeadline, dry ? SkillsDeployer.ListDistros(true) : null);
 
                 string blocked = legacy.Count > 0
-                        ? "옛 설치 방식(설치기)의 잔재가 있습니다: " + string.Join(" · ", legacy) + " — 먼저 제거해야 합니다(이 exe 로 uninstall --yes)"
-                    : location != null ? "이 exe 가 " + location + " 에 있습니다 — 휴대용 허브는 이 exe 를 계속 그 자리에서 실행하므로 로컬 고정 디스크(예: C:\\Tools\\)에 두고 그 경로로 다시 실행하세요"
-                    : CoreMain.MutexExists(SystemAccess.MutexName("update")) ? "다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ") — 끝난 뒤 다시 실행하세요"
-                    : unidentified ? "UART 허브 감독이 실행 중인데 누구인지 확인할 수 없습니다(sup.json 없음·오래됨, " + hubDir + ") — 트레이 아이콘 → 종료(허브 끄기) 뒤 다시 실행하세요"
-                    : sFirst && sSupUp ? "등록되지 않은 UART 허브 감독이 이미 실행 중(exe=" + runExeS + ") — 트레이 → 종료(허브 끄기) 뒤 다시 실행하세요"
-                    : downgradeFrom != null && !AllowDowngrade ? "되돌리기: 이 exe v" + Hub.Version + " 가 지금 판 v" + downgradeFrom + " 보다 오래됐습니다 — 의도한 되돌리기면 --allow-downgrade 를 붙여 다시 실행하세요"
+                        ? L.T("옛 설치 방식(설치기)의 잔재가 있습니다: " + string.Join(" · ", legacy) + " — 먼저 제거해야 합니다(이 exe 로 uninstall --yes)", "leftovers of the old install method (installer) exist: " + string.Join(" · ", legacy) + " — remove them first (uninstall --yes with this exe)")
+                    : location != null ? L.T("이 exe 가 " + location + " 에 있습니다 — 휴대용 허브는 이 exe 를 계속 그 자리에서 실행하므로 로컬 고정 디스크(예: C:\\Tools\\)에 두고 그 경로로 다시 실행하세요", "this exe is on " + location + " — the portable hub keeps running this exe from where it is, so put it on a local fixed disk (e.g. C:\\Tools\\) and run it from there")
+                    : CoreMain.MutexExists(SystemAccess.MutexName("update")) ? L.T("다른 설치기·업데이트가 교체 중(" + SystemAccess.MutexName("update") + ") — 끝난 뒤 다시 실행하세요", "another installer/update is swapping files (" + SystemAccess.MutexName("update") + ") — run again after it finishes")
+                    : unidentified ? L.T("UART 허브 감독이 실행 중인데 누구인지 확인할 수 없습니다(sup.json 없음·오래됨, " + hubDir + ") — 트레이 아이콘 → 종료(허브 끄기) 뒤 다시 실행하세요", "a UART Hub supervisor is running but cannot be identified (sup.json missing or stale, " + hubDir + ") — use tray icon → Quit hub, then run again")
+                    : sFirst && sSupUp ? L.T("등록되지 않은 UART 허브 감독이 이미 실행 중(exe=" + runExeS + ") — 트레이 → 종료(허브 끄기) 뒤 다시 실행하세요", "an unregistered UART Hub supervisor is already running (exe=" + runExeS + ") — use tray → Quit hub, then run again")
+                    : downgradeFrom != null && !AllowDowngrade ? L.T("되돌리기: 이 exe v" + Hub.Version + " 가 지금 판 v" + downgradeFrom + " 보다 오래됐습니다 — 의도한 되돌리기면 --allow-downgrade 를 붙여 다시 실행하세요", "downgrade: this exe v" + Hub.Version + " is older than the current version v" + downgradeFrom + " — if the downgrade is intended, run again with --allow-downgrade")
                     : null;
                 sReplace = !sFirst && sSupUp && (!SystemAccess.SamePath(runExeS, self) || runVerS != Hub.Version);
                 sSameRunning = !sFirst && sSupUp && !sReplace;
@@ -2024,37 +2045,38 @@ namespace UartHub
                 sNeedSkills = sFirst || sExeChanged || sVerChanged || skillPlan.Any(p => p.Result == "install" || p.Result == "update");
                 bool start = !NoStart && !sSameRunning;
 
-                Step("2. 할 일");
+                Step(L.T("2. 할 일", "2. To do"));
                 if (blocked == null)
                 {
-                    if (sReplace) actions.Add("실행 중 허브(pid " + runPidS + " v" + (runVerS ?? "?") + " " + runExeS + ") 끄기 — 감독 shutdown(C-5), 포트·설정·로그 그대로"
-                                              + (start ? " → 이 exe 로 다시 켬(실패하면 이전 허브로 되돌림)" : "(--no-start: 다시 켜지 않음)"));
-                    if (!SystemAccess.DirExists(hubDir)) actions.Add("허브 폴더 만들기 " + hubDir);
+                    if (sReplace) actions.Add(L.T("실행 중 허브(pid " + runPidS + " v" + (runVerS ?? "?") + " " + runExeS + ") 끄기 — 감독 shutdown(C-5), 포트·설정·로그 그대로"
+                                              + (start ? " → 이 exe 로 다시 켬(실패하면 이전 허브로 되돌림)" : "(--no-start: 다시 켜지 않음)"), "Stop the running hub (pid " + runPidS + " v" + (runVerS ?? "?") + " " + runExeS + ") — supervisor shutdown (C-5), ports, settings and logs unchanged"
+                                              + (start ? " → start it again from this exe (roll back to the previous hub on failure)" : " (--no-start: not started again)")));
+                    if (!SystemAccess.DirExists(hubDir)) actions.Add(L.T("허브 폴더 만들기 " + hubDir, "create hub folder " + hubDir));
                     var rc = ResolvedConfig();
                     bool layout2 = !cfgExists || layoutAdd != null || rc.LogLayout >= 2;
                     bool layout3 = !cfgExists || layoutAdd != null || rc.LogLayout >= 3;
-                    string live = layout3 ? Path.Combine(hubDir, Config.SpoolDirName, "live") : layout2 ? Path.Combine(rc.BaseRoot, Config.ConsoleDirName, "live") : Path.Combine(rc.LogRoot, "live");
-                    if (!TokenFile.IsValid(TokenPath)) actions.Add("토큰 만들기 " + TokenPath + "(32자 hex, 현재 사용자만 읽음)");
-                    if (!cfgExists) actions.Add("config.json 새로 만들기(" + cfgNote + ")");
-                    else if (onDemandAdd != null) actions.Add("config.json 에 \"on_demand\": true 더하기(필요할 때만 연결 — 다른 키·주석 그대로)");
-                    if (cfgExists && layoutAdd != null) actions.Add("config.json 에 \"log_layout\": " + Config.CurrentLogLayout + " 보장(에이징 세션 — 콘솔 기록은 숨김 " + Config.SpoolDirName + "에 24시간, 세션 폴더 " + Config.AgingDirName + " — 다른 키·주석 그대로)");
-                    if (layout2 && LogMigration.Summary(LogMigration.Plan(rc.BaseRoot, hubDir)) is string mig) actions.Add(mig + (sSameRunning ? " — 허브가 실행 중이라 이번에는 하지 않음(끄고 다시 시작할 때)" : ""));
-                    if (!SystemAccess.DirExists(live) && !SystemAccess.DirExists(Path.Combine(rc.BaseRoot, "live"))) actions.Add("폴더 만들기 " + live);
-                    if (sFirst) actions.Add("install.json 쓰기(portable:true, exe=" + self + ", state=installed)");
-                    else if (sExeChanged || sVerChanged) actions.Add("install.json exe·version 바꾸기(이전 " + existing.Exe + " v" + existing.Version + " → 이 exe v" + Hub.Version + ")");
-                    if (!sFirst && sExeChanged) actions.Add("옛 exe 를 가리키는 바탕화면 허브 아이콘의 대상을 이 exe 로(있으면)");
-                    if (start) actions.Add("감독 기동(이 exe 그대로) → 제어 포트 응답 확인(최대 " + SetupHealthS + "초)");
-                    if (sNeedSkills) actions.Add("Claude skills(uart·connect-uart·disconnect-uart) 넣기·갱신: " + SkillsDeployer.Summary(skillPlan));
+                    string live = layout3 ? Path.Combine(Config.SpoolDirFor(hubDir), "live") : layout2 ? Path.Combine(rc.BaseRoot, Config.ConsoleDirName, "live") : Path.Combine(rc.LogRoot, "live");
+                    if (!TokenFile.IsValid(TokenPath)) actions.Add(L.T("토큰 만들기 " + TokenPath + "(32자 hex, 현재 사용자만 읽음)", "create token " + TokenPath + " (32 hex chars, readable by the current user only)"));
+                    if (!cfgExists) actions.Add(L.T("config.json 새로 만들기(" + cfgNote + ")", "create config.json (" + cfgNote + ")"));
+                    else if (onDemandAdd != null) actions.Add(L.T("config.json 에 \"on_demand\": true 더하기(필요할 때만 연결 — 다른 키·주석 그대로)", "add \"on_demand\": true to config.json (connect only when needed — other keys and comments untouched)"));
+                    if (cfgExists && layoutAdd != null) actions.Add(L.T("config.json 에 \"log_layout\": " + Config.CurrentLogLayout + " 보장(에이징 세션 — 콘솔 기록은 숨김 " + Config.SpoolDirName + "에 24시간, 세션 폴더 " + Config.AgingDirName + " — 다른 키·주석 그대로)", "ensure \"log_layout\": " + Config.CurrentLogLayout + " in config.json (aging runs — console records go to the hidden " + Config.SpoolDirName + " for 24 hours, session folder " + Config.AgingDirName + " — other keys and comments untouched)"));
+                    if (layout2 && LogMigration.Summary(LogMigration.Plan(rc.BaseRoot, hubDir)) is string mig) actions.Add(mig + (sSameRunning ? L.T(" — 허브가 실행 중이라 이번에는 하지 않음(끄고 다시 시작할 때)", " — not done this time because the hub is running (done when it is stopped and started again)") : ""));
+                    if (!SystemAccess.DirExists(live) && !SystemAccess.DirExists(Path.Combine(rc.BaseRoot, "live"))) actions.Add(L.T("폴더 만들기 " + live, "create folder " + live));
+                    if (sFirst) actions.Add(L.T("install.json 쓰기(portable:true, exe=" + self + ", state=installed)", "write install.json (portable:true, exe=" + self + ", state=installed)"));
+                    else if (sExeChanged || sVerChanged) actions.Add(L.T("install.json exe·version 바꾸기(이전 " + existing.Exe + " v" + existing.Version + " → 이 exe v" + Hub.Version + ")", "change install.json exe/version (previous " + existing.Exe + " v" + existing.Version + " → this exe v" + Hub.Version + ")"));
+                    if (!sFirst && sExeChanged) actions.Add(L.T("옛 exe 를 가리키는 바탕화면 허브 아이콘의 대상을 이 exe 로(있으면)", "retarget desktop hub icons that point to the old exe to this exe (if any)"));
+                    if (start) actions.Add(L.T("감독 기동(이 exe 그대로) → 제어 포트 응답 확인(최대 " + SetupHealthS + "초)", "start the supervisor (this exe as is) → check the control port responds (up to " + SetupHealthS + " s)"));
+                    if (sNeedSkills) actions.Add(L.T("Claude skills(uart·connect-uart·disconnect-uart) 넣기·갱신: " + SkillsDeployer.Summary(skillPlan), "add/update Claude skills (uart, connect-uart, disconnect-uart): " + SkillsDeployer.Summary(skillPlan)));
                     foreach (var a in actions) log.Line("  - " + a);
-                    if (actions.Count == 0) log.Line("  없음 — 이미 이 exe(v" + Hub.Version + ")로 등록되어 " + (sSupUp ? "실행 중" : "있음(--no-start: 띄우지 않음)"));
+                    if (actions.Count == 0) log.Line(L.T("  없음 — 이미 이 exe(v" + Hub.Version + ")로 등록되어 " + (sSupUp ? "실행 중" : "있음(--no-start: 띄우지 않음)"), "  none — already registered with this exe (v" + Hub.Version + ") and " + (sSupUp ? "running" : "present (--no-start: not started)")));
                 }
-                else log.Line("  중단: " + blocked);
+                else log.Line(L.T("  중단: " + blocked, "  blocked: " + blocked));
 
                 if (blocked != null) return SetupEnd(RcBlocked, "blocked", blocked);
-                if (dry) return SetupEnd(RcOk, "planned", actions.Count == 0 ? "할 일 없음 — 이미 이 exe 로 등록되어 있습니다(아무것도 바꾸지 않았습니다)"
-                                                                            : "아무것도 바꾸지 않았습니다. 이대로 하려면 setup --yes" + (downgradeFrom != null ? " --allow-downgrade" : ""));
+                if (dry) return SetupEnd(RcOk, "planned", actions.Count == 0 ? L.T("할 일 없음 — 이미 이 exe 로 등록되어 있습니다(아무것도 바꾸지 않았습니다)", "nothing to do — already registered with this exe (nothing was changed)")
+                                                                            : L.T("아무것도 바꾸지 않았습니다. 이대로 하려면 setup --yes" + (downgradeFrom != null ? " --allow-downgrade" : ""), "Nothing was changed. To apply this, run setup --yes" + (downgradeFrom != null ? " --allow-downgrade" : "")));
                 if (actions.Count == 0)
-                    return SetupEnd(RcOk, "unchanged", "바꾼 것 없음 — 이미 이 exe(v" + Hub.Version + ")로 등록되어 " + (sSupUp ? "실행 중입니다" : "있습니다(--no-start: 띄우지 않음)"));
+                    return SetupEnd(RcOk, "unchanged", L.T("바꾼 것 없음 — 이미 이 exe(v" + Hub.Version + ")로 등록되어 " + (sSupUp ? "실행 중입니다" : "있습니다(--no-start: 띄우지 않음)"), "nothing changed — already registered with this exe (v" + Hub.Version + ") and " + (sSupUp ? "running" : "present (--no-start: not started)")));
                 return sFirst ? SetupFirst(start) : SetupUpdate(start);
             }
 
@@ -2073,20 +2095,20 @@ namespace UartHub
             {
                 if (existing != null && !existing.Portable)
                 {
-                    legacy.Add("install.json(portable 아님, state=" + (existing.State ?? "?") + ") " + InstJson);
-                    legacyHints.Add("예전 설치기 등록(install.json): 이 exe 의 uninstall --yes 가 설치 폴더·시작프로그램·시작 메뉴 바로가기·skills 를 지움(로그·설정은 남김)");
+                    legacy.Add(L.T("install.json(portable 아님, state=" + (existing.State ?? "?") + ") " + InstJson, "install.json (not portable, state=" + (existing.State ?? "?") + ") " + InstJson));
+                    legacyHints.Add(L.T("예전 설치기 등록(install.json): 이 exe 의 uninstall --yes 가 설치 폴더·시작프로그램·시작 메뉴 바로가기·skills 를 지움(로그·설정은 남김)", "registration by the old installer (install.json): uninstall --yes of this exe removes the install folder, startup and Start menu shortcuts, and skills (logs and settings are kept)"));
                 }
                 foreach (var f in SystemAccess.ListFiles(instDir, "UartHub*.exe"))
                     if (!SystemAccess.SamePath(f, self))
                     {
-                        legacy.Add("설치본 " + f);
-                        legacyHints.Add("설치 폴더의 exe(" + Path.GetFileName(f) + "): uninstall --yes 가 지움 — 실행 중이면 지워지지 않으니 그 허브를 트레이 → 종료(허브 끄기) 한 뒤");
+                        legacy.Add(L.T("설치본 " + f, "installed copy " + f));
+                        legacyHints.Add(L.T("설치 폴더의 exe(" + Path.GetFileName(f) + "): uninstall --yes 가 지움 — 실행 중이면 지워지지 않으니 그 허브를 트레이 → 종료(허브 끄기) 한 뒤", "exe in the install folder (" + Path.GetFileName(f) + "): removed by uninstall --yes — it cannot be deleted while running, so first use tray → Quit hub on that hub"));
                     }
                 foreach (var p in new[] { StartupLnkPath, Path.Combine(MenuDir, MenuMain), Path.Combine(MenuDir, MenuUninstall) })
                     if (SystemAccess.FileExists(p) && IsLegacyLnk(p))
                     {
-                        legacy.Add("바로가기 " + p);
-                        legacyHints.Add("예전 설치기가 만든 바로가기(" + Path.GetFileName(p) + "): uninstall --yes 가 지움");
+                        legacy.Add(L.T("바로가기 " + p, "shortcut " + p));
+                        legacyHints.Add(L.T("예전 설치기가 만든 바로가기(" + Path.GetFileName(p) + "): uninstall --yes 가 지움", "shortcut made by the old installer (" + Path.GetFileName(p) + "): removed by uninstall --yes"));
                     }
             }
 
@@ -2095,23 +2117,23 @@ namespace UartHub
             {
                 int n = 0;
                 foreach (var p in new[] { StartupLnkPath, Path.Combine(MenuDir, MenuMain), Path.Combine(MenuDir, MenuUninstall) })
-                    if (SystemAccess.FileExists(p) && IsLegacyLnk(p)) { n++; Act("삭제 " + p, () => Retry(() => SystemAccess.DeleteFile(p))); }
+                    if (SystemAccess.FileExists(p) && IsLegacyLnk(p)) { n++; Act(L.T("삭제 " + p, "delete " + p), () => Retry(() => SystemAccess.DeleteFile(p))); }
                 if (SystemAccess.DirExists(MenuDir) && SystemAccess.ListFiles(MenuDir, "*").Length == 0 && SystemAccess.ListDirs(MenuDir).Length == 0)
-                    Act("삭제 " + MenuDir + "(빈 폴더)", () => Retry(() => SystemAccess.DeleteDir(MenuDir)));
+                    Act(L.T("삭제 " + MenuDir + "(빈 폴더)", "delete " + MenuDir + " (empty folder)"), () => Retry(() => SystemAccess.DeleteDir(MenuDir)));
                 var locked = new List<string>();
                 foreach (var f in SystemAccess.ListFiles(instDir, "UartHub*.exe"))
                 {
                     if (SystemAccess.SamePath(f, self) || SystemAccess.SamePath(f, instExe)) continue;
                     n++;
-                    Act("삭제 " + f, () =>
+                    Act(L.T("삭제 " + f, "delete " + f), () =>
                     {
                         try { SystemAccess.DeleteFile(f); }
                         catch (TestIsolationViolation) { throw; }
-                        catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { locked.Add(Path.GetFileName(f)); log.Line("    지우지 못함(실행 중일 수 있음): " + e.GetType().Name); }
+                        catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { locked.Add(Path.GetFileName(f)); log.Line(L.T("    지우지 못함(실행 중일 수 있음): " + e.GetType().Name, "    could not delete (may be running): " + e.GetType().Name)); }
                     });
                 }
-                if (n == 0) log.Line("  없음");
-                if (locked.Count > 0) throw new IOException("실행 중이라 지우지 못한 설치본: " + string.Join(", ", locked) + " — 그 허브를 끈 뒤 다시 uninstall --yes");
+                if (n == 0) log.Line(L.T("  없음", "  none"));
+                if (locked.Count > 0) throw new IOException(L.T("실행 중이라 지우지 못한 설치본: " + string.Join(", ", locked) + " — 그 허브를 끈 뒤 다시 uninstall --yes", "installed copies that could not be deleted because they are running: " + string.Join(", ", locked) + " — stop that hub, then run uninstall --yes again"));
             }
 
             /// <summary>감독을 띄운 뒤 건강 확인(sup.json·core.pid + hub status 로 제어 포트 응답, version == 이 판) — 상한 SetupHealthS.</summary>
@@ -2131,19 +2153,19 @@ namespace UartHub
                 string fail = null;
                 try
                 {
-                    Step("3. 허브 폴더·토큰·config.json");
+                    Step(L.T("3. 허브 폴더·토큰·config.json", "3. Hub folder, token, config.json"));
                     EnsureHubFiles();
                     log.Attach(Path.Combine(hubDir, "install.log"));
                     Step("4. install.json(portable)");
                     installId = Guid.NewGuid().ToString("N");
                     Act("install.json state=installed portable=true (exe=" + self + ", install_id=" + installId + ", hub_dir=" + hubDir + ")", () => WriteInstallJson("installed"));
-                    Step("5. 감독 기동 → 제어 포트 응답(최대 " + SetupHealthS + "초)");
+                    Step(L.T("5. 감독 기동 → 제어 포트 응답(최대 " + SetupHealthS + "초)", "5. Start the supervisor → control port responds (up to " + SetupHealthS + " s)"));
                     if (start)
                     {
-                        Act("\"" + self + "\" sup 분리 기동(이 exe 그대로)", StartSup);
-                        if (!SetupHealth(HealthPassS)) fail = "감독을 띄웠지만 " + SetupHealthS + "초 안에 제어 포트가 응답하지 않음";
+                        Act(L.T("\"" + self + "\" sup 분리 기동(이 exe 그대로)", "start \"" + self + "\" sup detached (this exe as is)"), StartSup);
+                        if (!SetupHealth(HealthPassS)) fail = L.T("감독을 띄웠지만 " + SetupHealthS + "초 안에 제어 포트가 응답하지 않음", "the supervisor was started but the control port did not respond within " + SetupHealthS + " s");
                     }
-                    else log.Line("  --no-start: 감독을 띄우지 않음");
+                    else log.Line(L.T("  --no-start: 감독을 띄우지 않음", "  --no-start: not starting the supervisor"));
                     if (fail == null)
                     {
                         Step("6. Claude skills");
@@ -2153,16 +2175,16 @@ namespace UartHub
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
                     fail = e.GetType().Name + ": " + e.Message;
                 }
                 if (fail != null)
                 {
                     PortableFirstFail(fail);                                  // 띄운 허브를 내리고 install.json 을 지운다(처음 등록 전 상태 — 허브 폴더·토큰·로그는 남김)
                     hubRunningAfter = false;
-                    return SetupEnd(RcFailed, "rolled_back", "처음 등록 실패(" + fail + ") → 되돌림: 띄운 허브를 내리고 install.json 을 지웠습니다(허브 폴더·로그는 남김, 로그 " + (log.Path ?? "(없음)") + ")");
+                    return SetupEnd(RcFailed, "rolled_back", L.T("처음 등록 실패(" + fail + ") → 되돌림: 띄운 허브를 내리고 install.json 을 지웠습니다(허브 폴더·로그는 남김, 로그 " + (log.Path ?? "(없음)") + ")", "first registration failed (" + fail + ") → rolled back: stopped the hub that was started and deleted install.json (hub folder and logs kept, log " + (log.Path ?? "(none)") + ")"));
                 }
-                return SetupEnd(RcOk, "registered", "등록했습니다 — 이 exe 를 지금 자리에서 씁니다(복사·시작프로그램 등록 없음)" + (start ? ", 허브 실행 중" : " — --no-start: 허브는 띄우지 않음"));
+                return SetupEnd(RcOk, "registered", L.T("등록했습니다 — 이 exe 를 지금 자리에서 씁니다(복사·시작프로그램 등록 없음)" + (start ? ", 허브 실행 중" : " — --no-start: 허브는 띄우지 않음"), "registered — this exe is used right where it is (no copy, no startup entry)" + (start ? ", hub is running" : " — --no-start: the hub was not started")));
             }
 
             /// <summary>
@@ -2179,40 +2201,41 @@ namespace UartHub
                 string fail = null;
                 try
                 {
-                    Step("3. " + (sReplace ? "기존 허브 끄기(shutdown) → " : "") + "install.json·아이콘·허브 파일");
+                    Step(L.T("3. " + (sReplace ? "기존 허브 끄기(shutdown) → " : "") + "install.json·아이콘·허브 파일", "3. " + (sReplace ? "stop the existing hub (shutdown) → " : "") + "install.json, icons and hub files"));
                     AcquireUpdate();                                  // 공백 동안 C-9·C-11 이 옛 감독을 다시 띄우지 않게(휴대용 교체 경로와 같음)
                     if (sReplace) { StopHub("setup"); stopped = true; }
                     if (sExeChanged && !string.IsNullOrEmpty(prevExe)) { retargeted = true; RetargetIcons(prevExe, self); }
-                    if (sExeChanged || sVerChanged) { wrote = true; Act("install.json exe=" + self + " version=" + Hub.Version + " (이전 exe=" + prevExe + " v" + prevVer + ")", () => WriteInstallJson("installed")); }
-                    else log.Line("  install.json 그대로(exe·version 같음)");
+                    if (sExeChanged || sVerChanged) { wrote = true; Act(L.T("install.json exe=" + self + " version=" + Hub.Version + " (이전 exe=" + prevExe + " v" + prevVer + ")", "install.json exe=" + self + " version=" + Hub.Version + " (previous exe=" + prevExe + " v" + prevVer + ")"), () => WriteInstallJson("installed")); }
+                    else log.Line(L.T("  install.json 그대로(exe·version 같음)", "  install.json unchanged (same exe and version)"));
                     EnsureHubFiles();
                     log.Attach(Path.Combine(hubDir, "install.log"));
                     ReleaseUpdate();
-                    Step("4. 감독 기동 → 제어 포트 응답(최대 " + SetupHealthS + "초)");
+                    Step(L.T("4. 감독 기동 → 제어 포트 응답(최대 " + SetupHealthS + "초)", "4. Start the supervisor → control port responds (up to " + SetupHealthS + " s)"));
                     if (start)
                     {
-                        Act("\"" + self + "\" sup 분리 기동(이 exe 그대로)", StartSup);
-                        if (!SetupHealth(sReplace ? HealthPassUpdateS : HealthPassS)) fail = "감독을 띄웠지만 " + SetupHealthS + "초 안에 제어 포트가 응답하지 않음";
+                        Act(L.T("\"" + self + "\" sup 분리 기동(이 exe 그대로)", "start \"" + self + "\" sup detached (this exe as is)"), StartSup);
+                        if (!SetupHealth(sReplace ? HealthPassUpdateS : HealthPassS)) fail = L.T("감독을 띄웠지만 " + SetupHealthS + "초 안에 제어 포트가 응답하지 않음", "the supervisor was started but the control port did not respond within " + SetupHealthS + " s");
                     }
-                    else log.Line("  " + (NoStart ? "--no-start: 감독을 띄우지 않음" : "감독 이미 실행 중(이 exe) — 그대로"));
+                    else log.Line(L.T("  " + (NoStart ? "--no-start: 감독을 띄우지 않음" : "감독 이미 실행 중(이 exe) — 그대로"), "  " + (NoStart ? "--no-start: not starting the supervisor" : "supervisor already running (this exe) — left as is")));
                     if (fail == null)
                     {
                         Step("5. Claude skills");
                         if (sNeedSkills) DeploySkills(SkillsDeployer.Recorded(InstJson), skillPlan, setupDeadline);
-                        else log.Line("  skills 그대로(모두 같은 표시)");
+                        else log.Line(L.T("  skills 그대로(모두 같은 표시)", "  skills unchanged (all markers match)"));
                     }
                 }
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e)
                 {
-                    log.Line("  오류: " + e.GetType().Name + ": " + e.Message);
+                    log.Line(L.T("  오류: " + e.GetType().Name + ": " + e.Message, "  error: " + e.GetType().Name + ": " + e.Message));
                     fail = e.GetType().Name + ": " + e.Message;
                 }
                 if (fail != null) return SetupRollback(fail, prevExe, prevVer, stopped, retargeted, wrote);
                 if (sReplace)
-                    return SetupEnd(RcOk, "replaced", "기존 허브(" + runExeS + " v" + (runVerS ?? "?") + ")를 끄고 이 exe(v" + Hub.Version + ")로 바꿨습니다 — 포트·설정·로그는 그대로"
-                                                      + (start ? "" : "(--no-start: 새 허브는 띄우지 않음)"));
-                return SetupEnd(RcOk, "updated", onlyStart ? "이미 이 exe 로 등록되어 있어 허브만 켰습니다" : "등록을 이 exe(v" + Hub.Version + ")에 맞췄습니다");
+                    return SetupEnd(RcOk, "replaced", L.T("기존 허브(" + runExeS + " v" + (runVerS ?? "?") + ")를 끄고 이 exe(v" + Hub.Version + ")로 바꿨습니다 — 포트·설정·로그는 그대로"
+                                                      + (start ? "" : "(--no-start: 새 허브는 띄우지 않음)"), "Stopped the existing hub (" + runExeS + " v" + (runVerS ?? "?") + ") and switched to this exe (v" + Hub.Version + ") — ports, settings and logs unchanged"
+                                                      + (start ? "" : " (--no-start: the new hub was not started)")));
+                return SetupEnd(RcOk, "updated", onlyStart ? L.T("이미 이 exe 로 등록되어 있어 허브만 켰습니다", "already registered with this exe, so only the hub was started") : L.T("등록을 이 exe(v" + Hub.Version + ")에 맞췄습니다", "aligned the registration with this exe (v" + Hub.Version + ")"));
             }
 
             /// <summary>
@@ -2222,24 +2245,24 @@ namespace UartHub
             int SetupRollback(string why, string prevExe, string prevVer, bool stopped, bool retargeted, bool wrote)
             {
                 log.Line("");
-                log.Line("== R. 되돌림: " + why);
-                try { AcquireUpdate(); } catch (TestIsolationViolation) { throw; } catch (Exception e) { log.Line("  update mutex 재획득 실패(계속): " + e.Message); }
+                log.Line(L.T("== R. 되돌림: " + why, "== R. rollback: " + why));
+                try { AcquireUpdate(); } catch (TestIsolationViolation) { throw; } catch (Exception e) { log.Line(L.T("  update mutex 재획득 실패(계속): " + e.Message, "  failed to re-acquire update mutex (continuing): " + e.Message)); }
                 var undone = new List<string>();
                 try
                 {
-                    if (started.Count > 0) { StopHub("setup-rollback"); undone.Add("띄운 새 허브 정지"); }
+                    if (started.Count > 0) { StopHub("setup-rollback"); undone.Add(L.T("띄운 새 허브 정지", "stopped the new hub that was started")); }
                     if (wrote)
                     {
                         info.Exe = prevExe; info.Version = prevVer;
                         SystemAccess.Guard(InstJson, "write");
-                        if (!info.Save(InstJson)) throw new IOException("install.json 되돌리기 쓰기 실패");
-                        log.Line("  install.json exe=" + prevExe + " version=" + prevVer + " 로 되돌림");
-                        undone.Add("install.json = 이전 exe·판");
+                        if (!info.Save(InstJson)) throw new IOException(L.T("install.json 되돌리기 쓰기 실패", "failed to write the install.json rollback"));
+                        log.Line(L.T("  install.json exe=" + prevExe + " version=" + prevVer + " 로 되돌림", "  install.json restored to exe=" + prevExe + " version=" + prevVer));
+                        undone.Add(L.T("install.json = 이전 exe·판", "install.json = previous exe and version"));
                     }
-                    if (retargeted && !string.IsNullOrEmpty(prevExe)) { RetargetIcons(self, prevExe); undone.Add("아이콘 대상 = 이전 exe"); }
+                    if (retargeted && !string.IsNullOrEmpty(prevExe)) { RetargetIcons(self, prevExe); undone.Add(L.T("아이콘 대상 = 이전 exe", "icon targets = previous exe")); }
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  되돌림 중 오류: " + e.GetType().Name + ": " + e.Message); undone.Add("일부 되돌리지 못함(" + e.Message + ")"); }
+                catch (Exception e) { log.Line(L.T("  되돌림 중 오류: " + e.GetType().Name + ": " + e.Message, "  error during rollback: " + e.GetType().Name + ": " + e.Message)); undone.Add(L.T("일부 되돌리지 못함(" + e.Message + ")", "some parts could not be rolled back (" + e.Message + ")")); }
                 ReleaseUpdate();
                 bool oldOk = false;
                 string oldExe = stopped ? runExeS : null;
@@ -2249,33 +2272,33 @@ namespace UartHub
                     {
                         instExe = oldExe;                                          // 건강 확인의 hub status 를 그 exe 로
                         started.Add(SystemAccess.StartDetached(oldExe, new[] { "sup", "--icons-dir", SupIconsDir }, true, new[] { "UART_HUB_DIR" }));
-                        log.Line("  이전 허브 감독(" + oldExe + " v" + runVerS + ") 다시 기동");
+                        log.Line(L.T("  이전 허브 감독(" + oldExe + " v" + runVerS + ") 다시 기동", "  starting the previous hub supervisor (" + oldExe + " v" + runVerS + ") again"));
                         oldOk = Health(runVerS, HealthPassUpdateS, false, SetupHealthS);
-                        undone.Add("이전 허브 " + (oldOk ? "다시 켬" : "다시 켜지 못함"));
+                        undone.Add(L.T("이전 허브 " + (oldOk ? "다시 켬" : "다시 켜지 못함"), "previous hub " + (oldOk ? "started again" : "could not be started again")));
                     }
                     catch (TestIsolationViolation) { throw; }
-                    catch (Exception e) { log.Line("  이전 허브 기동 실패: " + e.Message); undone.Add("이전 허브 다시 켜지 못함"); }
+                    catch (Exception e) { log.Line(L.T("  이전 허브 기동 실패: " + e.Message, "  failed to start the previous hub: " + e.Message)); undone.Add(L.T("이전 허브 다시 켜지 못함", "previous hub could not be started again")); }
                     finally { instExe = self; }
                 }
                 hubRunningAfter = oldOk;
                 rollbackOldExe = oldExe;
                 if (!wrote && !retargeted && oldExe == null)
-                    return SetupEnd(RcFailed, "failed", "실패(" + why + ")" + (undone.Count > 0 ? " — " + string.Join(", ", undone) : "") + " — 로그 " + (log.Path ?? "(없음)"));
-                return SetupEnd(RcFailed, "rolled_back", "이 exe 로 바꾸지 못해(" + why + ") 이전 상태로 되돌렸습니다: " + string.Join(", ", undone) + " — 로그 " + (log.Path ?? "(없음)"));
+                    return SetupEnd(RcFailed, "failed", L.T("실패(" + why + ")" + (undone.Count > 0 ? " — " + string.Join(", ", undone) : "") + " — 로그 " + (log.Path ?? "(없음)"), "failed (" + why + ")" + (undone.Count > 0 ? " — " + string.Join(", ", undone) : "") + " — log " + (log.Path ?? "(none)")));
+                return SetupEnd(RcFailed, "rolled_back", L.T("이 exe 로 바꾸지 못해(" + why + ") 이전 상태로 되돌렸습니다: " + string.Join(", ", undone) + " — 로그 " + (log.Path ?? "(없음)"), "could not switch to this exe (" + why + "), so the previous state was restored: " + string.Join(", ", undone) + " — log " + (log.Path ?? "(none)")));
             }
 
             string rollbackOldExe;
 
             static string ResultText(string r) => r switch
             {
-                "planned" => "계획만(바꾸지 않음)",
-                "registered" => "등록함",
-                "replaced" => "바꿈(기존 허브 → 이 exe)",
-                "updated" => "맞춤",
-                "unchanged" => "바꾼 것 없음",
-                "blocked" => "중단",
-                "rolled_back" => "실패 → 되돌림",
-                _ => "실패",
+                "planned" => L.T("계획만(바꾸지 않음)", "plan only (nothing changed)"),
+                "registered" => L.T("등록함", "registered"),
+                "replaced" => L.T("바꿈(기존 허브 → 이 exe)", "switched (existing hub → this exe)"),
+                "updated" => L.T("맞춤", "aligned"),
+                "unchanged" => L.T("바꾼 것 없음", "nothing changed"),
+                "blocked" => L.T("중단", "blocked"),
+                "rolled_back" => L.T("실패 → 되돌림", "failed → rolled back"),
+                _ => L.T("실패", "failed"),
             };
 
             /// <summary>결과 파일(%LOCALAPPDATA%\uart_hub\setup_last.json)을 쓴다. 실패는 로그 경고만.</summary>
@@ -2287,7 +2310,7 @@ namespace UartHub
                     SystemAccess.WriteText(SetupLast, text + "\n");
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log.Line("  경고: " + SetupLast + " 쓰기 실패(" + e.GetType().Name + ": " + e.Message + ")"); }
+                catch (Exception e) { log.Line(L.T("  경고: " + SetupLast + " 쓰기 실패(" + e.GetType().Name + ": " + e.Message + ")", "  warning: failed to write " + SetupLast + " (" + e.GetType().Name + ": " + e.Message + ")")); }
             }
 
             /// <summary>결과: 한국어 요약 줄(로그·표준 출력) + JSON(setup_last.json, --json 이면 표준 출력에 그 한 줄만).</summary>
@@ -2298,27 +2321,27 @@ namespace UartHub
                 var next = new List<string>();
                 if (result == "blocked" && legacy.Count > 0)
                 {
-                    next.Add("사용자에게 알리고 허락을 받은 뒤: \"" + self + "\" uninstall --yes → 다시 setup(계획부터). 그 뒤에도 같은 잔재로 막히면 멈추고 보고");
+                    next.Add(L.T("사용자에게 알리고 허락을 받은 뒤: \"" + self + "\" uninstall --yes → 다시 setup(계획부터). 그 뒤에도 같은 잔재로 막히면 멈추고 보고", "After telling the user and getting permission: \"" + self + "\" uninstall --yes → run setup again (plan first). If it is still blocked by the same leftovers, stop and report"));
                     next.AddRange(legacyHints);
                 }
                 else if (result == "blocked" && downgradeFrom != null && !AllowDowngrade)
-                    next.Add("사용자에게 한 번 묻기: \"v" + downgradeFrom + " → v" + Hub.Version + " 되돌리기인가요?\" — 예면 setup --yes --allow-downgrade");
-                if (result == "planned" && rc == RcOk && actions.Count > 0) next.Add("이대로 등록하려면 같은 exe 로 setup --yes" + (downgradeFrom != null ? " --allow-downgrade" : ""));
+                    next.Add(L.T("사용자에게 한 번 묻기: \"v" + downgradeFrom + " → v" + Hub.Version + " 되돌리기인가요?\" — 예면 setup --yes --allow-downgrade", "Ask the user once: \"Is this a downgrade v" + downgradeFrom + " → v" + Hub.Version + "?\" — if yes, setup --yes --allow-downgrade"));
+                if (result == "planned" && rc == RcOk && actions.Count > 0) next.Add(L.T("이대로 등록하려면 같은 exe 로 setup --yes" + (downgradeFrom != null ? " --allow-downgrade" : ""), "To register as planned, run setup --yes with the same exe" + (downgradeFrom != null ? " --allow-downgrade" : "")));
                 if (result == "rolled_back" && rollbackOldExe != null && hubRunningAfter != true)
-                    next.Add("이전 허브가 다시 켜지지 않았습니다 — 이전 exe(" + rollbackOldExe + ")를 더블클릭하면 이전 판으로 켜집니다");
-                if (result == "rolled_back" || result == "failed") next.Add("log(install.log)와 이 결과 파일을 담당자에게 보내기 — 다시 실행하지 않음");
+                    next.Add(L.T("이전 허브가 다시 켜지지 않았습니다 — 이전 exe(" + rollbackOldExe + ")를 더블클릭하면 이전 판으로 켜집니다", "The previous hub did not start again — double-click the previous exe (" + rollbackOldExe + ") to start the previous version"));
+                if (result == "rolled_back" || result == "failed") next.Add(L.T("log(install.log)와 이 결과 파일을 담당자에게 보내기 — 다시 실행하지 않음", "Send the log (install.log) and this result file to the person in charge — do not run again"));
                 if (done && running)
                 {
-                    next.Add("사용자에게: Claude Code 에 /connect-uart 를 직접 입력(인자 없이 = 꽂힌 COM 표, /connect-uart COMx = 연결). 슬래시 명령 목록에 없으면 Claude Code 세션을 새로 시작");
+                    next.Add(L.T("사용자에게: Claude Code 에 /connect-uart 를 직접 입력(인자 없이 = 꽂힌 COM 표, /connect-uart COMx = 연결). 슬래시 명령 목록에 없으면 Claude Code 세션을 새로 시작", "To the user: type /connect-uart in Claude Code yourself (no argument = table of plugged-in COM ports, /connect-uart COMx = connect). If it is not in the slash command list, start a new Claude Code session"));
                 }
-                if (sStopped) next.Add("허브가 정지 상태(control.json stopped)입니다 — 사용자가 트레이 아이콘 → 시작 을 눌러야 보드를 기록합니다");
+                if (sStopped) next.Add(L.T("허브가 정지 상태(control.json stopped)입니다 — 사용자가 트레이 아이콘 → 시작 을 눌러야 보드를 기록합니다", "The hub is stopped (control.json stopped) — the user must press tray icon → Start before the board is recorded"));
                 if (zoneId != null && zoneId != "unknown")
-                    next.Add("exe 에 MotW(인터넷에서 받은 표시, ZoneId=" + zoneId + ")가 있습니다 — 바탕화면 허브 아이콘·자동 실행 바로 가기를 열 때 보안 경고가 뜨면 사용자가 exe 오른쪽 버튼 → 속성 → '차단 해제'(setup 은 지우지 않음)");
+                    next.Add(L.T("exe 에 MotW(인터넷에서 받은 표시, ZoneId=" + zoneId + ")가 있습니다 — 바탕화면 허브 아이콘·자동 실행 바로 가기를 열 때 보안 경고가 뜨면 사용자가 exe 오른쪽 버튼 → 속성 → '차단 해제'(setup 은 지우지 않음)", "The exe has MotW (marked as downloaded from the internet, ZoneId=" + zoneId + ") — if a security warning appears when opening the desktop hub icon or the auto-start shortcut, the user should right-click the exe → Properties → 'Unblock' (setup does not remove it)"));
                 if (rc == RcOk)
                 {
-                    if (autostart.Count == 0) next.Add("로그온 때 자동 실행은 사용자가 직접: Win+R → shell:startup → exe 를 오른쪽 버튼으로 끌어 놓고 '바로 가기 만들기'");
+                    if (autostart.Count == 0) next.Add(L.T("로그온 때 자동 실행은 사용자가 직접: Win+R → shell:startup → exe 를 오른쪽 버튼으로 끌어 놓고 '바로 가기 만들기'", "Auto start at logon is up to the user: Win+R → shell:startup → right-drag the exe there and choose 'Create shortcuts here'"));
                     else if (autostart.Any(a => !SystemAccess.SamePath(a.Target, self)))
-                        next.Add("shell:startup 의 바로 가기가 다른 exe 를 가리킵니다(" + string.Join(", ", autostart.Where(a => !SystemAccess.SamePath(a.Target, self)).Select(a => a.Target)) + ") — 사용자가 지우고 이 exe 로 다시 만들기");
+                        next.Add(L.T("shell:startup 의 바로 가기가 다른 exe 를 가리킵니다(" + string.Join(", ", autostart.Where(a => !SystemAccess.SamePath(a.Target, self)).Select(a => a.Target)) + ") — 사용자가 지우고 이 exe 로 다시 만들기", "A shortcut in shell:startup points to another exe (" + string.Join(", ", autostart.Where(a => !SystemAccess.SamePath(a.Target, self)).Select(a => a.Target)) + ") — the user should delete it and recreate it for this exe"));
                 }
 
                 var cur = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
@@ -2350,9 +2373,9 @@ namespace UartHub
                 string text = o.ToString();
                 WriteLast(text);
                 log.Line("");
-                log.Line("# 결과: " + ResultText(result) + " (exit " + rc + ") — " + message);
-                foreach (var n in next) log.Line("#   다음: " + n);
-                log.Line("# 결과 파일: " + SetupLast);
+                log.Line(L.T("# 결과: " + ResultText(result) + " (exit " + rc + ") — " + message, "# result: " + ResultText(result) + " (exit " + rc + ") — " + message));
+                foreach (var n in next) log.Line(L.T("#   다음: " + n, "#   next: " + n));
+                log.Line(L.T("# 결과 파일: " + SetupLast, "# result file: " + SetupLast));
                 if (Json) OutLine(text);
                 return rc;
             }
@@ -2360,10 +2383,10 @@ namespace UartHub
             // ============================================================== 제거
             int Uninstall()
             {
-                Header("제거");
-                Step("1. 설치 상태");
+                Header(L.T("제거", "removal"));
+                Step(L.T("1. 설치 상태", "1. Install state"));
                 log.Line("  elevated=" + SystemAccess.ElevationState.ToString().ToLowerInvariant());
-                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null;
+                existing = SystemAccess.FileExists(InstJson) ? InstallInfo.Load(InstJson) : null; LoadLang(existing?.HubDir);
                 if (existing != null && existing.Portable) return PortableUninstall();
                 // 휴대용 제거 뒤 남는 설정·결과 파일(prefs.json·setup_last.json)만 있는 폴더는 "설치되어 있지 않음"(X7 — uninstall --yes 두 번째는 exit 3)
                 bool instLeft = SystemAccess.DirExists(instDir) && (SystemAccess.ListDirs(instDir).Length > 0
@@ -2371,76 +2394,76 @@ namespace UartHub
                 bool any = existing != null || instLeft || SystemAccess.FileExists(StartupLnkPath) || SystemAccess.DirExists(MenuDir);
                 if (!any)
                 {
-                    log.Line("  설치되어 있지 않음(" + instDir + " 에 install.json·설치본 없음, 바로가기 없음)");
-                    if (!dry) ui?.Finish(false, "UART 허브가 설치되어 있지 않습니다.", 0);
+                    log.Line(L.T("  설치되어 있지 않음(" + instDir + " 에 install.json·설치본 없음, 바로가기 없음)", "  not installed (no install.json or installed copy in " + instDir + ", no shortcuts)"));
+                    if (!dry) ui?.Finish(false, L.T("UART 허브가 설치되어 있지 않습니다.", "UART Hub is not installed."), 0);
                     return dry ? RcOk : RcBlocked;
                 }
                 hubDir = existing?.HubDir; logRoot = existing?.LogRoot; installId = existing?.InstallId;
-                log.Line("  install.json: " + (existing != null ? "v" + existing.Version + " state=" + existing.State + " install_id=" + installId : "없음"));
-                log.Line("  허브 폴더: " + (hubDir ?? "(모름)") + " · 로그 위치: " + (logRoot ?? "(모름)"));
+                log.Line(L.T("  install.json: " + (existing != null ? "v" + existing.Version + " state=" + existing.State + " install_id=" + installId : "없음"), "  install.json: " + (existing != null ? "v" + existing.Version + " state=" + existing.State + " install_id=" + installId : "none")));
+                log.Line(L.T("  허브 폴더: " + (hubDir ?? "(모름)") + " · 로그 위치: " + (logRoot ?? "(모름)"), "  hub folder: " + (hubDir ?? "(unknown)") + " · log location: " + (logRoot ?? "(unknown)")));
 
-                Step("2. 확인 창(1회)");
+                Step(L.T("2. 확인 창(1회)", "2. Confirm window (once)"));
                 var lines = new List<string>
                 {
-                    "지울 것: 설치 폴더 " + instDir + ", 시작프로그램·시작 메뉴 바로가기, 바탕화면 허브 아이콘(자기 것만), 넣은 skills(표시가 맞을 때만)",
-                    "남길 것: 로그·설정 " + (logRoot ?? "(모름)") + " (허브 폴더 " + (hubDir ?? "(모름)") + ")",
-                    "허브를 정지합니다(열린 터미널 연결이 끊깁니다). 정지 상태(stopped)는 남기지 않습니다 — 다시 설치하면 바로 기록합니다",
+                    L.T("지울 것: 설치 폴더 " + instDir + ", 시작프로그램·시작 메뉴 바로가기, 바탕화면 허브 아이콘(자기 것만), 넣은 skills(표시가 맞을 때만)", "To delete: install folder " + instDir + ", startup and Start menu shortcuts, desktop hub icons (our own only), skills we placed (only if the marker matches)"),
+                    L.T("남길 것: 로그·설정 " + (logRoot ?? "(모름)") + " (허브 폴더 " + (hubDir ?? "(모름)") + ")", "To keep: logs and settings " + (logRoot ?? "(unknown)") + " (hub folder " + (hubDir ?? "(unknown)") + ")"),
+                    L.T("허브를 정지합니다(열린 터미널 연결이 끊깁니다). 정지 상태(stopped)는 남기지 않습니다 — 다시 설치하면 바로 기록합니다", "The hub is stopped (open terminals lose their connection). The stopped state is not kept — after a reinstall it records right away"),
                 };
                 foreach (var l in lines) log.Line("  | " + l);
-                if (!dry && !ui.Confirm(UninstallTitle, "제거", lines)) { log.Line("  취소 — 아무것도 바꾸지 않음(exit 2)"); return RcCancelled; }
-                if (dry) log.Line("  [dry-run] 확인 창을 띄우지 않음");
+                if (!dry && !ui.Confirm(UninstallTitle, L.T("제거", "Remove"), lines)) { log.Line(L.T("  취소 — 아무것도 바꾸지 않음(exit 2)", "  cancelled — nothing was changed (exit 2)")); return RcCancelled; }
+                if (dry) log.Line(L.T("  [dry-run] 확인 창을 띄우지 않음", "  [dry-run] not showing the confirm window"));
                 if (!dry && SystemAccess.DirExists(instDir)) log.Attach(InstLogPath);
 
-                Step("3. update mutex 획득(제거 중 C-9·C-11 이 감독을 다시 띄우지 않게)");
-                Act("update mutex 획득(" + SystemAccess.MutexName("update") + ")", AcquireUpdate);
+                Step(L.T("3. update mutex 획득(제거 중 C-9·C-11 이 감독을 다시 띄우지 않게)", "3. Acquire update mutex (so C-9/C-11 do not restart the supervisor during removal)"));
+                Act(L.T("update mutex 획득(" + SystemAccess.MutexName("update") + ")", "acquire update mutex (" + SystemAccess.MutexName("update") + ")"), AcquireUpdate);
 
-                Step("4. 시작프로그램 바로가기 삭제");
-                if (!SystemAccess.FileExists(StartupLnkPath)) log.Line("  없음");
-                else if (IsOurLnk(StartupLnkPath, instExe, "sup")) Act("삭제 " + StartupLnkPath, () => Retry(() => SystemAccess.DeleteFile(StartupLnkPath)));
-                else log.Line("  남의 바로가기라 남김: " + StartupLnkPath);
+                Step(L.T("4. 시작프로그램 바로가기 삭제", "4. Delete the startup shortcut"));
+                if (!SystemAccess.FileExists(StartupLnkPath)) log.Line(L.T("  없음", "  none"));
+                else if (IsOurLnk(StartupLnkPath, instExe, "sup")) Act(L.T("삭제 " + StartupLnkPath, "delete " + StartupLnkPath), () => Retry(() => SystemAccess.DeleteFile(StartupLnkPath)));
+                else log.Line(L.T("  남의 바로가기라 남김: " + StartupLnkPath, "  not our shortcut, kept: " + StartupLnkPath));
 
-                Step("5. 허브 정지(감독 shutdown → core.stop → 검증 PID kill)");
-                if (string.IsNullOrEmpty(hubDir)) log.Line("  허브 폴더 모름 — 건너뜀");
-                else Act("감독에 shutdown(C-5, control.json stopped 는 건드리지 않음) — 응답 없으면 core.stop·검증 PID kill", () => StopHub("uninstall"));
+                Step(L.T("5. 허브 정지(감독 shutdown → core.stop → 검증 PID kill)", "5. Stop the hub (supervisor shutdown → core.stop → kill verified PID)"));
+                if (string.IsNullOrEmpty(hubDir)) log.Line(L.T("  허브 폴더 모름 — 건너뜀", "  hub folder unknown — skipped"));
+                else Act(L.T("감독에 shutdown(C-5, control.json stopped 는 건드리지 않음) — 응답 없으면 core.stop·검증 PID kill", "shutdown to the supervisor (C-5; control.json stopped is left alone) — if no response, core.stop and kill verified PID"), () => StopHub("uninstall"));
 
-                Step("6. 바탕화면 아이콘 삭제(대상 = 설치한 UartHub.exe 이고 인자 open <포트> 인 것만, E1)");
+                Step(L.T("6. 바탕화면 아이콘 삭제(대상 = 설치한 UartHub.exe 이고 인자 open <포트> 인 것만, E1)", "6. Delete desktop icons (only those whose target = the installed UartHub.exe with the argument open <port>, E1)"));
                 RemoveIcons();
 
-                Step("7. 시작 메뉴 폴더 삭제");
-                if (!SystemAccess.DirExists(MenuDir)) log.Line("  없음");
-                else Act("자기 바로가기·빈 폴더 삭제 " + MenuDir, RemoveMenu);
+                Step(L.T("7. 시작 메뉴 폴더 삭제", "7. Delete the Start menu folder"));
+                if (!SystemAccess.DirExists(MenuDir)) log.Line(L.T("  없음", "  none"));
+                else Act(L.T("자기 바로가기·빈 폴더 삭제 " + MenuDir, "delete our shortcuts and the empty folder " + MenuDir), RemoveMenu);
 
-                Step("8. skills(.uart_hub 의 install_id 가 같을 때만)");
+                Step(L.T("8. skills(.uart_hub 의 install_id 가 같을 때만)", "8. skills (only when install_id in .uart_hub matches)"));
                 var recorded = SkillsDeployer.Recorded(InstJson);
                 if (dry)
-                    log.Line("  [dry-run] 후보: Windows " + Path.Combine(SystemAccess.UserProfile, ".claude", "skills", "uart") + " · WSL "
-                             + (recorded.Any(x => x.Env == "wsl" && x.Placed) ? string.Join(", ", recorded.Where(x => x.Env == "wsl" && x.Placed).Select(x => x.Distro)) : "(기록 없음)")
-                             + " — .uart_hub 의 install_id=" + (installId ?? "(모름)") + " 일 때만 지움");
+                    log.Line(L.T("  [dry-run] 후보: Windows ", "  [dry-run] candidates: Windows ") + Path.Combine(SystemAccess.UserProfile, ".claude", "skills", "uart") + " · WSL "
+                             + (recorded.Any(x => x.Env == "wsl" && x.Placed) ? string.Join(", ", recorded.Where(x => x.Env == "wsl" && x.Placed).Select(x => x.Distro)) : L.T("(기록 없음)", "(no record)"))
+                             + L.T(" — .uart_hub 의 install_id=" + (installId ?? "(모름)") + " 일 때만 지움", " — deleted only if install_id in .uart_hub is " + (installId ?? "(unknown)")));
                 else
                 {
                     var removed = SkillsDeployer.Remove(installId, recorded, log.Line);
                     log.Line("  skills: " + SkillsDeployer.Summary(removed));
                 }
 
-                Step("9. 자기 이미지 옮기기 → 설치 폴더 삭제");
+                Step(L.T("9. 자기 이미지 옮기기 → 설치 폴더 삭제", "9. Move the running image → delete the install folder"));
                 if (SystemAccess.Under(self, instDir))
                 {
                     string dst = Path.Combine(SystemAccess.Temp, "uart_hub_removed_" + ts + ".exe");
-                    Act("실행 중인 자기 이미지 " + self + " → " + dst + " (다음 설치가 지움)", () =>
+                    Act(L.T("실행 중인 자기 이미지 " + self + " → " + dst + " (다음 설치가 지움)", "running image " + self + " → " + dst + " (the next setup deletes it)"), () =>
                     {
                         try { Retry(() => SystemAccess.MoveFile(self, dst, true), 8); }
                         catch (TestIsolationViolation) { throw; }
-                        catch (Exception e) { log.Line("    옮기지 못함(설치 폴더에 exe 가 남을 수 있음): " + e.Message); }
+                        catch (Exception e) { log.Line(L.T("    옮기지 못함(설치 폴더에 exe 가 남을 수 있음): " + e.Message, "    could not move it (the exe may stay in the install folder): " + e.Message)); }
                     });
                 }
-                else log.Line("  자기 이미지는 설치 폴더 밖(" + self + ") — 옮길 것 없음");
+                else log.Line(L.T("  자기 이미지는 설치 폴더 밖(" + self + ") — 옮길 것 없음", "  the running image is outside the install folder (" + self + ") — nothing to move"));
                 if (!string.IsNullOrEmpty(hubDir) && SystemAccess.DirExists(hubDir))
                 {
                     string keep = Path.Combine(hubDir, "uninstall_" + ts + ".log");
-                    Act("제거 기록 → " + keep, () => log.MoveTo(keep));
+                    Act(L.T("제거 기록 → " + keep, "removal record → " + keep), () => log.MoveTo(keep));
                 }
                 if (SystemAccess.DirExists(instDir))
-                    Act("설치 폴더 삭제 " + instDir, () =>
+                    Act(L.T("설치 폴더 삭제 " + instDir, "delete install folder " + instDir), () =>
                     {
                         // Directory.Delete(재귀)는 다른 프로그램(백신·색인기)이 잠깐 연 파일을 '삭제 대기'로만 두면 폴더 RemoveDirectory 의
                         // ERROR_DIR_NOT_EMPTY 를 예외 없이 넘긴다 → 폴더가 남았으면 실패로 보고 다시 시도한다
@@ -2449,22 +2472,22 @@ namespace UartHub
                             Retry(() =>
                             {
                                 SystemAccess.DeleteDir(instDir);
-                                if (SystemAccess.DirExists(instDir)) throw new IOException("설치 폴더가 아직 남음(다른 프로그램이 파일을 잡고 있음)");
+                                if (SystemAccess.DirExists(instDir)) throw new IOException(L.T("설치 폴더가 아직 남음(다른 프로그램이 파일을 잡고 있음)", "the install folder still exists (another program holds a file)"));
                             });
                         }
                         catch (TestIsolationViolation) { throw; }
-                        catch (Exception e) { log.Line("    삭제 실패: " + e.Message); }
+                        catch (Exception e) { log.Line(L.T("    삭제 실패: " + e.Message, "    delete failed: " + e.Message)); }
                     });
-                else log.Line("  설치 폴더 없음");
+                else log.Line(L.T("  설치 폴더 없음", "  no install folder"));
 
-                Step("10. 남김");
-                log.Line("  로그 " + (logRoot ?? "(모름)") + ", 허브 폴더 " + (hubDir ?? "(모름)") + "(config.json·token·state.json·hub.log). control.json 은 그대로(stopped 로 바꾸지 않음)");
+                Step(L.T("10. 남김", "10. Kept"));
+                log.Line(L.T("  로그 " + (logRoot ?? "(모름)") + ", 허브 폴더 " + (hubDir ?? "(모름)") + "(config.json·token·state.json·hub.log). control.json 은 그대로(stopped 로 바꾸지 않음)", "  logs " + (logRoot ?? "(unknown)") + ", hub folder " + (hubDir ?? "(unknown)") + " (config.json, token, state.json, hub.log). control.json is unchanged (not set to stopped)"));
                 if (!dry) ReleaseUpdate();
                 log.Line("");
-                if (dry) { log.Line("# dry-run 끝 — 시스템을 바꾸지 않았습니다."); return RcOk; }
+                if (dry) { log.Line(L.T("# dry-run 끝 — 시스템을 바꾸지 않았습니다.", "# dry-run done — the system was not changed.")); return RcOk; }
                 bool left = SystemAccess.DirExists(instDir);
-                log.Line("# 제거 " + (left ? "일부 실패 — 설치 폴더가 남음" : "완료"));
-                ui.Finish(!left, left ? "제거를 마치지 못했습니다(설치 폴더가 남음): " + instDir : "UART 허브를 제거했습니다. 로그·설정은 " + (logRoot ?? hubDir) + " 에 남아 있습니다.", 5000);
+                log.Line(L.T("# 제거 " + (left ? "일부 실패 — 설치 폴더가 남음" : "완료"), "# removal " + (left ? "partly failed — the install folder remains" : "done")));
+                ui.Finish(!left, left ? L.T("제거를 마치지 못했습니다(설치 폴더가 남음): " + instDir, "Removal did not finish (the install folder remains): " + instDir) : L.T("UART 허브를 제거했습니다. 로그·설정은 " + (logRoot ?? hubDir) + " 에 남아 있습니다.", "UART Hub was removed. Logs and settings remain in " + (logRoot ?? hubDir) + "."), 5000);
                 return left ? RcFailed : RcOk;
             }
 
@@ -2490,7 +2513,7 @@ namespace UartHub
                         }
                         Walk(d.RootElement);
                     }
-                    catch (JsonException) { log.Line("  icons.json 깨짐 — 바탕화면 검사만"); }
+                    catch (JsonException) { log.Line(L.T("  icons.json 깨짐 — 바탕화면 검사만", "  icons.json is corrupt — checking the desktop only")); }
                 }
                 fromList = cand.Count;
                 cand.AddRange(SystemAccess.ListFiles(SystemAccess.Desktop, "*.lnk"));
@@ -2507,10 +2530,10 @@ namespace UartHub
                     bool listed = cand.IndexOf(p) < fromList;
                     if (!SystemAccess.FileExists(p)) continue;
                     var i = ShellLink.Read(p);
-                    if (ShellLink.IsOurs(i, instExe, "open ", true)) { n++; Act("삭제 " + p, () => Retry(() => SystemAccess.DeleteFile(p))); }
-                    else if (listed) log.Line("  icons.json 에 있으나 자기 것이 아님(대상 " + (i?.Target ?? "?") + ") — 남김: " + p);
+                    if (ShellLink.IsOurs(i, instExe, "open ", true)) { n++; Act(L.T("삭제 " + p, "delete " + p), () => Retry(() => SystemAccess.DeleteFile(p))); }
+                    else if (listed) log.Line(L.T("  icons.json 에 있으나 자기 것이 아님(대상 " + (i?.Target ?? "?") + ") — 남김: " + p, "  listed in icons.json but not ours (target " + (i?.Target ?? "?") + ") — kept: " + p));
                 }
-                log.Line("  자기 아이콘 " + n + "개" + (fromList > 0 ? " (icons.json " + fromList + "개 확인)" : ""));
+                log.Line(L.T("  자기 아이콘 " + n + "개" + (fromList > 0 ? " (icons.json " + fromList + "개 확인)" : ""), "  our icons: " + n + (fromList > 0 ? " (" + fromList + " confirmed in icons.json)" : "")));
             }
 
             /// <summary>휴대용(X4): exe 경로가 바뀌면 옛 exe 를 가리키는 자기 아이콘(인자 open &lt;포트&gt;)의 대상만 새 exe 로 바꾼다 — 새 감독이 이어받는다(E1 소유 판정).</summary>
@@ -2523,13 +2546,13 @@ namespace UartHub
                     var i = ShellLink.Read(p);
                     if (!ShellLink.IsOurs(i, oldExe, "open ", true)) continue;
                     n++;
-                    Act("아이콘 대상 바꿈 " + p + " → " + newExe, () =>
+                    Act(L.T("아이콘 대상 바꿈 " + p + " → " + newExe, "retarget icon " + p + " → " + newExe), () =>
                     {
                         i.Target = newExe; i.IconPath = newExe; i.IconIndex = 0; i.WorkingDirectory = Path.GetDirectoryName(newExe);
                         Retry(() => ShellLink.Save(p, i));
                     });
                 }
-                log.Line("  옛 exe 를 가리키던 자기 아이콘 " + n + "개");
+                log.Line(L.T("  옛 exe 를 가리키던 자기 아이콘 " + n + "개", "  our icons that pointed to the old exe: " + n));
             }
 
             static string Trunc(string s, int n) => s == null ? "" : s.Length > n ? s.Substring(0, n) + "…" : s;

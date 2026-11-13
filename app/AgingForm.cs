@@ -11,7 +11,7 @@ namespace UartHub.App
 {
     sealed class AgingForm : HubDialog
     {
-        public const string Title = "에이징 시작";
+        public static string Title => L.T("에이징 시작", "Start aging");
         readonly Action<string> start;
         readonly InputBox input;
         readonly TextBlock folder;
@@ -27,14 +27,15 @@ namespace UartHub.App
             this.start = start; this.agingRoot = agingRoot; this.at = at;
             ContentW = 420;
             SuspendLayout();
-            AddHead(Josa.EulReul(who) + " 에이징할까요?");
-            AddBody("끝낼 때까지 이 포트의 콘솔 로그와 커널 패닉, Oops, 앱 오류 이벤트를 아래 폴더에 남깁니다. 끝내면 요약도 같이 저장합니다.");
-            AddText("이름", () => FBold, Pal.Text, 14);
+            AddHead(L.T(Josa.EulReul(who) + " 에이징할까요?", "Start aging on " + who + "?"));
+            AddBody(L.T("끝낼 때까지 이 포트의 콘솔 로그와 커널 패닉, Oops, 앱 오류 이벤트를 아래 폴더에 남깁니다. 끝내면 요약도 같이 저장합니다.",
+                        "Until you end it, this port's console log and kernel panic, Oops and app error events are saved in the folder below. Ending it also saves a summary."));
+            AddText(L.T("이름", "Name"), () => FBold, Pal.Text, 14);
             input = Bind(new InputBox(this, defaultName), () => FBody);
             AddRow(input, 6, input.Measure);
             folder = AddNote("", 8);
-            go = AddButton("시작", Go, primary: true);
-            cancel = AddButton("취소", Close);
+            go = AddButton(L.T("시작", "Start"), Go, primary: true);
+            cancel = AddButton(L.T("취소", "Cancel"), Close);
             AcceptButton = go;                                               // Enter = 시작, Esc = 취소
             CancelButton = cancel;
             input.Box.TextChanged += (s, e) => Changed();
@@ -49,7 +50,7 @@ namespace UartHub.App
         {
             string n = AgingNames.Sanitize(input.Box.Text);
             go.Enabled = n != null;
-            folder.Text = n == null ? "폴더 이름으로 쓸 수 있는 글자를 넣어 주세요." : "폴더: " + Path.Combine(agingRoot ?? "", AgingNames.FolderName(n, at));
+            folder.Text = n == null ? L.T("폴더 이름으로 쓸 수 있는 글자를 넣어 주세요.", "Enter characters that can be used in a folder name.") : L.T("폴더: ", "Folder: ") + Path.Combine(agingRoot ?? "", AgingNames.FolderName(n, at));
             SetShown(folder, true);                                          // 빈 글로 만든 줄은 숨겨져 있다(AddText)
             Relayout();
         }
@@ -80,7 +81,7 @@ namespace UartHub.App
             this.owner = owner;
             BackColor = owner.Pal.Border;
             TabStop = false;
-            Box = new TextBox { BorderStyle = BorderStyle.None, AutoSize = false, BackColor = owner.Pal.Body, ForeColor = owner.Pal.Text, Text = text ?? "", AccessibleName = "이름", MaxLength = 200 };
+            Box = new TextBox { BorderStyle = BorderStyle.None, AutoSize = false, BackColor = owner.Pal.Body, ForeColor = owner.Pal.Text, Text = text ?? "", AccessibleName = L.T("이름", "Name"), MaxLength = 200 };
             inner = new Panel { BackColor = owner.Pal.Body, TabStop = false };
             inner.Controls.Add(Box);
             Controls.Add(inner);

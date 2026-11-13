@@ -1,4 +1,5 @@
-// 숨은 개발용 하위 명령 `UartHub.exe render-ui <폴더>`(UI_COPY.md 검토): 모든 창과 트레이 메뉴 모형을 PNG 로 그린다.
+// 숨은 개발용 하위 명령 `UartHub.exe render-ui <폴더> [--lang en|ko]`(UI_COPY.md 검토): 모든 창과 트레이 메뉴 모형을 PNG 로 그린다.
+//   --lang: 그 언어로 그린다(영어판 가이드 그림). 없으면 환경변수 UART_HUB_LANG → Windows 언어. 예시 보드 이름(EVB-A1 …)은 그대로.
 //   창을 띄우지 않는다 — Show·ShowDialog 없이 화면 밖 위치에서 핸들만 만들고 DrawToBitmap(HubDialog.Snapshot). 허브·감독·설정 파일은 건드리지 않는다(예시 데이터만).
 //   DPI: 프로세스는 DpiUnaware(늘 96 DPI 로 그림) → 100% 는 그대로, 150% 는 Zoom 1.5(글꼴·픽셀 값 1.5배)로 흉내 낸다.
 //   테마: 레지스트리를 읽지 않고 Theme.Forced 로 밝게·어둡게를 정해 둘 다 그린다(창·메뉴가 같은 Palette).
@@ -80,11 +81,11 @@ namespace UartHub.App
             // 3 준비됨 · 4 켜지 못함
             var ok = new ProgressWindow(Installer.PortableTitle, z);
             foreach (var l in SampleLog()) ok.AddDetail(l);
-            ok.ShowResult(true, InstallCopy.Ready(LogRoot, "Windows 넣음, WSL Ubuntu-22.04 넣음"), 5000);
+            ok.ShowResult(true, InstallCopy.Ready(LogRoot, L.T("Windows 넣음, WSL Ubuntu-22.04 넣음", "Windows installed, WSL Ubuntu-22.04 installed")), 5000);
             Dlg("03_success", ok);
             var bad = new ProgressWindow(Installer.PortableTitle, z);
             foreach (var l in SampleLog()) bad.AddDetail(l);
-            bad.ShowResult(false, InstallCopy.Fail("건강 확인 실패", HubDir + @"\install.log", null), 0);
+            bad.ShowResult(false, InstallCopy.Fail(L.T("건강 확인 실패", "health check failed"), HubDir + @"\install.log", null), 0);
             Dlg("04_failure", bad);
 
             // 5 새 버전으로 바꾸기
@@ -116,37 +117,37 @@ namespace UartHub.App
             };
             Dlg("12_uart_cleanup", new CleanupForm(gone, null, (ids, done) => { }, z));
             Dlg("12b_uart_cleanup_empty", new CleanupForm(new List<RememberedCable>(), null, (ids, done) => { }, z));
-            Dlg("12c_uart_cleanup_hub_off", new CleanupForm(null, "허브가 꺼져 있어 기록을 읽지 못했습니다.", (ids, done) => { }, z));
+            Dlg("12c_uart_cleanup_hub_off", new CleanupForm(null, L.T("허브가 꺼져 있어 기록을 읽지 못했습니다.", "The hub is off, so the records could not be read."), (ids, done) => { }, z));
 
             // 10·11 트레이 메뉴 모형
             Save("10_tray_menu", TrayMock(z, false));
             Save("11_tray_settings", TrayMock(z, true));
 
             // 13 에이징 시작(이름 창, 부록 C.12) · 14 에이징 중 트레이 메뉴(세션 정보 줄 2개 — 하나는 10분 넘게 출력 없음, COM3 ▸ 에이징 끝내기) · 15 트레이 아이콘 4종
-            Dlg("13_aging_start", new AgingForm("EVB-A1 (7001)", "EVB-A1_20261106-1530", LogRoot + @"\에이징", new DateTime(2026, 11, 6, 15, 30, 0), _ => { }, z));
+            Dlg("13_aging_start", new AgingForm("EVB-A1 (7001)", "EVB-A1_20261106-1530", LogRoot + @"\" + Config.AgingDirName, new DateTime(2026, 11, 6, 15, 30, 0), _ => { }, z));
             Save("14_tray_aging", TrayMock(z, false, true));
             Save("15_tray_icons", IconStrip(z));
         }
 
         static IEnumerable<string> SampleLog() => new[]
         {
-            "# UART 허브 시작(휴대용) v20261106101724547",
-            "# exe=" + Exe + " pid=21480 사용자=user",
+            L.T("# UART 허브 시작(휴대용) v20261106101724547", "# UART Hub start (portable) v20261106101724547"),
+            L.T("# exe=" + Exe + " pid=21480 사용자=user", "# exe=" + Exe + " pid=21480 user=user"),
             "",
-            "== 3. 허브 폴더·토큰·config.json",
-            "  폴더 " + HubDir,
-            "  토큰 " + HubDir + @"\token 새로 만듦(32자 hex) + ACL(상속 끊기, 현재 사용자만 FullControl)",
-            "  config.json 새로 만듦(휴대용 기본): {\"on_demand\": true}",
+            L.T("== 3. 허브 폴더·토큰·config.json", "== 3. hub folder, token, config.json"),
+            L.T("  폴더 " + HubDir, "  folder " + HubDir),
+            L.T("  토큰 " + HubDir + @"\token 새로 만듦(32자 hex) + ACL(상속 끊기, 현재 사용자만 FullControl)", "  token " + HubDir + @"\token created (32 hex chars) + ACL (inheritance removed, FullControl for the current user only)"),
+            L.T("  config.json 새로 만듦(휴대용 기본): {\"on_demand\": true}", "  create config.json (portable default): {\"on_demand\": true}"),
             "",
             "== 4. install.json(portable)",
             "  install.json state=installed portable=true (exe=" + Exe + ")",
             "",
-            "== 5. 감독 기동 → 건강 확인",
-            "  \"" + Exe + "\" sup 분리 기동(이 exe 그대로)",
-            "    건강 확인 OK 2.4초 (합격선 10초 이내)",
+            L.T("== 5. 감독 기동 → 건강 확인", "== 5. start supervisor → health check"),
+            L.T("  \"" + Exe + "\" sup 분리 기동(이 exe 그대로)", "  start \"" + Exe + "\" sup detached (this exe as is)"),
+            L.T("    건강 확인 OK 2.4초 (합격선 10초 이내)", "    health check OK 2.4 s (pass within 10 s)"),
             "",
             "== 6. Claude skills",
-            "  Claude skills 배치(~/.claude 가 있는 곳만)",
+            L.T("  Claude skills 배치(~/.claude 가 있는 곳만)", "  deploy Claude skills (only where ~/.claude exists)"),
         };
 
         /// <summary>
@@ -160,11 +161,11 @@ namespace UartHub.App
             var rows = new List<CableRow>
             {
                 new CableRow { Cable = "FT6X1A2B", Com = "COM3", Port = 7001, Board = "EVB-A1", Status = "attached", Baud = 115200, Description = "USB Serial Port",
-                               SessionName = aging ? "EVB-A1_전원에이징_1106" : null, SessionElapsedS = 2 * 3600 + 13 * 60 + 20, SessionLastRxAgeS = 3 },
+                               SessionName = aging ? L.T("EVB-A1_전원에이징_1106", "EVB-A1_power-aging_1106") : null, SessionElapsedS = 2 * 3600 + 13 * 60 + 20, SessionLastRxAgeS = 3 },
                 new CableRow { Cable = "FT6X1C3D", Com = "COM5", Port = 7002, Board = "EVB-B2", Status = "attached", Baud = 115200, Description = "USB Serial Port",
                                SessionName = aging ? "EVB-B2_20261106-0910" : null, SessionElapsedS = 7 * 3600 + 2 * 60, SessionLastRxAgeS = 12 * 60 + 5 },
                 new CableRow { Cable = "FT6X1G5H", Com = "COM6", Port = 7003, Board = "EVB-C3", Status = "attached", Baud = 115200, Description = "USB Serial Port" },
-                new CableRow { Cable = "FT6X1J6K", Com = "COM7", Port = 7004, Board = "H1", Status = "attached", Baud = 115200, Description = "USB Serial Port" },
+                new CableRow { Cable = "FT6X1J6K", Com = "COM7", Port = 7004, Board = "EVB-D4", Status = "attached", Baud = 115200, Description = "USB Serial Port" },
                 new CableRow { Cable = "FT6X1E4F", Com = "COM8", Port = 0, Status = "pending", Baud = 115200, Description = "USB Serial Port" },
             };
             tm.SetStatus(Supervisor.TitleOf("running", false, false, 4, 0, 0, rows.Count(r => r.Aging)), rows);

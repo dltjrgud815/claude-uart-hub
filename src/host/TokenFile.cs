@@ -67,7 +67,7 @@ namespace UartHub
             var sec = new FileInfo(f).GetAccessControl(AccessControlSections.Access);
             var rules = sec.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>().ToList();
             return "protected=" + sec.AreAccessRulesProtected + " rules=" + rules.Count + " "
-                   + string.Join(" ", rules.Select(r => r.IdentityReference.Value + ":" + r.FileSystemRights + ":" + r.AccessControlType + (r.IsInherited ? "(상속)" : "")));
+                   + string.Join(" ", rules.Select(r => r.IdentityReference.Value + ":" + r.FileSystemRights + ":" + r.AccessControlType + (r.IsInherited ? L.T("(상속)", "(inherited)") : "")));
         }
     }
 }

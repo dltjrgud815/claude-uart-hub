@@ -92,7 +92,7 @@ namespace UartHub
                 if (detachedSeq.TryGetValue(c.Id, out long ds) && seq <= ds) ep = null;
                 else if (!eps.TryGetValue(c.Id, out ep)) { ep = new Endpoint(this, c); eps[c.Id] = ep; created = true; }
             }
-            if (ep == null) { hub.Log.Write("telnet: 늦은 attach 이벤트 무시 " + c.Id + " seq=" + seq); return; }
+            if (ep == null) { hub.Log.Write(L.T("telnet: 늦은 attach 이벤트 무시 " + c.Id + " seq=" + seq, "telnet: late attach event ignored " + c.Id + " seq=" + seq)); return; }
             TestBeforeEndpointAttach?.Invoke(c);
             bool applied = ep.Attached(seq);
             if (!created) return;
@@ -179,14 +179,14 @@ namespace UartHub
                 lock (l)
                 {
                     if (stop || s <= attachSeq) return false;
-                    if (!live || s <= detachSeen) { hub.Log.Write("telnet: 늦은 attach 이벤트 무시 " + Cable.Id + " seq=" + s + " (케이블은 이미 더 새 세션이거나 이 세션의 detach 를 받음)"); return false; }
+                    if (!live || s <= detachSeen) { hub.Log.Write(L.T("telnet: 늦은 attach 이벤트 무시 " + Cable.Id + " seq=" + s + " (케이블은 이미 더 새 세션이거나 이 세션의 detach 를 받음)", "telnet: late attach event ignored " + Cable.Id + " seq=" + s + " (the cable is already in a newer session or got this session's detach)")); return false; }
                     first = attachSeq == 0;
                     attachSeq = s;
                     attached = true;
                     com = c;
                     if (!first) marks.Add(new Mark { Pos = pos, Banner = AttachBanner(c) });
                 }
-                if (!first) hub.Log.Write("telnet :" + Cable.TcpPort + " 케이블 재연결 " + c + " — 클라이언트 " + clients.Length + "개에 재연결 배너, 출력 재개");
+                if (!first) hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " 케이블 재연결 " + c + " — 클라이언트 " + clients.Length + "개에 재연결 배너, 출력 재개", "telnet :" + Cable.TcpPort + " cable reconnected " + c + " — reconnect banner to " + clients.Length + " client(s), output resumed"));
                 return true;
             }
 
@@ -204,14 +204,14 @@ namespace UartHub
                     if (stop || !attached) return;
                     if (s < attachSeq || live != s)
                     {
-                        hub.Log.Write("telnet: 늦은 detach 이벤트 무시 " + Cable.Id + " seq=" + s + " (현재 세션 " + Math.Max(attachSeq, live) + ")");
+                        hub.Log.Write(L.T("telnet: 늦은 detach 이벤트 무시 " + Cable.Id + " seq=" + s + " (현재 세션 " + Math.Max(attachSeq, live) + ")", "telnet: late detach event ignored " + Cable.Id + " seq=" + s + " (current session " + Math.Max(attachSeq, live) + ")"));
                         return;
                     }
                     attached = false;
                     detachGen++;
                     marks.Add(new Mark { Pos = pos, Banner = DetachBanner(com), Detach = true });
                 }
-                hub.Log.Write("telnet :" + Cable.TcpPort + " 케이블 분리 " + com + " — 연결 유지(클라이언트 " + clients.Length + "개에 분리 배너, 분리 중 입력은 버림)");
+                hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " 케이블 분리 " + com + " — 연결 유지(클라이언트 " + clients.Length + "개에 분리 배너, 분리 중 입력은 버림)", "telnet :" + Cable.TcpPort + " cable detached " + com + " — connections kept (detach banner to " + clients.Length + " client(s), input discarded while detached)"));
             }
 
             /// <summary>
@@ -226,7 +226,7 @@ namespace UartHub
                     if (attached || stop) return !attached;
                     if (c.NoticeGen != detachGen) { c.NoticeGen = detachGen; notice = true; c.EnqueueBanner(DroppedBanner(com)); }
                 }
-                if (notice) hub.Log.Write("telnet :" + Cable.TcpPort + " " + c.Name + " 케이블 분리 중 입력 " + n + "B 버림(안내 1회, 이후 이번 분리 동안은 조용히 버림)");
+                if (notice) hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " " + c.Name + " 케이블 분리 중 입력 " + n + "B 버림(안내 1회, 이후 이번 분리 동안은 조용히 버림)", "telnet :" + Cable.TcpPort + " " + c.Name + " input while cable detached, " + n + "B discarded (notice once, then silently discarded until reattach)"));
                 return true;
             }
 
@@ -273,7 +273,7 @@ namespace UartHub
                     if (Environment.TickCount64 >= deadline)
                     {
                         gaveUpSeq = liveSeq;
-                        hub.Log.Write("telnet :" + Cable.TcpPort + " attach 통지(seq " + liveSeq + ") " + waitMs + "ms 지연 — 재연결 배너 없이 출력 재개");
+                        hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " attach 통지(seq " + liveSeq + ") " + waitMs + "ms 지연 — 재연결 배너 없이 출력 재개", "telnet :" + Cable.TcpPort + " attach notice (seq " + liveSeq + ") " + waitMs + "ms late — output resumed without a reconnect banner"));
                         return;
                     }
                     Thread.Sleep(5);
@@ -309,7 +309,7 @@ namespace UartHub
                     try { listener?.Stop(); } catch (Exception) { }
                     cs = clients;
                 }
-                foreach (var c in cs) Gone(c, "telnet 종료(허브 정지)");
+                foreach (var c in cs) Gone(c, L.T("telnet 종료(허브 정지)", "telnet closed (hub stopping)"));
                 if (acceptTh != null && acceptTh != Thread.CurrentThread) acceptTh.Join(1000);
                 if (fanTh != null && fanTh != Thread.CurrentThread) fanTh.Join(1000);
                 Listening = false;
@@ -318,7 +318,7 @@ namespace UartHub
             void AcceptLoop()
             {
                 try { AcceptLoopCore(); }
-                catch (Exception e) { hub.Log.Write("telnet :" + Cable.TcpPort + " accept 스레드 오류(telnet 중단, 기록은 계속): " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " accept 스레드 오류(telnet 중단, 기록은 계속): " + e.GetType().Name + ": " + e.Message, "telnet :" + Cable.TcpPort + " accept thread error (telnet stopped, recording continues): " + e.GetType().Name + ": " + e.Message)); }
             }
 
             void AcceptLoopCore()
@@ -335,8 +335,10 @@ namespace UartHub
                         Listening = false;
                         BindError = err;
                         if (err != lastErr)
-                            hub.Log.Write("telnet bind 실패 127.0.0.1:" + Cable.TcpPort + " (" + Cable.Id + ") " + err + " → bind_failed, 기록은 계속, "
-                                          + Cfg.TelnetBindRetryMs + "ms 마다 재시도");
+                            hub.Log.Write(L.T("telnet bind 실패 127.0.0.1:" + Cable.TcpPort + " (" + Cable.Id + ") " + err + " → bind_failed, 기록은 계속, "
+                                          + Cfg.TelnetBindRetryMs + "ms 마다 재시도",
+                                          "telnet bind failed 127.0.0.1:" + Cable.TcpPort + " (" + Cable.Id + ") " + err + " → bind_failed, recording continues, retry every "
+                                          + Cfg.TelnetBindRetryMs + "ms"));
                         lastErr = err;
                         stopEvt.Wait(Cfg.TelnetBindRetryMs);
                         continue;
@@ -357,7 +359,7 @@ namespace UartHub
                         catch (Exception e)
                         {
                             if (stop) return;
-                            hub.Log.Write("telnet accept 오류 :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message + " → 다시 listen");
+                            hub.Log.Write(L.T("telnet accept 오류 :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message + " → 다시 listen", "telnet accept error :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message + " → listening again"));
                             try { ls.Stop(); } catch (Exception) { }
                             Listening = false;
                             stopEvt.Wait(200);
@@ -374,7 +376,7 @@ namespace UartHub
                 try { c = new Client(this, tc, Interlocked.Increment(ref seq)); }
                 catch (Exception e)
                 {
-                    hub.Log.Write("telnet 접속 준비 실패 :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message);
+                    hub.Log.Write(L.T("telnet 접속 준비 실패 :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message, "telnet connection setup failed :" + Cable.TcpPort + " " + e.GetType().Name + ": " + e.Message));
                     try { tc.Close(); } catch (Exception) { }
                     return;
                 }
@@ -387,7 +389,7 @@ namespace UartHub
                     detachedNow = !attached;
                     if (detachedNow && !marks.Any(m => m.Detach)) c.EnqueueBanner(DetachBanner(com));
                 }
-                hub.Log.Write("telnet :" + Cable.TcpPort + " 접속 " + c.Name + (detachedNow ? " (케이블 분리 중)" : ""));
+                hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " 접속 " + c.Name + (detachedNow ? " (케이블 분리 중)" : ""), "telnet :" + Cable.TcpPort + " connected " + c.Name + (detachedNow ? " (cable detached)" : "")));
                 c.Start();
             }
 
@@ -401,7 +403,7 @@ namespace UartHub
                     active++;
                     hub.Tracker(Cable)?.SetHumanClientCount(active);
                 }
-                hub.Log.Write("telnet :" + Cable.TcpPort + " " + c.Name + " 입력 허용(" + how + ")");
+                hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " " + c.Name + " 입력 허용(" + how + ")", "telnet :" + Cable.TcpPort + " " + c.Name + " input allowed (" + how + ")"));
             }
 
             /// <summary>클라이언트 제거(한 번만). 입력이 허용됐던 클라이언트면 사람 클라이언트 수를 줄인다.</summary>
@@ -419,7 +421,7 @@ namespace UartHub
                     }
                 }
                 c.Close();
-                hub.Log.Write("telnet :" + Cable.TcpPort + " " + c.Name + " 끊김: " + reason);
+                hub.Log.Write(L.T("telnet :" + Cable.TcpPort + " " + c.Name + " 끊김: " + reason, "telnet :" + Cable.TcpPort + " " + c.Name + " disconnected: " + reason));
                 if (cableEvent) Cable.PostEvent("*** telnet client " + c.Name + " dropped (" + reason + ") ***");
             }
 
@@ -456,7 +458,7 @@ namespace UartHub
                                 break;
                             }
                             case RingReadStatus.Lost:
-                                hub.Log.Write("telnet fanout :" + Cable.TcpPort + " 링 손실 " + r.Skipped + "B");
+                                hub.Log.Write(L.T("telnet fanout :" + Cable.TcpPort + " 링 손실 " + r.Skipped + "B", "telnet fanout :" + Cable.TcpPort + " ring loss " + r.Skipped + "B"));
                                 break;
                             case RingReadStatus.Closed:
                                 return;
@@ -464,7 +466,7 @@ namespace UartHub
                     }
                     catch (Exception e)
                     {
-                        hub.Log.Write("telnet fanout :" + Cable.TcpPort + " 오류: " + e.GetType().Name + ": " + e.Message);
+                        hub.Log.Write(L.T("telnet fanout :" + Cable.TcpPort + " 오류: " + e.GetType().Name + ": " + e.Message, "telnet fanout :" + Cable.TcpPort + " error: " + e.GetType().Name + ": " + e.Message));
                         Thread.Sleep(50);
                     }
                 }
@@ -594,14 +596,14 @@ namespace UartHub
                             while (off < arr.Length) off += sock.Send(arr, off, arr.Length - off, SocketFlags.None);
                         }
                     }
-                    catch (Exception e) { ep.Gone(this, "송신 실패 " + e.GetType().Name); }
+                    catch (Exception e) { ep.Gone(this, L.T("송신 실패 " + e.GetType().Name, "send failed " + e.GetType().Name)); }
                 }
 
                 void ReadLoop()
                 {
                     var buf = new byte[4096];
                     long t0 = Environment.TickCount64;
-                    string why = "연결 종료";
+                    string why = L.T("연결 종료", "connection closed");
                     try
                     {
                         while (!closed && !ep.stop)
@@ -610,15 +612,15 @@ namespace UartHub
                             {
                                 raw = true;
                                 inputOk = true;
-                                ep.Activate(this, "raw: " + ep.Cfg.TelnetNegotiationMs + "ms 동안 협상 응답 없음" + (discarded > 0 ? ", 그 전 입력 " + discarded + "B 버림" : ""));
+                                ep.Activate(this, L.T("raw: " + ep.Cfg.TelnetNegotiationMs + "ms 동안 협상 응답 없음" + (discarded > 0 ? ", 그 전 입력 " + discarded + "B 버림" : ""), "raw: no negotiation reply for " + ep.Cfg.TelnetNegotiationMs + "ms" + (discarded > 0 ? ", earlier input " + discarded + "B discarded" : "")));
                             }
                             if (!sock.Poll(50 * 1000, SelectMode.SelectRead)) continue;
                             int n = sock.Receive(buf, 0, buf.Length, SocketFlags.None);
                             if (n <= 0) break;
-                            if (!Feed(buf, n)) { why = "HTTP 형태의 첫 줄 → 차단"; break; }
+                            if (!Feed(buf, n)) { why = L.T("HTTP 형태의 첫 줄 → 차단", "HTTP-like first line → blocked"); break; }
                         }
                     }
-                    catch (Exception e) { why = "수신 " + e.GetType().Name; }
+                    catch (Exception e) { why = L.T("수신 " + e.GetType().Name, "receive " + e.GetType().Name); }
                     ep.Gone(this, why);
                 }
 
@@ -736,7 +738,7 @@ namespace UartHub
                         if (!raw)
                         {
                             inputOk = true;
-                            ep.Activate(this, "telnet 협상 응답" + (discarded > 0 ? ", 그 전 입력 " + discarded + "B 버림" : ""));
+                            ep.Activate(this, L.T("telnet 협상 응답" + (discarded > 0 ? ", 그 전 입력 " + discarded + "B 버림" : ""), "telnet negotiation reply" + (discarded > 0 ? ", earlier input " + discarded + "B discarded" : "")));
                         }
                     }
                     bool local = opt == OptEcho || opt == OptSga || opt == OptBinary;   // 우리가 켜 줄 수 있는 옵션(WILL)

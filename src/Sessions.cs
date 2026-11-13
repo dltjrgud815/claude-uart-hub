@@ -16,13 +16,29 @@ using System.Threading;
 
 namespace UartHub
 {
+    /// <summary>
+    /// 세션 언어로 고르는 글·이름(계획 §4): 세션은 시작할 때의 언어로 폴더·파일 이름과 txt 글을 정하고 sessions.json "lang" 에 남긴다
+    /// (언어가 없는 옛 기록 = ko). 언어를 바꿔도 진행 중·지난 세션은 자기 언어 그대로 읽고 쓴다. lang null = 지금 언어(L.T 와 같다).
+    /// </summary>
+    public static class AgingLang
+    {
+        public static string T(string lang, string ko, string en) => (lang ?? L.Current) == L.En ? en : ko;
+        /// <summary>저장된 값 → "ko"|"en"(없거나 모르는 값 = ko — 옛 기록).</summary>
+        public static string Norm(string lang) => lang == L.En ? L.En : L.Ko;
+    }
+
     /// <summary>에이징 세션 하나(포트별). 저장 필드 + 코어 안에서만 쓰는 실행 중 값(콘솔.log 크기·줄 수·마지막 수신 시각).</summary>
     public sealed class AgingSession
     {
-        public const string ConsoleName = "콘솔.log", EventsDirName = "이벤트", SummaryName = "요약.txt";
+        /// <summary>그 언어의 세션 안 이름(콘솔.log·이벤트\·요약.txt ↔ console.log·events\·summary.txt). lang null = 지금 언어.</summary>
+        public static string ConsoleNameFor(string lang) => AgingLang.T(lang, "콘솔.log", "console.log");
+        public static string EventsDirNameFor(string lang) => AgingLang.T(lang, "이벤트", "events");
+        public static string SummaryNameFor(string lang) => AgingLang.T(lang, "요약.txt", "summary.txt");
 
         public int Port;
         public string Cable, Com, Board, Name, Folder;
+        /// <summary>세션 언어 "ko"|"en" — 만들 때(세션 시작) 지금 언어, 저장된 기록은 "lang"(없으면 ko). 이름·txt 글은 모두 이것을 따른다.</summary>
+        public string Lang = L.Current;
         /// <summary>시작 시각(현지).</summary>
         public DateTime Started;
 
@@ -54,13 +70,16 @@ namespace UartHub
             catch (Exception) { }
         }
 
+        public string ConsoleName => ConsoleNameFor(Lang);
+        public string EventsDirName => EventsDirNameFor(Lang);
+        public string SummaryName => SummaryNameFor(Lang);
         public string ConsolePath => Path.Combine(Folder ?? "", ConsoleName);
         public string EventsDir => Path.Combine(Folder ?? "", EventsDirName);
         public string SummaryPath => Path.Combine(Folder ?? "", SummaryName);
 
         public static string Iso(DateTime t) => new DateTimeOffset(t).ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
 
-        public JObj ToJson() => new JObj().Set("port", (long)Port).Set("cable", Cable).Set("com", Com).Set("board", Board).Set("name", Name).Set("folder", Folder).Set("started", Iso(Started));
+        public JObj ToJson() => new JObj().Set("port", (long)Port).Set("cable", Cable).Set("com", Com).Set("board", Board).Set("name", Name).Set("folder", Folder).Set("started", Iso(Started)).Set("lang", Lang);
 
         public static AgingSession FromJson(JsonElement e)
         {
@@ -69,7 +88,7 @@ namespace UartHub
             var s = new AgingSession
             {
                 Port = (int)HubFiles.Long(e, "port"), Cable = HubFiles.Str(e, "cable"), Com = HubFiles.Str(e, "com"), Board = HubFiles.Str(e, "board"),
-                Name = HubFiles.Str(e, "name"), Folder = HubFiles.Str(e, "folder"), Started = t.LocalDateTime,
+                Name = HubFiles.Str(e, "name"), Folder = HubFiles.Str(e, "folder"), Started = t.LocalDateTime, Lang = AgingLang.Norm(HubFiles.Str(e, "lang")),
             };
             return s.Port > 0 && !string.IsNullOrEmpty(s.Folder) && !string.IsNullOrEmpty(s.Name) ? s : null;
         }
@@ -109,8 +128,8 @@ namespace UartHub
 
         /// <summary>트레이 이름 창·CLI 의 기본 이름 "&lt;보드&gt;_&lt;yyyyMMdd-HHmm&gt;"(보드를 모르면 COM, 그것도 없으면 포트).</summary>
         public static string DefaultName(string board, string com, int port, DateTime t)
-            => Sanitize((!string.IsNullOrWhiteSpace(board) ? board : !string.IsNullOrWhiteSpace(com) ? com : "포트" + port.ToString(CultureInfo.InvariantCulture)) + "_" + Stamp(t))
-               ?? "에이징_" + Stamp(t);
+            => Sanitize((!string.IsNullOrWhiteSpace(board) ? board : !string.IsNullOrWhiteSpace(com) ? com : L.T("포트" + port.ToString(CultureInfo.InvariantCulture), "port" + port.ToString(CultureInfo.InvariantCulture))) + "_" + Stamp(t))
+               ?? L.T("에이징_" + Stamp(t), "aging_" + Stamp(t));
 
         /// <summary>폴더 이름 "&lt;이름&gt;_&lt;yyyyMMdd-HHmm&gt;" — 이름이 이미 그 시각으로 끝나면(기본 이름) 한 번만.</summary>
         public static string FolderName(string name, DateTime started)
@@ -126,16 +145,18 @@ namespace UartHub
         /// <summary>이 시간(초)보다 오래 RX 가 없으면 "출력 없음 N분"(보드·케이블이 멈췄는지 보라는 표시).</summary>
         public const double NoOutputS = 600;
 
-        /// <summary>"2시간 13분" · "45분" · "30초"(1분 미만) · "3일 4시간".</summary>
-        public static string Duration(double s)
+        /// <summary>"2시간 13분" · "45분" · "30초"(1분 미만) · "3일 4시간"(영어 "2 h 13 min" · "45 min" · "30 s" · "3 d 4 h"). lang null = 지금 언어.</summary>
+        public static string Duration(double s, string lang = null)
         {
             if (double.IsNaN(s) || s < 0) s = 0;
             long t = (long)Math.Floor(s);
-            if (t < 60) return t.ToString(CultureInfo.InvariantCulture) + "초";
+            if (t < 60) return AgingLang.T(lang, t.ToString(CultureInfo.InvariantCulture) + "초", t.ToString(CultureInfo.InvariantCulture) + " s");
             long m = t / 60, h = m / 60, d = h / 24;
-            if (d > 0) return d.ToString(CultureInfo.InvariantCulture) + "일 " + (h % 24).ToString(CultureInfo.InvariantCulture) + "시간";
-            if (h > 0) return h.ToString(CultureInfo.InvariantCulture) + "시간 " + (m % 60).ToString(CultureInfo.InvariantCulture) + "분";
-            return m.ToString(CultureInfo.InvariantCulture) + "분";
+            if (d > 0) return AgingLang.T(lang, d.ToString(CultureInfo.InvariantCulture) + "일 " + (h % 24).ToString(CultureInfo.InvariantCulture) + "시간",
+                                          d.ToString(CultureInfo.InvariantCulture) + " d " + (h % 24).ToString(CultureInfo.InvariantCulture) + " h");
+            if (h > 0) return AgingLang.T(lang, h.ToString(CultureInfo.InvariantCulture) + "시간 " + (m % 60).ToString(CultureInfo.InvariantCulture) + "분",
+                                          h.ToString(CultureInfo.InvariantCulture) + " h " + (m % 60).ToString(CultureInfo.InvariantCulture) + " min");
+            return AgingLang.T(lang, m.ToString(CultureInfo.InvariantCulture) + "분", m.ToString(CultureInfo.InvariantCulture) + " min");
         }
 
         /// <summary>
@@ -144,26 +165,28 @@ namespace UartHub
         /// </summary>
         public static string RxTail(double? lastRxAgeS, double elapsedS)
         {
-            if (!lastRxAgeS.HasValue) return elapsedS > NoOutputS ? "출력 없음 " + Duration(elapsedS) : "아직 출력 없음";
+            if (!lastRxAgeS.HasValue) return elapsedS > NoOutputS ? L.T("출력 없음 " + Duration(elapsedS), "No output " + Duration(elapsedS)) : L.T("아직 출력 없음", "No output yet");
             double a = Math.Max(0, lastRxAgeS.Value);
-            if (a > NoOutputS) return "출력 없음 " + Duration(a);
-            return "마지막 출력 " + Duration(a) + " 전";
+            if (a > NoOutputS) return L.T("출력 없음 " + Duration(a), "No output " + Duration(a));
+            return L.T("마지막 출력 " + Duration(a) + " 전", "Last output " + Duration(a) + " ago");
         }
 
         /// <summary>트레이 메뉴 정보 줄 "에이징 중 · &lt;이름&gt; · 2시간 13분 · 마지막 출력 3초 전"(앞의 점은 메뉴가 그린다 — 기록 중 초록, Stale 이면 빨강).</summary>
         public static string MenuLine(string name, double elapsedS, double? lastRxAgeS)
-            => "에이징 중 · " + name + " · " + Duration(elapsedS) + " · " + RxTail(lastRxAgeS, elapsedS);
+            => L.T("에이징 중 · " + name + " · " + Duration(elapsedS) + " · " + RxTail(lastRxAgeS, elapsedS),
+                   "Aging · " + name + " · " + Duration(elapsedS) + " · " + RxTail(lastRxAgeS, elapsedS));
 
         /// <summary>RxTail 이 "출력 없음 N분" 인 상태(10분 넘게 출력 없음, 아직 받은 것이 없으면 세션 경과로).</summary>
         public static bool Stale(double? lastRxAgeS, double elapsedS) => (lastRxAgeS ?? elapsedS) > NoOutputS;
 
         /// <summary>터미널 창 제목 끝에 붙는 글(세션 중인 포트).</summary>
-        public const string TitleSuffix = " · 에이징 중";
+        public static string TitleSuffix => L.T(" · 에이징 중", " · aging");
 
-        /// <summary>종류 이름(요약·CLI): panic → 커널 패닉 …</summary>
-        public static string KindName(string kind) => kind switch
+        /// <summary>종류 이름(요약·CLI): panic → 커널 패닉 … lang null = 지금 언어(요약은 세션 언어).</summary>
+        public static string KindName(string kind, string lang = null) => kind switch
         {
-            "panic" => "커널 패닉", "oops" => "Oops", "bug" => "BUG", "oom" => "OOM", "app_error" => "앱 오류", "confirm" => "패닉 뒤 응답 없음", "missed" => "기록 놓침",
+            "panic" => AgingLang.T(lang, "커널 패닉", "kernel panic"), "oops" => "Oops", "bug" => "BUG", "oom" => "OOM", "app_error" => AgingLang.T(lang, "앱 오류", "app error"),
+            "confirm" => AgingLang.T(lang, "패닉 뒤 응답 없음", "no response after panic"), "missed" => AgingLang.T(lang, "기록 놓침", "record missed"),
             _ => kind,
         };
     }
@@ -217,7 +240,7 @@ namespace UartHub
                 if (!map.TryGetValue(port, out var s)) return null;
                 map.Remove(port);
                 try { Save(); }
-                catch (Exception e) { log?.Write("sessions.json 쓰기 실패(" + Path + "): " + e.Message); }
+                catch (Exception e) { log?.Write(L.T("sessions.json 쓰기 실패(" + Path + "): " + e.Message, "sessions.json write failed (" + Path + "): " + e.Message)); }
                 return s;
             }
         }
@@ -263,52 +286,60 @@ namespace UartHub
             using var d = JsonDocument.Parse(ag.ToString());
             var o = d.RootElement;
             string N(JsonElement e, string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetRawText() : "0";
+            string lang = s.Lang;                                                             // 요약은 세션 언어(요약.txt ↔ summary.txt 와 같은 언어)
+            string X(string ko, string en) => AgingLang.T(lang, ko, en);
+            string D(double sec) => AgingText.Duration(sec, lang);
             double period = (until - s.Started).TotalSeconds, covered;
             var sb = new StringBuilder();
-            sb.Append("에이징 요약\r\n");
-            sb.Append("이름: ").Append(s.Name).Append("\r\n");
-            sb.Append("보드: ").Append(string.IsNullOrWhiteSpace(s.Board) ? "알 수 없음" : s.Board).Append(" (포트 ").Append(s.Port.ToString(CultureInfo.InvariantCulture))
+            sb.Append(X("에이징 요약\r\n", "Aging summary\r\n"));
+            sb.Append(X("이름: ", "Name: ")).Append(s.Name).Append("\r\n");
+            sb.Append(X("보드: ", "Board: ")).Append(string.IsNullOrWhiteSpace(s.Board) ? X("알 수 없음", "unknown") : s.Board).Append(X(" (포트 ", " (port ")).Append(s.Port.ToString(CultureInfo.InvariantCulture))
               .Append(s.Com != null ? " · " + s.Com : "").Append(")\r\n");
-            sb.Append("기간: ").Append(T(since)).Append(" ~ ").Append(T(new DateTimeOffset(until))).Append(" (").Append(AgingText.Duration(period)).Append(")\r\n");
+            sb.Append(X("기간: ", "Period: ")).Append(T(since)).Append(" ~ ").Append(T(new DateTimeOffset(until))).Append(" (").Append(D(period)).Append(")\r\n");
             var gaps = Gaps(s, evs, until);
             covered = Math.Max(0, period - gaps.Sum(g => (g.To - g.From).TotalSeconds));
-            sb.Append("기록한 시간: ").Append(AgingText.Duration(covered)).Append(gaps.Count > 0 ? " (기록 끊김 " + gaps.Count + "번)" : "").Append("\r\n");
-            sb.Append("콘솔 로그: ").Append(s.ConsolePath).Append(" (").Append(s.ConsoleLines.ToString("N0", CultureInfo.InvariantCulture)).Append("줄)\r\n");
+            sb.Append(X("기록한 시간: ", "Recorded time: ")).Append(D(covered)).Append(gaps.Count > 0 ? X(" (기록 끊김 " + gaps.Count + "번)", " (" + gaps.Count + " recording gap(s))") : "").Append("\r\n");
+            sb.Append(X("콘솔 로그: ", "Console log: ")).Append(s.ConsolePath).Append(" (").Append(s.ConsoleLines.ToString("N0", CultureInfo.InvariantCulture)).Append(X("줄)\r\n", " lines)\r\n"));
             sb.Append("\r\n");
             var b = o.GetProperty("boots");
-            sb.Append("부팅: 모두 ").Append(N(b, "total")).Append("번 · 명령(cmd) ").Append(N(b, "cmd")).Append(" · 소프트(soft) ").Append(N(b, "soft"))
-              .Append(" · 하드(hard) ").Append(N(b, "hard")).Append(" (예상 못 한 재부팅 ").Append(N(o, "unexpected_reboots")).Append("번)\r\n");
-            if (N(b, "suspect") != "0") sb.Append("  명령 출력 속 부팅 줄 ").Append(N(b, "suspect")).Append("번은 세지 않았습니다(옛 로그일 수 있음).\r\n");
+            sb.Append(X("부팅: 모두 " + N(b, "total") + "번 · 명령(cmd) " + N(b, "cmd") + " · 소프트(soft) " + N(b, "soft")
+                        + " · 하드(hard) " + N(b, "hard") + " (예상 못 한 재부팅 " + N(o, "unexpected_reboots") + "번)\r\n",
+                        "Boots: " + N(b, "total") + " total · command (cmd) " + N(b, "cmd") + " · soft " + N(b, "soft")
+                        + " · hard " + N(b, "hard") + " (unexpected reboots: " + N(o, "unexpected_reboots") + ")\r\n"));
+            if (N(b, "suspect") != "0") sb.Append(X("  명령 출력 속 부팅 줄 " + N(b, "suspect") + "번은 세지 않았습니다(옛 로그일 수 있음).\r\n",
+                                                     "  " + N(b, "suspect") + " boot line(s) inside command output were not counted (may be an old log).\r\n"));
             var iv = o.GetProperty("boot_interval_s");
             if (iv.ValueKind == JsonValueKind.Object)
-                sb.Append("부팅 간격: 최소 ").Append(AgingText.Duration(iv.GetProperty("min").GetDouble())).Append(" · 중간 ").Append(AgingText.Duration(iv.GetProperty("median").GetDouble()))
-                  .Append(" · 최대 ").Append(AgingText.Duration(iv.GetProperty("max").GetDouble())).Append("\r\n");
+                sb.Append(X("부팅 간격: 최소 ", "Boot interval: min ")).Append(D(iv.GetProperty("min").GetDouble())).Append(X(" · 중간 ", " · median ")).Append(D(iv.GetProperty("median").GetDouble()))
+                  .Append(X(" · 최대 ", " · max ")).Append(D(iv.GetProperty("max").GetDouble())).Append("\r\n");
             sb.Append("\r\n");
             var listed = evs.Where(Listed).ToList();
-            sb.Append("이벤트: ").Append(listed.Count(e => e.Suspect == null && e.Kind != "boot")).Append("건")
-              .Append(listed.Any(e => e.Suspect != null && e.Kind != "boot") ? " (+ 의심 " + listed.Count(e => e.Suspect != null && e.Kind != "boot") + "건)" : "").Append("\r\n");
-            if (listed.Count == 0) sb.Append("  없음\r\n");
+            int nReal = listed.Count(e => e.Suspect == null && e.Kind != "boot"), nSus = listed.Count(e => e.Suspect != null && e.Kind != "boot");
+            sb.Append(X("이벤트: ", "Events: ")).Append(nReal).Append(X("건", ""))
+              .Append(listed.Any(e => e.Suspect != null && e.Kind != "boot") ? X(" (+ 의심 " + nSus + "건)", " (+ " + nSus + " suspect)") : "").Append("\r\n");
+            if (listed.Count == 0) sb.Append(X("  없음\r\n", "  none\r\n"));
             foreach (var e in listed)
             {
-                string what = e.Kind == "boot" ? EventBalloons.What("boot", e.Class, e.CauseKind) : AgingText.KindName(e.Kind);
-                sb.Append("  ").Append(Hm(e.Ts)).Append("  ").Append(what).Append(e.Suspect != null ? " (의심)" : "").Append("  ").Append(EventScanner.Trunc(e.Line, 120));
+                string what = e.Kind == "boot" ? EventBalloons.What("boot", e.Class, e.CauseKind, lang: lang) : AgingText.KindName(e.Kind, lang);
+                sb.Append("  ").Append(Hm(e.Ts)).Append("  ").Append(what).Append(e.Suspect != null ? X(" (의심)", " (suspect)") : "").Append("  ").Append(EventScanner.Trunc(e.Line, 120));
                 string ctx = e.Kind == "boot" ? e.CauseContext ?? e.Context : e.Context;
                 if (ctx != null) sb.Append("  → ").Append(ctx.StartsWith(s.Folder + "\\", StringComparison.OrdinalIgnoreCase) ? ctx.Substring(s.Folder.Length + 1) : ctx);
                 sb.Append("\r\n");
             }
             sb.Append("\r\n");
-            sb.Append("기록 끊긴 구간: ").Append(gaps.Count == 0 ? "없음" : gaps.Count + "번").Append("\r\n");
+            sb.Append(X("기록 끊긴 구간: ", "Recording gaps: ")).Append(gaps.Count == 0 ? X("없음", "none") : X(gaps.Count + "번", gaps.Count.ToString(CultureInfo.InvariantCulture))).Append("\r\n");
             foreach (var g in gaps)
-                sb.Append("  ").Append(T(g.From)).Append(" ~ ").Append(T(g.To)).Append(" (").Append(AgingText.Duration((g.To - g.From).TotalSeconds)).Append(", ").Append(GapWhy(g.Why)).Append(")\r\n");
+                sb.Append("  ").Append(T(g.From)).Append(" ~ ").Append(T(g.To)).Append(" (").Append(D((g.To - g.From).TotalSeconds)).Append(", ").Append(GapWhy(g.Why, lang)).Append(")\r\n");
             return sb.ToString();
         }
 
-        public static string GapWhy(string reason) => reason switch
+        /// <summary>기록 끊김 이유(사람용). lang null = 지금 언어(요약은 세션 언어).</summary>
+        public static string GapWhy(string reason, string lang = null) => reason switch
         {
-            "start" => "허브 다시 시작",
-            "reattach" => "케이블 분리",
-            "detached" => "케이블 분리, 다시 연결 안 됨",
-            _ => "기록 없음",
+            "start" => AgingLang.T(lang, "허브 다시 시작", "hub restarted"),
+            "reattach" => AgingLang.T(lang, "케이블 분리", "cable disconnected"),
+            "detached" => AgingLang.T(lang, "케이블 분리, 다시 연결 안 됨", "cable disconnected, not reconnected"),
+            _ => AgingLang.T(lang, "기록 없음", "no record"),
         };
     }
 }

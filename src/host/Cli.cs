@@ -6,7 +6,7 @@
 //   맨 앞 --parent-pipe(K4 후속): 표준 입력을 호출 쪽이 쥔 파이프로 보고, EOF(호출 쪽이 죽음·TERM)면 바로 끝낸다 → 제어 연결이 닫혀
 //     코어가 대기 요청을 취소한다(Arbiter Cancel = 미전송). WinExe 에는 SIGTERM 이 전달되지 않기 때문이다(부록 A K4).
 //   명령: ls | status <c> | run <c> "<cmd>" | send <c> "<raw>" | probe <c> | wait <c> --pattern RE | reboot <c>
-//         | log <c> [--tail N | --since OFF] | logpath <c> | hub status|stop|start|upgrade | connect [COMx [baud]] | disconnect COMx
+//         | log <c> [--tail N | --since OFF] | logpath <c> | hub status|stop|start|upgrade | hub language auto|ko|en | connect [COMx [baud]] | disconnect COMx
 //         | events [<port>] [--since …] [--kind …] [--follow] · aging <port> [--since …](X6 — 코어에 묻지 않고 <log_root>\events 를 읽기만, Cli.Events.cs)
 //         | session start <c> [이름] · session stop <c> · session status [--json](부록 C.12 — 코어가 세션을 바꾸고 읽는다. COM 을 열고 닫지 않아 Claude 가 불러도 된다)
 //         | session summary <c> [--since …](= aging, 이전 이름 aging 도 그대로)
@@ -45,7 +45,7 @@ namespace UartHub
         {
             [100] = "timeout", [101] = "busy", [102] = "no_cable", [103] = "hub_down", [104] = "md5_mismatch", [105] = "ambiguous", [106] = "rejected",
         };
-        static readonly string[] PathKeys = { "log", "raw", "idx", "path", "log_root", "hub_dir", "config", "core_config", "context", "events_dir", "events_file", "folder", "summary", "aging_root" };
+        static readonly string[] PathKeys = { "log", "raw", "idx", "path", "log_root", "hub_dir", "config", "core_config", "context", "events_dir", "events_file", "folder", "summary", "aging_root", "aging_roots" };
         static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
         static readonly UTF8Encoding Utf8Strict = new UTF8Encoding(false, true);
         static readonly object outLock = new object();
@@ -83,7 +83,7 @@ namespace UartHub
         static Exception QuitTool(int code, string msg, bool restarted = false)
         {
             bool stopped = code == 103 && HubStopped();
-            if (stopped) msg = "허브 정지됨(hub stopped — 'uart hub start' 로 재개). " + msg;
+            if (stopped) msg = L.T("허브 정지됨(hub stopped — 'uart hub start' 로 재개). ", "Hub stopped (hub stopped — resume with 'uart hub start'). ") + msg;
             if (jsonMode)
             {
                 var o = new JObj().Set("status", Meaning[code]).Set("exit", (long)code).Set("error", msg);
@@ -104,33 +104,38 @@ namespace UartHub
             if (!fromInstall || HubStopped()) return QuitTool(103, msg);
             if (CoreMain.MutexExists(SystemAccess.MutexName("sup")) || CoreMain.MutexExists(SystemAccess.MutexName("update"))) return QuitTool(103, msg);
             string exe = CoreMain.RespawnExe(out string why);
-            if (exe == null) return QuitTool(103, msg + " — 감독을 다시 띄우지 않음(" + why + ")");
+            if (exe == null) return QuitTool(103, msg + L.T(" — 감독을 다시 띄우지 않음(" + why + ")", " — not restarting the supervisor (" + why + ")"));
             try
             {
                 NativeHandles.DontInheritStd();                          // 띄운 감독이 호출 쪽(WSL·Claude)의 파이프를 물고 남지 않게
                 var p = SystemAccess.StartDetached(exe, new[] { "sup" });
-                return QuitTool(103, msg + " — 감독이 없어 다시 띄움(pid " + p.Pid + ", 5초 뒤 다시 시도)", true);
+                return QuitTool(103, msg + L.T(" — 감독이 없어 다시 띄움(pid " + p.Pid + ", 5초 뒤 다시 시도)", " — no supervisor, restarted it (pid " + p.Pid + ", retry in 5 s)"), true);
             }
             catch (TestIsolationViolation) { throw; }
-            catch (Exception e) { return QuitTool(103, msg + " — 감독 기동 실패: " + e.Message); }
+            catch (Exception e) { return QuitTool(103, msg + L.T(" — 감독 기동 실패: " + e.Message, " — failed to start the supervisor: " + e.Message)); }
         }
 
         // ================================================================== 본체
         static int Main(string[] args)
         {
             int skip = 0;
+            {
+                string hd0 = null;
+                try { hd0 = InstallInfo.ResolveHubDir(out _); } catch (Exception) { }
+                if (!string.IsNullOrEmpty(hd0)) L.ConfigureFromFile(HubFiles.ConfigPath(hd0)); else L.Configure(null);
+            }
             if (args.Length > 0 && args[0] == "--parent-pipe") { WatchParent(); skip = 1; }
             var a = args.Skip(skip).ToArray();
 
             List<string> argv;
             if (a.Length >= 1 && a[0] == "-B64Req")
             {
-                if (a.Length != 2) throw QuitTool(106, "-B64Req 뒤에는 base64 인자 하나만");
+                if (a.Length != 2) throw QuitTool(106, L.T("-B64Req 뒤에는 base64 인자 하나만", "-B64Req takes exactly one base64 argument"));
                 argv = DecodeB64Req(a[1]);
             }
             else if (a.Length >= 1 && a[0] == "--b64nul")
             {
-                if (a.Length != 2) throw QuitTool(106, "--b64nul 뒤에는 base64url 인자 하나만");
+                if (a.Length != 2) throw QuitTool(106, L.T("--b64nul 뒤에는 base64url 인자 하나만", "--b64nul takes exactly one base64url argument"));
                 argv = DecodeB64Nul(a[1]);
             }
             else argv = a.ToList();
@@ -143,14 +148,23 @@ namespace UartHub
             var pa = pe != null && (Eq(pe.Cmd, "events") || Eq(pe.Cmd, "aging")) ? pe : ControlServer.ParseArgs(argv, out _);
             string cmd = pa?.Cmd;
             // C-4: 케이블 판정은 사람이 트레이에서만 한다(Claude 가 대신 답하지 않게 — 클라이언트 쪽 제한, 코어로 보내지 않음)
-            if (Eq(cmd, "cable")) throw QuitTool(106, "cable 은 트레이에서만(새 케이블 확인 창·트레이 '케이블 설정') — CLI 는 케이블 판정을 보내지 않음");
+            if (Eq(cmd, "cable")) throw QuitTool(106, L.T("cable 은 트레이에서만(새 케이블 확인 창·트레이 '케이블 설정') — CLI 는 케이블 판정을 보내지 않음", "cable is tray-only (new-cable prompt window, tray 'cable settings') — the CLI does not send cable decisions"));
             string hubVerb = null;
-            if (Eq(cmd, "hub") && pa.Pos.Count >= 1 && new[] { "status", "stop", "start", "upgrade" }.Any(v => Eq(pa.Pos[0], v))) hubVerb = pa.Pos[0];
+            string[] hubArgs = null;
+            if (Eq(cmd, "hub") && pa.Pos.Count >= 1 && new[] { "status", "stop", "start", "upgrade", "language" }.Any(v => Eq(pa.Pos[0], v))) hubVerb = pa.Pos[0];
+            if (Eq(hubVerb, "language"))
+            {
+                // 언어 바꾸기: 감독이 config.json "language" 를 고치고(auto = 키 지움) 언어가 바뀌면 코어를 다시 띄운다(Supervisor.RequestLanguage)
+                string lv = pa.Pos.Count == 2 ? pa.Pos[1].Trim().ToLowerInvariant() : null;
+                if (!L.IsValidSetting(lv)) throw QuitTool(106, L.T("사용: hub language auto|ko|en [--json]", "Usage: hub language auto|ko|en [--json]"));
+                hubVerb = "language";
+                hubArgs = new[] { lv };
+            }
 
             // ---- 허브 위치·제어 포트·토큰
             hubDir = InstallInfo.ResolveHubDir(out fromInstall);
             if (string.IsNullOrEmpty(hubDir))
-                throw QuitTool(103, "허브 폴더를 찾지 못함 — 설치되지 않음(UART_HUB_DIR 없음, " + InstallInfo.DefaultPath + " 의 hub_dir 없음)");
+                throw QuitTool(103, L.T("허브 폴더를 찾지 못함 — 설치되지 않음(UART_HUB_DIR 없음, " + InstallInfo.DefaultPath + " 의 hub_dir 없음)", "Hub folder not found — not installed (UART_HUB_DIR not set, no hub_dir in " + InstallInfo.DefaultPath + ")"));
             // X6: 사건 기록 읽기 — 코어·보드에 아무것도 보내지 않는다(허브가 꺼져 있어도 지난 기록을 읽는다)
             if (Eq(cmd, "events") || Eq(cmd, "aging")) return EventsCmd(cmd.ToLowerInvariant(), pa);
             string line = null;
@@ -161,36 +175,36 @@ namespace UartHub
             string tokenPath = Path.Combine(hubDir, "token");
             if (!connectCmd && !File.Exists(tokenPath))
             {
-                if (hubVerb != null) line = SupervisorLine(hubVerb, "토큰 파일 없음(" + tokenPath + ")");
-                else throw QuitTool(103, "토큰 파일 없음(" + tokenPath + ") — 허브가 설치·실행 중인지 확인");
+                if (hubVerb != null) line = SupervisorLine(hubVerb, L.T("토큰 파일 없음(" + tokenPath + ")", "Token file missing (" + tokenPath + ")"), hubArgs);
+                else throw QuitTool(103, L.T("토큰 파일 없음(" + tokenPath + ") — 허브가 설치·실행 중인지 확인", "Token file missing (" + tokenPath + ") — check that the hub is installed and running"));
             }
 
             // ---- 요청(hub 명령은 코어가 없으면 감독에게 직접)
-            string notHub = "127.0.0.1:" + port + " 의 상대가 허브가 아님(다른 프로그램이 포트를 쓰는 중일 수 있음 — hub.log 의 control bind 실패·config.json control_port 확인)";
+            string notHub = L.T("127.0.0.1:" + port + " 의 상대가 허브가 아님(다른 프로그램이 포트를 쓰는 중일 수 있음 — hub.log 의 control bind 실패·config.json control_port 확인)", "The peer at 127.0.0.1:" + port + " is not the hub (another program may be using the port — check the control bind failure in hub.log and control_port in config.json)");
             if (line == null)
             {
                 string tokenText = HubFiles.ReadShared(tokenPath);
-                if (tokenText == null) throw QuitTool(103, "토큰 파일을 읽지 못함(" + tokenPath + ") — 권한·잠금 확인");
+                if (tokenText == null) throw QuitTool(103, L.T("토큰 파일을 읽지 못함(" + tokenPath + ") — 권한·잠금 확인", "Could not read the token file (" + tokenPath + ") — check permissions and locks"));
                 byte[] key = Encoding.UTF8.GetBytes(tokenText.Trim());
                 string req = "{\"argv\":[" + string.Join(",", argv.Select(Json.Str)) + "]}";
                 var res = ControlClient.Call(port, key, req, 3000, 2000, 10000, -1, out string reply, out string err);
                 switch (res)
                 {
                     case ControlClient.Result.ConnectFailed:
-                        if (hubVerb != null && (Eq(hubVerb, "stop") || !SelfHealDue())) line = SupervisorLine(hubVerb, "허브 코어 미응답(127.0.0.1:" + port + ")");
-                        else throw HubDown("허브 미응답(127.0.0.1:" + port + ")");
+                        if (hubVerb != null && (Eq(hubVerb, "stop") || !SelfHealDue())) line = SupervisorLine(hubVerb, L.T("허브 코어 미응답(127.0.0.1:" + port + ")", "Hub core not responding (127.0.0.1:" + port + ")"), hubArgs);
+                        else throw HubDown(L.T("허브 미응답(127.0.0.1:" + port + ")", "Hub not responding (127.0.0.1:" + port + ")"));
                         break;
                     case ControlClient.Result.NotHub:
-                        if (hubVerb != null) line = SupervisorLine(hubVerb, notHub);
+                        if (hubVerb != null) line = SupervisorLine(hubVerb, notHub, hubArgs);
                         else throw QuitTool(103, notHub);
                         break;
-                    case ControlClient.Result.HelloRejected: throw QuitTool(103, "hello 거부(토큰 불일치?)");
-                    case ControlClient.Result.ProofMismatch: throw QuitTool(103, "허브 증명(proof) 불일치 — 토큰이 다르거나 상대가 허브가 아님. 요청은 보내지 않음");
-                    case ControlClient.Result.Failed: throw QuitTool(103, "허브 통신 실패: " + err);
+                    case ControlClient.Result.HelloRejected: throw QuitTool(103, L.T("hello 거부(토큰 불일치?)", "hello rejected (token mismatch?)"));
+                    case ControlClient.Result.ProofMismatch: throw QuitTool(103, L.T("허브 증명(proof) 불일치 — 토큰이 다르거나 상대가 허브가 아님. 요청은 보내지 않음", "Hub proof mismatch — the token differs or the peer is not the hub. The request was not sent"));
+                    case ControlClient.Result.Failed: throw QuitTool(103, L.T("허브 통신 실패: " + err, "Hub communication failed: " + err));
                     default: line = reply; break;
                 }
             }
-            if (string.IsNullOrEmpty(line)) throw QuitTool(103, "허브가 응답 없이 연결을 닫음");
+            if (string.IsNullOrEmpty(line)) throw QuitTool(103, L.T("허브가 응답 없이 연결을 닫음", "The hub closed the connection without replying"));
 
             // 응답이 JSON 객체가 아니거나 status·exit 가 없으면(허브가 아닌 상대, 깨진 응답) 103
             JsonDocument doc = null;
@@ -202,7 +216,7 @@ namespace UartHub
             if (!okShape)
             {
                 string show = line.Length > 80 ? line.Substring(0, 80) + "…" : line;
-                throw QuitTool(103, "허브 응답을 해석할 수 없음(JSON 객체·status·exit 아님): " + Regex.Replace(show, "[\\x00-\\x1f]", "?"));
+                throw QuitTool(103, L.T("허브 응답을 해석할 수 없음(JSON 객체·status·exit 아님): ", "Cannot parse the hub reply (not a JSON object with status and exit): ") + Regex.Replace(show, "[\\x00-\\x1f]", "?"));
             }
             string style = Environment.GetEnvironmentVariable("UART_PATH_STYLE");
             if (style == "wsl" || style == "mixed")
@@ -215,6 +229,7 @@ namespace UartHub
                 resp = doc.RootElement;
             }
             string status = resp.GetProperty("status").GetString();
+            if (Eq(hubVerb, "language") && status == "ok") L.ConfigureFromFile(HubFiles.ConfigPath(hubDir));   // 출력은 바뀐 언어로(환경변수가 있으면 그것)
 
             // ---- 출력
             if (jsonMode)
@@ -237,7 +252,7 @@ namespace UartHub
                 var cand = Prop(resp, "candidates");
                 if (Truthy(cand))
                     foreach (var c in Items(cand))
-                        ErrLine("  후보 port=" + PsStr(Prop(c, "port")) + " com=" + PsStr(Prop(c, "com")) + " alias=" + PsStr(Prop(c, "alias")) + " board=" + PsStr(Prop(c, "board")));
+                        ErrLine(L.T("  후보 port=", "  candidate port=") + PsStr(Prop(c, "port")) + " com=" + PsStr(Prop(c, "com")) + " alias=" + PsStr(Prop(c, "alias")) + " board=" + PsStr(Prop(c, "board")));
                 return code;
             }
 
@@ -246,6 +261,15 @@ namespace UartHub
             else if (Eq(cmd, "run") || Eq(cmd, "wait") || Eq(cmd, "log")) OutLines(Prop(resp, "out"));
             else if (Eq(cmd, "logpath")) OutLine(PsStr(Prop(resp, "log")));
             else if (Eq(cmd, "send") || Eq(cmd, "probe") || Eq(cmd, "reboot")) OutLine(PsStr(Prop(resp, "rx_offset")));
+            else if (Eq(hubVerb, "language"))
+            {
+                string hl = PsStr(Prop(resp, "language")), act = PsStr(Prop(resp, "action")), set = PsStr(Prop(resp, "setting"));
+                string name = hl == L.En ? L.T("영어", "English") : hl == L.Ko ? L.T("한국어", "Korean") : hl;
+                OutLine(act == "unchanged" ? L.T("허브 언어 그대로: " + name + "(설정 " + set + ")", "Hub language unchanged: " + name + " (setting " + set + ")")
+                        : act == "restarting" ? L.T("허브 언어를 " + name + "로 바꿨습니다(설정 " + set + "). 허브를 다시 켜는 중입니다 — 열린 터미널은 끊깁니다.", "Hub language changed to " + name + " (setting " + set + "). The hub is restarting — open terminals are disconnected.")
+                        : L.T("허브 언어를 " + name + "로 바꿨습니다(설정 " + set + ").", "Hub language changed to " + name + " (setting " + set + ")."));
+                if (Truthy(Prop(resp, "note"))) OutLine(PsStr(Prop(resp, "note")));
+            }
             else if (Eq(cmd, "hub"))
             {
                 // 한 단계 펼침: supervisor.state=running …
@@ -285,14 +309,14 @@ namespace UartHub
         {
             JsonDocument d;
             try { d = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(b64))); }
-            catch (Exception e) when (e is FormatException || e is JsonException) { throw QuitTool(106, "-B64Req 해석 실패: " + e.Message); }
+            catch (Exception e) when (e is FormatException || e is JsonException) { throw QuitTool(106, L.T("-B64Req 해석 실패: " + e.Message, "Failed to parse -B64Req: " + e.Message)); }
             using (d)
             {
-                if (d.RootElement.ValueKind != JsonValueKind.Array) throw QuitTool(106, "-B64Req 는 JSON 문자열 배열이어야 함");
+                if (d.RootElement.ValueKind != JsonValueKind.Array) throw QuitTool(106, L.T("-B64Req 는 JSON 문자열 배열이어야 함", "-B64Req must be a JSON array of strings"));
                 var l = new List<string>();
                 foreach (var x in d.RootElement.EnumerateArray())
                 {
-                    if (x.ValueKind != JsonValueKind.String) throw QuitTool(106, "-B64Req 는 JSON 문자열 배열이어야 함");
+                    if (x.ValueKind != JsonValueKind.String) throw QuitTool(106, L.T("-B64Req 는 JSON 문자열 배열이어야 함", "-B64Req must be a JSON array of strings"));
                     l.Add(x.GetString());
                 }
                 return l;
@@ -309,11 +333,11 @@ namespace UartHub
                 s = s.PadRight(s.Length + (4 - s.Length % 4) % 4, '=');
                 b = Convert.FromBase64String(s);
             }
-            catch (FormatException e) { throw QuitTool(106, "--b64nul 해석 실패: " + e.Message); }
-            if (b.Length > 0 && b[b.Length - 1] != 0) throw QuitTool(106, "--b64nul 은 인자마다 NUL 로 끝나야 함(printf '%s\\0' \"$@\")");
+            catch (FormatException e) { throw QuitTool(106, L.T("--b64nul 해석 실패: " + e.Message, "Failed to parse --b64nul: " + e.Message)); }
+            if (b.Length > 0 && b[b.Length - 1] != 0) throw QuitTool(106, L.T("--b64nul 은 인자마다 NUL 로 끝나야 함(printf '%s\\0' \"$@\")", "--b64nul requires each argument to end with NUL (printf '%s\\0' \"$@\")"));
             string text;
             try { text = Utf8Strict.GetString(b); }
-            catch (ArgumentException) { throw QuitTool(106, "--b64nul 인자가 UTF-8 이 아님"); }
+            catch (ArgumentException) { throw QuitTool(106, L.T("--b64nul 인자가 UTF-8 이 아님", "--b64nul arguments are not UTF-8")); }
             var l = text.Split('\0').ToList();
             l.RemoveAt(l.Count - 1);                                   // 마지막 NUL 뒤의 빈 조각
             return l;
@@ -338,11 +362,11 @@ namespace UartHub
                 if (File.Exists(cfgPath))
                 {
                     string t = HubFiles.ReadShared(cfgPath);
-                    if (t == null) throw QuitTool(103, "config.json 을 읽지 못함(" + cfgPath + ")");
+                    if (t == null) throw QuitTool(103, L.T("config.json 을 읽지 못함(" + cfgPath + ")", "Could not read config.json (" + cfgPath + ")"));
                     // 문자열은 그대로 두고 // 줄 주석과 /* */ 블록 주석만 지운다(허브 파서는 주석을 건너뛴다: 주석 속 control_port 를 잡지 않게)
                     t = Regex.Replace(t, "(\"(?:[^\"\\\\]|\\\\.)*\")|//[^\\r\\n]*|/\\*[\\s\\S]*?\\*/", m => m.Groups[1].Success ? m.Value : " ");
                     var m2 = Regex.Match(t, "\"control_port\"\\s*:\\s*([^,}\\s]+)");
-                    if (m2.Success) port = PortValue(m2.Groups[1].Value, "config.json 의 control_port");
+                    if (m2.Success) port = PortValue(m2.Groups[1].Value, L.T("config.json 의 control_port", "control_port in config.json"));
                 }
             }
             return port > 0 ? port : 7200;
@@ -351,7 +375,7 @@ namespace UartHub
         static int PortValue(string text, string what)
         {
             if (!int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int p) || p < 1 || p > 65535)
-                throw QuitTool(106, what + " 값이 잘못됨: '" + text + "' (1~65535 정수)");
+                throw QuitTool(106, L.T(what + " 값이 잘못됨: '" + text + "' (1~65535 정수)", what + " is invalid: '" + text + "' (integer 1-65535)"));
             return p;
         }
 
@@ -361,14 +385,16 @@ namespace UartHub
                && CoreMain.RespawnExe(out _) != null;
 
         // ================================================================== 감독 요청 스풀(코어 없이)
-        static string SupervisorLine(string verb, string why)
+        static string SupervisorLine(string verb, string why, string[] args = null)
         {
             string reqDir = HubFiles.ReqDir(hubDir), respDir = HubFiles.RespDir(hubDir);
-            if (!Directory.Exists(reqDir)) throw QuitTool(103, why + " — 감독 요청 폴더 없음(" + reqDir + ", 감독이 한 번도 실행되지 않음)");
+            if (!Directory.Exists(reqDir)) throw QuitTool(103, why + L.T(" — 감독 요청 폴더 없음(" + reqDir + ", 감독이 한 번도 실행되지 않음)", " — supervisor request folder missing (" + reqDir + ", the supervisor has never run)"));
             int pid = Environment.ProcessId;
             string id = "cli-" + pid + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             string req = Path.Combine(reqDir, id + ".json"), tmp = req + ".tmp" + pid;
-            File.WriteAllText(tmp, new JObj().Set("id", id).Set("verb", verb).Set("from", "cli").Set("pid", (long)pid).ToString(), Utf8);
+            var body = new JObj().Set("id", id).Set("verb", verb).Set("from", "cli").Set("pid", (long)pid);
+            if (args != null) body.Set("args", args);
+            File.WriteAllText(tmp, body.ToString(), Utf8);
             File.Move(tmp, req, true);
             string resp = Path.Combine(respDir, id + ".json");
             var sw = Stopwatch.StartNew();
@@ -383,7 +409,7 @@ namespace UartHub
                 return t.Trim();
             }
             HubFiles.TryDelete(req);
-            throw QuitTool(103, why + " — 감독(UartHub.exe sup)도 10초 안에 응답하지 않음");
+            throw QuitTool(103, why + L.T(" — 감독(UartHub.exe sup)도 10초 안에 응답하지 않음", " — the supervisor (UartHub.exe sup) did not respond within 10 s either"));
         }
 
         // ================================================================== connect·disconnect(X5 부록 B)
@@ -406,15 +432,15 @@ namespace UartHub
         {
             var pos = pa.Pos;
             var other = pa.Flags.Where(f => f != "--json").Concat(pa.Values.Keys).ToList();
-            if (other.Count > 0) throw QuitTool(106, verb + ": 쓸 수 없는 옵션 " + string.Join(" ", other) + " — connect [COMx [baud]] | disconnect COMx [--json]");
-            if (pos.Count > (verb == "connect" ? 2 : 1) || (verb == "disconnect" && pos.Count != 1)) throw QuitTool(106, "사용: connect [COMx [baud]] | disconnect COMx [--json]");
+            if (other.Count > 0) throw QuitTool(106, verb + L.T(": 쓸 수 없는 옵션 " + string.Join(" ", other) + " — connect [COMx [baud]] | disconnect COMx [--json]", ": unsupported option " + string.Join(" ", other) + " — connect [COMx [baud]] | disconnect COMx [--json]"));
+            if (pos.Count > (verb == "connect" ? 2 : 1) || (verb == "disconnect" && pos.Count != 1)) throw QuitTool(106, L.T("사용: connect [COMx [baud]] | disconnect COMx [--json]", "Usage: connect [COMx [baud]] | disconnect COMx [--json]"));
             string com = pos.Count >= 1 ? pos[0].Trim().ToUpperInvariant() : null;
-            if (com != null && !Regex.IsMatch(com, @"^COM\d+$")) throw QuitTool(106, verb + ": COM 이름이 아님 '" + pos[0] + "' (예: COM8)");
+            if (com != null && !Regex.IsMatch(com, @"^COM\d+$")) throw QuitTool(106, verb + L.T(": COM 이름이 아님 '" + pos[0] + "' (예: COM8)", ": not a COM name '" + pos[0] + "' (e.g. COM8)"));
             string baud = null;
             if (pos.Count == 2)
             {
                 if (!int.TryParse(pos[1].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int b) || !Config.IsStandardBaud(b))
-                    throw QuitTool(106, "baud 는 " + Config.StandardBaudText + " 중 하나: '" + pos[1] + "'");
+                    throw QuitTool(106, L.T("baud 는 " + Config.StandardBaudText + " 중 하나: '" + pos[1] + "'", "baud must be one of " + Config.StandardBaudText + ": '" + pos[1] + "'"));
                 baud = b.ToString(CultureInfo.InvariantCulture);
             }
             EnsureSupervisor();
@@ -445,12 +471,12 @@ namespace UartHub
                 if (!taken && sw.ElapsedMilliseconds >= ConnectPickupMs)
                 {
                     HubFiles.TryDelete(req);
-                    throw QuitTool(103, "감독(트레이)이 " + (ConnectPickupMs / 1000) + "초 안에 요청을 가져가지 않음 — 트레이의 UART 허브 아이콘을 확인");
+                    throw QuitTool(103, L.T("감독(트레이)이 " + (ConnectPickupMs / 1000) + "초 안에 요청을 가져가지 않음 — 트레이의 UART 허브 아이콘을 확인", "The supervisor (tray) did not pick up the request within " + (ConnectPickupMs / 1000) + " s — check the UART Hub icon in the tray"));
                 }
                 if (sw.ElapsedMilliseconds >= ConnectReplyMs)
                 {
                     CancelConnect();                                                 // 감독이 확인 창·안내 창을 닫고 취소하게
-                    throw QuitTool(103, "감독이 " + (ConnectReplyMs / 1000) + "초 안에 " + verb + " 결과를 주지 않음 — 취소를 요청함(떠 있던 창은 닫힘)");
+                    throw QuitTool(103, L.T("감독이 " + (ConnectReplyMs / 1000) + "초 안에 " + verb + " 결과를 주지 않음 — 취소를 요청함(떠 있던 창은 닫힘)", "The supervisor gave no " + verb + " result within " + (ConnectReplyMs / 1000) + " s — cancellation requested (any open window is closed)"));
                 }
             }
         }
@@ -464,14 +490,14 @@ namespace UartHub
                 return j.HasValue && HubFiles.IsAlive(HubFiles.Long(j.Value, "pid"), HubFiles.Long(j.Value, "start_ticks")) && Directory.Exists(HubFiles.ReqDir(hubDir));
             }
             if (Alive()) return;
-            if (HubStopped()) throw QuitTool(103, "감독(트레이)이 실행 중이 아님");
-            if (!fromInstall) throw QuitTool(103, "감독(트레이)이 실행 중이 아님 — UartHub.exe 를 실행하세요(UART_HUB_DIR 로 정한 허브 폴더라 다시 띄우지 않음)");
-            if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) throw QuitTool(103, "업데이트 중(update mutex) — 끝난 뒤 다시");
+            if (HubStopped()) throw QuitTool(103, L.T("감독(트레이)이 실행 중이 아님", "The supervisor (tray) is not running"));
+            if (!fromInstall) throw QuitTool(103, L.T("감독(트레이)이 실행 중이 아님 — UartHub.exe 를 실행하세요(UART_HUB_DIR 로 정한 허브 폴더라 다시 띄우지 않음)", "The supervisor (tray) is not running — run UartHub.exe (the hub folder was set by UART_HUB_DIR, so it is not restarted)"));
+            if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) throw QuitTool(103, L.T("업데이트 중(update mutex) — 끝난 뒤 다시", "Update in progress (update mutex) — try again after it finishes"));
             bool restarted = false;
             if (!CoreMain.MutexExists(SystemAccess.MutexName("sup")))
             {
                 string exe = CoreMain.RespawnExe(out string why);
-                if (exe == null) throw QuitTool(103, "감독(트레이)이 실행 중이 아님 — 다시 띄우지 않음(" + why + ")");
+                if (exe == null) throw QuitTool(103, L.T("감독(트레이)이 실행 중이 아님 — 다시 띄우지 않음(" + why + ")", "The supervisor (tray) is not running — not restarting (" + why + ")"));
                 NativeHandles.DontInheritStd();
                 SystemAccess.StartDetached(exe, new[] { "sup" });
                 restarted = true;
@@ -482,7 +508,7 @@ namespace UartHub
                 Thread.Sleep(200);
                 if (Alive()) return;
             }
-            throw QuitTool(103, "감독(트레이)이 15초 안에 뜨지 않음", restarted);
+            throw QuitTool(103, L.T("감독(트레이)이 15초 안에 뜨지 않음", "The supervisor (tray) did not start within 15 s"), restarted);
         }
 
         /// <summary>connect·disconnect 의 비JSON 출력(성공일 때 — 도구 오류는 공통 경로).</summary>
@@ -491,7 +517,7 @@ namespace UartHub
             string S(JsonElement e, string k) { var v = Prop(e, k); return Truthy(v) ? PsStr(v) : null; }
             if (Eq(cmd, "disconnect"))
             {
-                OutLine(S(resp, "com") + " " + (S(resp, "message") ?? "끊음"));
+                OutLine(S(resp, "com") + " " + (S(resp, "message") ?? L.T("끊음", "disconnected")));
                 return;
             }
             if (Prop(resp, "cables").ValueKind == JsonValueKind.Array)
@@ -500,10 +526,13 @@ namespace UartHub
                 return;
             }
             var hc = Prop(resp, "holder_closed");
-            OutLine(S(resp, "com") + " 연결됨 — 포트 " + S(resp, "port") + (S(resp, "board") != null ? " (" + S(resp, "board") + ")" : "")
+            OutLine(L.T(S(resp, "com") + " 연결됨 — 포트 " + S(resp, "port") + (S(resp, "board") != null ? " (" + S(resp, "board") + ")" : "")
                     + " · " + S(resp, "baud") + "bps" + (S(resp, "old_baud") != null ? "(" + S(resp, "old_baud") + "에서 바꿈)" : "")
-                    + " · 터미널 " + (S(resp, "terminal") ?? "none") + " · 받은 바이트 " + (S(resp, "rx_bytes") ?? "0"));
-            if (hc.ValueKind == JsonValueKind.Object) OutLine("끊은 세션: " + S(hc, "label") + "(pid " + S(hc, "pid") + ")");
+                    + " · 터미널 " + (S(resp, "terminal") ?? "none") + " · 받은 바이트 " + (S(resp, "rx_bytes") ?? "0"),
+                    S(resp, "com") + " connected — port " + S(resp, "port") + (S(resp, "board") != null ? " (" + S(resp, "board") + ")" : "")
+                    + " · " + S(resp, "baud") + "bps" + (S(resp, "old_baud") != null ? " (changed from " + S(resp, "old_baud") + ")" : "")
+                    + " · terminal " + (S(resp, "terminal") ?? "none") + " · bytes received " + (S(resp, "rx_bytes") ?? "0")));
+            if (hc.ValueKind == JsonValueKind.Object) OutLine(L.T("끊은 세션: " + S(hc, "label") + "(pid " + S(hc, "pid") + ")", "Disconnected session: " + S(hc, "label") + " (pid " + S(hc, "pid") + ")"));
             if (S(resp, "terminal_note") != null) OutLine(S(resp, "terminal_note"));
             if (S(resp, "message") != null) OutLine(S(resp, "message"));
         }
@@ -522,7 +551,7 @@ namespace UartHub
                 }
                 catch (Exception) { }
                 CancelConnect();                                                     // connect 중이었으면 감독의 창도 닫게
-                ErrLine("uart: E103 hub_down 호출 쪽이 끝남(--parent-pipe 표준 입력 EOF) — 요청을 취소하고 끝냄");
+                ErrLine(L.T("uart: E103 hub_down 호출 쪽이 끝남(--parent-pipe 표준 입력 EOF) — 요청을 취소하고 끝냄", "uart: E103 hub_down the caller exited (--parent-pipe stdin EOF) — request cancelled, exiting"));
                 Environment.Exit(103);
             }) { IsBackground = true, Name = "ParentPipe" };
             t.Start();
@@ -601,6 +630,8 @@ namespace UartHub
                             if (Array.IndexOf(PathKeys, p.Name) >= 0) s = ConvertPath(s, style, mount);
                             v = Json.Str(s);
                         }
+                        else if (p.Value.ValueKind == JsonValueKind.Array && Array.IndexOf(PathKeys, p.Name) >= 0)      // 경로 목록(aging_roots)
+                            v = "[" + string.Join(",", p.Value.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? Json.Str(ConvertPath(x.GetString(), style, mount)) : Rewrite(x, style, mount))) + "]";
                         else v = Rewrite(p.Value, style, mount);
                         return Json.Str(p.Name) + ":" + v;
                     })) + "}";

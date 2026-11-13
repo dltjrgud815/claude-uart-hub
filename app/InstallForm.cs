@@ -33,7 +33,7 @@ namespace UartHub.App
             var th = new Thread(() =>
             {
                 try { rc = work(ui); }
-                catch (Exception e) { rc = Installer.RcFailed; ui.Finish(false, UiText.FromMessage("설치기 내부 오류: " + e.Message, true), 0); }
+                catch (Exception e) { rc = Installer.RcFailed; ui.Finish(false, UiText.FromMessage(L.T("설치기 내부 오류: " + e.Message, "Installer internal error: " + e.Message), true), 0); }
                 finally
                 {
                     try { pump.BeginInvoke(new Action(() => { try { prog.AllowClose(); prog.Close(); } catch (Exception) { } Application.ExitThread(); })); }
@@ -104,14 +104,14 @@ namespace UartHub.App
     {
         readonly Button ok, cancel;
 
-        public ConfirmWindow(UiText t, float zoom = 1f) : base(t.Title ?? "UART 허브", zoom)
+        public ConfirmWindow(UiText t, float zoom = 1f) : base(t.Title ?? L.T("UART 허브", "UART Hub"), zoom)
         {
             ContentW = 440;
             SuspendLayout();
             AddText(t);
-            ok = AddButton(t.Ok ?? "확인", null, primary: t.OkIsDefault);  // 주황은 안전한 진행(OkIsDefault)에만 — "제거"·"바꾸기"는 테마 버튼
+            ok = AddButton(t.Ok ?? L.T("확인", "OK"), null, primary: t.OkIsDefault);  // 주황은 안전한 진행(OkIsDefault)에만 — "제거"·"바꾸기"는 테마 버튼
             ok.DialogResult = DialogResult.OK;
-            cancel = AddButton(t.Cancel ?? "취소", null);
+            cancel = AddButton(t.Cancel ?? L.T("취소", "Cancel"), null);
             cancel.DialogResult = DialogResult.Cancel;
             var safe = t.OkIsDefault ? ok : cancel;
             AcceptButton = safe;
@@ -148,7 +148,7 @@ namespace UartHub.App
             WellLines = 9;
             MinimizeBox = true;
             SuspendLayout();
-            head = AddHead("진행 중입니다.");
+            head = AddHead(L.T("진행 중입니다.", "Working…"));
             steps = Bind(new StepList(this), () => FBody);
             steps.Bold = () => FBold;
             AddRow(steps, 14, w => steps.Measure());
@@ -157,9 +157,9 @@ namespace UartHub.App
             body = AddBody("", 8);
             note = AddNote("", 12);
             SetDetails(new string[0]);
-            openLogs = AddButton("로그 폴더 열기", OpenLogs);
+            openLogs = AddButton(L.T("로그 폴더 열기", "Open log folder"), OpenLogs);
             SetShown(openLogs, false);
-            close = AddButton("닫기", Dismiss);
+            close = AddButton(L.T("닫기", "Close"), Dismiss);
             close.Enabled = false;
             ResumeLayout(false);
             Relayout();
@@ -224,7 +224,7 @@ namespace UartHub.App
             onClosed = closed;
             Finished = true;
             logPath = t.LogPath;
-            head.Text = t.Head ?? (ok ? "끝났습니다." : "끝내지 못했습니다.");
+            head.Text = t.Head ?? (ok ? L.T("끝났습니다.", "Done.") : L.T("끝내지 못했습니다.", "Could not finish."));
             head.ForeColor = ok && !t.Error ? Pal.Text : Pal.Bad;
             body.Text = t.Body ?? "";
             SetShown(body, !string.IsNullOrEmpty(body.Text));
@@ -260,7 +260,7 @@ namespace UartHub.App
             }
         }
 
-        static string CloseIn(int ms) => ((ms + 999) / 1000) + "초 뒤 저절로 닫힙니다.";
+        static string CloseIn(int ms) => L.T(((ms + 999) / 1000) + "초 뒤 저절로 닫힙니다.", "Closes by itself in " + ((ms + 999) / 1000) + " s.");
 
         // ---------------------------------------------------------------- render-ui
         /// <summary>그림용: 끝난 모습(타이머·창 표시 없이).</summary>

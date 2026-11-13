@@ -121,7 +121,7 @@ namespace UartHub
         readonly long myStartTicks;
         readonly DateTime myStart;
 
-        Config cfg = Config.Default();
+        Config cfg;                            // 생성자에서 언어를 정한 뒤 만든다(Config 가 ProductProfile 을 처음 읽으면 프로필 오류 글이 그때 언어로 굳는다)
         string cfgPath, configWarning, lastLoggedWarning;
 
         // 코어
@@ -135,7 +135,8 @@ namespace UartHub
         // 상태
         string state = "starting";
         int restarts, backoffIdx, quickDeaths;
-        bool crashLoop, stopRequested, pendingUpgrade, startAfterStop, shutdownRequested;
+        bool crashLoop, stopRequested, startAfterStop, shutdownRequested;
+        string pendingRestart;                 // 코어가 exit 0 으로 끝나면 이 사유로 다시 띄운다: "upgrade"(hub upgrade) · "language"(ApplyLanguage) · null
         DateTime stopRequestedUtc, nextStartUtc, lastTickUtc, hangBaselineUtc, lastStateWriteUtc, lastRespCleanupUtc, lastWaitCheckUtc;
         string nextReason;
         int? lastExit;
@@ -184,13 +185,15 @@ namespace UartHub
 
         public Supervisor(SupervisorOptions o)
         {
-            if (string.IsNullOrEmpty(o.HubDir)) throw new ArgumentException("HubDir 필요");
+            if (string.IsNullOrEmpty(o.HubDir)) throw new ArgumentException(L.T("HubDir 필요", "HubDir is required"));
             opt = o;
             if (string.IsNullOrEmpty(opt.Exe)) opt.Exe = Environment.ProcessPath;
             hubDir = o.HubDir;
             Directory.CreateDirectory(hubDir);
             Directory.CreateDirectory(HubFiles.ReqDir(hubDir));
             Directory.CreateDirectory(HubFiles.RespDir(hubDir));
+            L.ConfigureFromFile(HubFiles.ConfigPath(hubDir));                 // 첫 hub.log 줄부터 config.json "language"(PickConfig 도 같은 파일·같은 키로 다시 정함)
+            cfg = Config.Default();
             log = new HubLog(Path.Combine(hubDir, "hub.log"), SystemClock.Instance, "sup");
             using var me = Process.GetCurrentProcess();
             myPid = me.Id;
@@ -249,6 +252,8 @@ namespace UartHub
         /// log_layout 2 = &lt;기준&gt;\에이징이벤트, 아니면 &lt;log_root&gt;\events.
         /// </summary>
         public string EventsDir => Paths.EventsTxtDir;
+        /// <summary>이벤트 txt 가 있을 수 있는 폴더 전부(layout 3 = 두 언어의 에이징 루트 — 지금 언어 먼저). 풍선 클릭 경로 확인용.</summary>
+        public string[] EventsDirs => Paths.EventsTxtDirs;
         /// <summary>사건 jsonl 폴더(내부 기록 — 풍선이 이어 읽음).</summary>
         public string EventsJsonlDir => Paths.EventsJsonlDir;
         /// <summary>미연결 UART 정리(트레이 설정 ▸ 미연결 UART 정리…): 꽂혀 있지 않은 기억된 케이블. 허브가 꺼졌거나 답이 없으면 null + error. 코어 호출(5초 안).</summary>
@@ -260,22 +265,22 @@ namespace UartHub
         {
             var l = ids?.ToList() ?? new List<string>();
             int n = CableCleanup.Forget(controlPort, Path.Combine(hubDir, "token"), l, out error);
-            log.Write("미연결 UART 정리: " + n + "/" + l.Count + "개 지움" + (error != null ? " — " + error : ""));
+            log.Write(L.T("미연결 UART 정리: " + n + "/" + l.Count + "개 지움" + (error != null ? " — " + error : ""), "Clean up disconnected UARTs: deleted " + n + "/" + l.Count + (error != null ? " — " + error : "")));
             return n;
         }
 
         /// <summary>이 감독이 돈 Repair 횟수(C-14).</summary>
         public int RepairCount { get; private set; }
 
-        public void LogError(Exception e) => log.Write("감독 오류: " + e.GetType().Name + ": " + e.Message);
+        public void LogError(Exception e) => log.Write(L.T("감독 오류: " + e.GetType().Name + ": " + e.Message, "Supervisor error: " + e.GetType().Name + ": " + e.Message));
 
         // ================================================================== 시작
         /// <summary>기동 직후 1회: 기존 코어 입양 → 정지 상태 확인 → 코어 기동.</summary>
         public void Init()
         {
-            log.Write("감독 시작 pid=" + myPid + " v=" + Hub.Version + " hub_dir=" + hubDir + (opt.Sim != null ? " sim=" + opt.Sim : "") + (opt.Production ? " (운영 모드)" : ""));
+            log.Write(L.T("감독 시작 pid=" + myPid + " v=" + Hub.Version + " hub_dir=" + hubDir + (opt.Sim != null ? " sim=" + opt.Sim : "") + (opt.Production ? " (운영 모드)" : ""), "Supervisor started pid=" + myPid + " v=" + Hub.Version + " hub_dir=" + hubDir + (opt.Sim != null ? " sim=" + opt.Sim : "") + (opt.Production ? " (production mode)" : "")));
             // 설치기가 살아 있으면 UartHub.old.exe 는 그 설치기의 되돌림 백업이다 — 지우지 않는다(설치기 5 단계·C-14 Repair·다음 감독 기동이 지운다)
-            if (CoreMain.MutexExists(opt.InstallerMutex)) log.Write("설치기 실행 중 — 옛 이미지(UartHub.old*.exe)는 지우지 않음(되돌림 백업)");
+            if (CoreMain.MutexExists(opt.InstallerMutex)) log.Write(L.T("설치기 실행 중 — 옛 이미지(UartHub.old*.exe)는 지우지 않음(되돌림 백업)", "Installer is running — old images (UartHub.old*.exe) are kept (rollback backup)"));
             else CleanOldImages();
             if (!string.IsNullOrEmpty(opt.IconsDir)) InitIcons();
             var now = DateTime.UtcNow;
@@ -288,7 +293,7 @@ namespace UartHub
             {
                 if (stopped)
                 {
-                    log.Write("control.json stopped 인데 코어가 살아 있음 → 정상 종료 요청");
+                    log.Write(L.T("control.json stopped 인데 코어가 살아 있음 → 정상 종료 요청", "control.json says stopped but the core is alive → asking it to exit cleanly"));
                     SendCoreStop("stop");
                 }
                 WriteState(true);
@@ -296,14 +301,14 @@ namespace UartHub
             }
             if (CoreMutexHeld())
             {
-                EnterWaiting("코어 mutex 가 잡혀 있으나 core.pid 와 맞는 프로세스가 없음 — 입양 대기");
+                EnterWaiting(L.T("코어 mutex 가 잡혀 있으나 core.pid 와 맞는 프로세스가 없음 — 입양 대기", "Core mutex is held but no process matches core.pid — waiting to adopt"));
                 WriteState(true);
                 return;
             }
             if (stopped)
             {
                 state = "stopped";
-                log.Write("정지 상태(control.json stopped) — 코어를 띄우지 않음(COM 미점유)");
+                log.Write(L.T("정지 상태(control.json stopped) — 코어를 띄우지 않음(COM 미점유)", "Stopped (control.json stopped) — core not started (COM ports not held)"));
                 WriteState(true);
                 return;
             }
@@ -329,7 +334,7 @@ namespace UartHub
             }
             catch (Exception e)
             {
-                log.Write("아이콘 준비 실패 — 아이콘을 다루지 않음: " + e.GetType().Name + ": " + e.Message);
+                log.Write(L.T("아이콘 준비 실패 — 아이콘을 다루지 않음: " + e.GetType().Name + ": " + e.Message, "Icon setup failed — icons are not managed: " + e.GetType().Name + ": " + e.Message));
                 icons = null;
             }
         }
@@ -343,7 +348,7 @@ namespace UartHub
             {
                 // 감독 자신이 멈춰 있었다(절전·재개 등): 하트비트·ping 은 코어 잘못이 아니므로 hang 판정 기준을 지금으로 옮긴다
                 hangBaselineUtc = now;
-                log.Write("감독 틱 공백 " + tickGap.ToString("0.0", CultureInfo.InvariantCulture) + "초(절전·재개 추정) → hang 판정 기준 재설정");
+                log.Write(L.T("감독 틱 공백 " + tickGap.ToString("0.0", CultureInfo.InvariantCulture) + "초(절전·재개 추정) → hang 판정 기준 재설정", "Supervisor tick gap " + tickGap.ToString("0.0", CultureInfo.InvariantCulture) + "s (sleep/resume?) → hang baseline reset"));
             }
             lastTickUtc = now;
             Guard(ProcessRequests);
@@ -372,7 +377,7 @@ namespace UartHub
             if (shutdownRequested && core == null && !QuitRequested)
             {
                 QuitRequested = true;
-                log.Write("종료 요청 처리: 코어 없음 → 감독 끝냄");
+                log.Write(L.T("종료 요청 처리: 코어 없음 → 감독 끝냄", "Shutdown request: no core → supervisor exits"));
             }
             WriteState(false);
         }
@@ -386,8 +391,8 @@ namespace UartHub
             if (repairTask != null && repairTask.IsCompleted)
             {
                 int rc = repairTask.IsCompletedSuccessfully ? repairTask.Result : -1;
-                log.Write("Repair 끝 rc=" + rc + (repairTask.IsFaulted ? " 오류: " + repairTask.Exception?.GetBaseException().Message : "") + " (install.log)");
-                Notice(rc == 0 ? "허브 설정을 복구했습니다." : "허브 설정을 복구하지 못했습니다. 받은 exe를 다시 실행해 주세요.");
+                log.Write(L.T("Repair 끝 rc=" + rc + (repairTask.IsFaulted ? " 오류: " + repairTask.Exception?.GetBaseException().Message : "") + " (install.log)", "Repair done rc=" + rc + (repairTask.IsFaulted ? " error: " + repairTask.Exception?.GetBaseException().Message : "") + " (install.log)"));
+                Notice(rc == 0 ? L.T("허브 설정을 복구했습니다.", "Hub setup repaired.") : L.T("허브 설정을 복구하지 못했습니다. 받은 exe를 다시 실행해 주세요.", "Could not repair the hub setup. Run the downloaded exe again."));
                 repairTask = null;
             }
             if (installCheckDone) return;
@@ -400,27 +405,29 @@ namespace UartHub
                 {
                     installWaitLogged = true;
                     installWaitStartUtc = now;
-                    log.Write("설치기 마무리 대기(" + opt.InstallerMutex + " 있음 — Repair 하지 않음)");
+                    log.Write(L.T("설치기 마무리 대기(" + opt.InstallerMutex + " 있음 — Repair 하지 않음)", "Waiting for the installer to finish (" + opt.InstallerMutex + " exists — no Repair)"));
                 }
                 else if (!installWaitWarned && (now - installWaitStartUtc).TotalSeconds >= InstallerWaitLimitS)
                 {
                     installWaitWarned = true;
-                    log.Write("경고: 설치기가 " + InstallerWaitLimitS.ToString("0", CultureInfo.InvariantCulture) + "초 안에 끝나지 않음 — Repair 하지 않고 "
-                              + InstallerRecheckS.ToString("0", CultureInfo.InvariantCulture) + "초마다 다시 확인");
-                    Notice("등록이 끝나지 않았습니다. 열린 UART 허브 창을 확인하거나 exe를 다시 실행해 주세요.");
+                    log.Write(L.T("경고: 설치기가 " + InstallerWaitLimitS.ToString("0", CultureInfo.InvariantCulture) + "초 안에 끝나지 않음 — Repair 하지 않고 "
+                              + InstallerRecheckS.ToString("0", CultureInfo.InvariantCulture) + "초마다 다시 확인",
+                              "Warning: the installer did not finish within " + InstallerWaitLimitS.ToString("0", CultureInfo.InvariantCulture) + "s — no Repair, checking again every "
+                              + InstallerRecheckS.ToString("0", CultureInfo.InvariantCulture) + "s"));
+                    Notice(L.T("등록이 끝나지 않았습니다. 열린 UART 허브 창을 확인하거나 exe를 다시 실행해 주세요.", "Setup did not finish. Check the open UART Hub window or run the exe again."));
                 }
                 return;
             }
             installCheckDone = true;
-            if (installWaitLogged) log.Write("설치기 끝남(" + (now - installWaitStartUtc).TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "초 대기) → 설치 상태 다시 판정");
+            if (installWaitLogged) log.Write(L.T("설치기 끝남(" + (now - installWaitStartUtc).TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "초 대기) → 설치 상태 다시 판정", "Installer finished (waited " + (now - installWaitStartUtc).TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s) → checking the install state again"));
             var info = InstallInfo.Load(InstallInfo.DefaultPath);
             string why = info == null ? null
-                       : info.Version != Hub.Version ? "install.json version=" + (info.Version ?? "(없음)") + " ≠ " + Hub.Version
-                       : info.State == "installing" ? "install.json state=installing(설치기가 마무리 전에 끝남)" : null;
-            if (info == null) { log.Write("install.json 없음 — 설치 상태 점검 건너뜀"); return; }
-            if (why == null) { log.Write("설치 상태 일치(v" + info.Version + ", state=" + info.State + ") — Repair 안 함"); return; }
+                       : info.Version != Hub.Version ? L.T("install.json version=" + (info.Version ?? "(없음)") + " ≠ " + Hub.Version, "install.json version=" + (info.Version ?? "(none)") + " ≠ " + Hub.Version)
+                       : info.State == "installing" ? L.T("install.json state=installing(설치기가 마무리 전에 끝남)", "install.json state=installing (the installer ended before finishing)") : null;
+            if (info == null) { log.Write(L.T("install.json 없음 — 설치 상태 점검 건너뜀", "No install.json — install check skipped")); return; }
+            if (why == null) { log.Write(L.T("설치 상태 일치(v" + info.Version + ", state=" + info.State + ") — Repair 안 함", "Install state matches (v" + info.Version + ", state=" + info.State + ") — no Repair")); return; }
             RepairCount++;
-            log.Write("설치 상태 불일치(" + why + ") → Repair 시작(백그라운드, update mutex 없음·sup 기동 없음)");
+            log.Write(L.T("설치 상태 불일치(" + why + ") → Repair 시작(백그라운드, update mutex 없음·sup 기동 없음)", "Install state mismatch (" + why + ") → starting Repair (background, no update mutex, no sup start)"));
             repairTask = Task.Run(() => Installer.Repair(new InstallLog { Echo = false }, "sup"));
         }
 
@@ -444,19 +451,19 @@ namespace UartHub
                 {
                     // 같은 틱의 여러 포트는 풍선 하나(L8): 트레이는 줄바꿈, hub.log 는 ' | '
                     var b = EventBalloons.Merge(due, " | ");
-                    log.Write("풍선: " + b.Text + (b.Count > 1 ? " [" + b.Count + "건 묶음]" : "") + (b.Open != null ? " (누르면 " + b.Open + ")" : ""));
+                    log.Write(L.T("풍선: " + b.Text + (b.Count > 1 ? " [" + b.Count + "건 묶음]" : "") + (b.Open != null ? " (누르면 " + b.Open + ")" : ""), "Balloon: " + b.Text + (b.Count > 1 ? " [" + b.Count + " merged]" : "") + (b.Open != null ? " (click opens " + b.Open + ")" : "")));
                     var t = EventBalloons.Merge(due, "\n");
                     if (eventNotices.Count < 32) eventNotices.Enqueue((t.Text.Length > 250 ? t.Text.Substring(0, 249) + "…" : t.Text, t.Open));
                 }
             }
-            catch (Exception e) { log.WriteThrottled("sup-events", "사건 알림 읽기 실패: " + e.GetType().Name + ": " + e.Message); }
+            catch (Exception e) { log.WriteThrottled("sup-events", L.T("사건 알림 읽기 실패: " + e.GetType().Name + ": " + e.Message, "Event notice read failed: " + e.GetType().Name + ": " + e.Message)); }
         }
 
         /// <summary>트레이 풍선 한 번(트레이가 꺼낸다). 시험 모드는 트레이가 없으므로 hub.log 의 "풍선:" 줄로 센다. 어느 스레드에서 불러도 된다.</summary>
         void Notice(string text)
         {
             if (notices.Count < 32) notices.Enqueue(text);
-            log.Write("풍선: " + text);
+            log.Write(L.T("풍선: " + text, "Balloon: " + text));
         }
 
         /// <summary>교체(설치기 File.Replace)로 남은 옛 이미지 UartHub.old*.exe 를 지운다. 실행 중이면 지워지지 않으므로 다음 기동 때 다시 시도한다(K8a).</summary>
@@ -470,8 +477,8 @@ namespace UartHub
                 if (!SystemAccess.SamePath(Path.GetDirectoryName(exe), SystemAccess.InstallDir)) return;
                 foreach (var f in Directory.GetFiles(Path.GetDirectoryName(exe), "UartHub.old*.exe"))
                 {
-                    try { File.Delete(f); log.Write("옛 이미지 삭제: " + Path.GetFileName(f)); }
-                    catch (Exception e) { log.Write("옛 이미지 삭제 실패(실행 중일 수 있음 — 다음 기동 때 다시): " + Path.GetFileName(f) + ": " + e.Message); }
+                    try { File.Delete(f); log.Write(L.T("옛 이미지 삭제: " + Path.GetFileName(f), "Deleted old image: " + Path.GetFileName(f))); }
+                    catch (Exception e) { log.Write(L.T("옛 이미지 삭제 실패(실행 중일 수 있음 — 다음 기동 때 다시): " + Path.GetFileName(f) + ": " + e.Message, "Could not delete old image (may be running — will retry at next start): " + Path.GetFileName(f) + ": " + e.Message)); }
                 }
             }
             catch (Exception e) { LogError(e); }
@@ -491,7 +498,7 @@ namespace UartHub
             RefreshCoreRecord();
             if (stopRequested && (now - stopRequestedUtc).TotalSeconds > StopGraceS)
             {
-                log.Write("정상 종료 요청 뒤 " + StopGraceS + "초 안에 끝나지 않음 → 코어 pid=" + corePid + " kill");
+                log.Write(L.T("정상 종료 요청 뒤 " + StopGraceS + "초 안에 끝나지 않음 → 코어 pid=" + corePid + " kill", "Core did not exit within " + StopGraceS + "s of the stop request → kill core pid=" + corePid));
                 Kill();
                 OnCoreExit(ExitCodeOf(core), null);
                 return;
@@ -501,7 +508,7 @@ namespace UartHub
                 string hang = CheckHang(now, out string kind);
                 if (hang != null)
                 {
-                    log.Write("hang 감지(" + hang + ") → 코어 pid=" + corePid + " kill");
+                    log.Write(L.T("hang 감지(" + hang + ") → 코어 pid=" + corePid + " kill", "Hang detected (" + hang + ") → kill core pid=" + corePid));
                     Kill();
                     OnCoreExit(ExitCodeOf(core), kind);
                     return;
@@ -510,7 +517,7 @@ namespace UartHub
             double up = (now - coreStartUtc).TotalSeconds;
             if (up >= cfg.BackoffResetS && (backoffIdx > 0 || quickDeaths > 0 || crashLoop))
             {
-                log.Write("코어가 " + up.ToString("0", CultureInfo.InvariantCulture) + "초 정상 운용 → 백오프·크래시 루프 초기화");
+                log.Write(L.T("코어가 " + up.ToString("0", CultureInfo.InvariantCulture) + "초 정상 운용 → 백오프·크래시 루프 초기화", "Core ran normally for " + up.ToString("0", CultureInfo.InvariantCulture) + "s → backoff and crash loop reset"));
                 backoffIdx = 0; quickDeaths = 0; crashLoop = false;
                 dirty = true;
             }
@@ -518,7 +525,7 @@ namespace UartHub
 
         void Kill()
         {
-            try { core.Kill(); } catch (Exception e) { log.Write("kill 실패: " + e.Message); }
+            try { core.Kill(); } catch (Exception e) { log.Write(L.T("kill 실패: " + e.Message, "kill failed: " + e.Message)); }
             try { core.WaitForExit(5000); } catch (Exception) { }
         }
 
@@ -535,13 +542,13 @@ namespace UartHub
             if (HubFiles.IsStopped(hubDir)) { state = "stopped"; dirty = true; return; }
             if (CoreMutexHeld())
             {
-                if (!TryAdopt()) { nextReason = reason; EnterWaiting("코어 mutex 가 잡혀 있음 — 새 코어를 띄우지 않고 입양 대기"); }
+                if (!TryAdopt()) { nextReason = reason; EnterWaiting(L.T("코어 mutex 가 잡혀 있음 — 새 코어를 띄우지 않고 입양 대기", "Core mutex is held — not starting a new core, waiting to adopt")); }
                 return;
             }
             var picked = PickConfig(true);
             if (picked == null)
             {
-                ScheduleRetry(reason, "유효한 설정 없음(config.json·config.last-good.json)");
+                ScheduleRetry(reason, L.T("유효한 설정 없음(config.json·config.last-good.json)", "No valid config (config.json, config.last-good.json)"));
                 return;
             }
             string ver = Hub.Version;                                       // 코어 = 같은 exe 이미지(C-10): 버전이 섞일 수 없다
@@ -571,7 +578,7 @@ namespace UartHub
             try { p = Process.Start(psi); }
             catch (Exception e)
             {
-                ScheduleRetry(reason, "코어 프로세스 시작 실패: " + e.Message);
+                ScheduleRetry(reason, L.T("코어 프로세스 시작 실패: " + e.Message, "Core process failed to start: " + e.Message));
                 return;
             }
             string oldVer = coreVersion;
@@ -582,10 +589,10 @@ namespace UartHub
             if (!string.IsNullOrEmpty(reason)) restarts++;
             state = "running";
             dirty = true;
-            log.Write("코어 시작 pid=" + corePid + " v=" + ver + " config=" + (coreConfig ?? "(기본값)") + " reason=" + (reason ?? "-"));
+            log.Write(L.T("코어 시작 pid=" + corePid + " v=" + ver + " config=" + (coreConfig ?? "(기본값)") + " reason=" + (reason ?? "-"), "Core started pid=" + corePid + " v=" + ver + " config=" + (coreConfig ?? "(defaults)") + " reason=" + (reason ?? "-")));
             var prof = ProductProfile.Current;
-            if (!prof.IsGeneric) log.Write("제품 프로필 " + (prof.Error == null ? "'" + prof.Name + "' " + prof.Path : "읽기 실패(일반 기본값으로 동작) " + prof.Path + ": " + prof.Error));
-            if (reason == "upgrade") log.Write("upgrade: 코어 재시작 v" + (oldVer ?? "?") + " → v" + ver);
+            if (!prof.IsGeneric) log.Write(L.T("제품 프로필 " + (prof.Error == null ? "'" + prof.Name + "' " + prof.Path : "읽기 실패(일반 기본값으로 동작) " + prof.Path + ": " + prof.Error), "Product profile " + (prof.Error == null ? "'" + prof.Name + "' " + prof.Path : "read failed (running with generic defaults) " + prof.Path + ": " + prof.Error)));
+            if (reason == "upgrade") log.Write(L.T("upgrade: 코어 재시작 v" + (oldVer ?? "?") + " → v" + ver, "upgrade: core restart v" + (oldVer ?? "?") + " → v" + ver));
         }
 
         void BeginWatch(DateTime now)
@@ -603,7 +610,7 @@ namespace UartHub
             nextReason = reason;
             state = "backoff";
             dirty = true;
-            log.Write(why + " → " + delay + "초 뒤 다시 시도");
+            log.Write(L.T(why + " → " + delay + "초 뒤 다시 시도", why + " → retrying in " + delay + "s"));
         }
 
         int NextDelay()
@@ -647,7 +654,7 @@ namespace UartHub
             BeginWatch(DateTime.UtcNow);
             state = "running";
             dirty = true;
-            log.Write("기존 코어 입양 pid=" + corePid + " v=" + coreVersion + " started=" + HubFiles.Str(j.Value, "started") + " (새 코어를 띄우지 않음)");
+            log.Write(L.T("기존 코어 입양 pid=" + corePid + " v=" + coreVersion + " started=" + HubFiles.Str(j.Value, "started") + " (새 코어를 띄우지 않음)", "Adopted existing core pid=" + corePid + " v=" + coreVersion + " started=" + HubFiles.Str(j.Value, "started") + " (no new core started)"));
             return true;
         }
 
@@ -664,7 +671,7 @@ namespace UartHub
             }
             catch (Exception e)
             {
-                log.Write("코어 mutex 확인 실패: " + e.Message);
+                log.Write(L.T("코어 mutex 확인 실패: " + e.Message, "Core mutex check failed: " + e.Message));
                 return true;
             }
         }
@@ -681,7 +688,7 @@ namespace UartHub
             controlPort = (int)HubFiles.Long(j.Value, "control_port", controlPort);
             dirty = true;
             if (c != null && c.StartsWith("bind_failed", StringComparison.Ordinal))
-                log.Write("코어 제어 포트 " + c + " — ping hang 판정은 건너뛰고 하트비트만 본다");
+                log.Write(L.T("코어 제어 포트 " + c + " — ping hang 판정은 건너뛰고 하트비트만 본다", "Core control port " + c + " — skipping the ping hang check, watching heartbeats only"));
         }
 
         /// <summary>
@@ -691,13 +698,14 @@ namespace UartHub
         string PickConfig(bool forStart)
         {
             string main = HubFiles.ConfigPath(hubDir), lg = HubFiles.LastGood(hubDir);
+            L.ConfigureFromFile(main);                      // 언어는 고른 파일과 상관없이 config.json 의 "language"(검증에 실패해 last-good 으로 떠도 — 코어·CLI 와 같은 곳)
             if (!File.Exists(main))
             {
-                if (opt.Sim != null) { SetWarning("config.json 없음(시험 모드는 기본값으로 띄우지 않음)"); return null; }
+                if (opt.Sim != null) { SetWarning(L.T("config.json 없음(시험 모드는 기본값으로 띄우지 않음)", "No config.json (test mode does not start with defaults)")); return null; }
                 SetWarning(null);
                 cfg = Config.Default(); cfgPath = "";
                 _ = Paths;
-                if (forStart) log.Write("config.json 없음 → 기본값으로 기동");
+                if (forStart) log.Write(L.T("config.json 없음 → 기본값으로 기동", "No config.json → starting with defaults"));
                 return "";
             }
             var errs = Config.ValidateFile(main);
@@ -713,19 +721,19 @@ namespace UartHub
                 }
                 catch (Exception e) { errs = new List<string> { e.Message }; }
             }
-            SetWarning("config.json 검증 실패: " + string.Join("; ", errs.Take(5)));
+            SetWarning(L.T("config.json 검증 실패: " + string.Join("; ", errs.Take(5)), "config.json validation failed: " + string.Join("; ", errs.Take(5))));
             if (File.Exists(lg) && Config.ValidateFile(lg).Count == 0)
             {
                 try
                 {
                     cfg = Config.Load(lg); cfgPath = lg;
                     _ = Paths;
-                    if (forStart) log.Write(configWarning + " → config.last-good.json 으로 기동");
+                    if (forStart) log.Write(L.T(configWarning + " → config.last-good.json 으로 기동", configWarning + " → starting with config.last-good.json"));
                     return lg;
                 }
                 catch (Exception) { }
             }
-            if (forStart) log.Write(configWarning + " → config.last-good.json 도 없거나 무효");
+            if (forStart) log.Write(L.T(configWarning + " → config.last-good.json 도 없거나 무효", configWarning + " → config.last-good.json is also missing or invalid"));
             return null;
         }
 
@@ -734,7 +742,7 @@ namespace UartHub
             if (w == configWarning) return;
             configWarning = w;
             dirty = true;
-            if (w != null && w != lastLoggedWarning) { lastLoggedWarning = w; log.Write("경고: " + w); }
+            if (w != null && w != lastLoggedWarning) { lastLoggedWarning = w; log.Write(L.T("경고: " + w, "Warning: " + w)); }
             if (w == null) lastLoggedWarning = null;
         }
 
@@ -743,7 +751,7 @@ namespace UartHub
             string lg = HubFiles.LastGood(hubDir);
             string t = HubFiles.ReadShared(main);
             if (t == null || t == HubFiles.ReadShared(lg)) return;
-            if (HubFiles.TryWriteAtomic(lg, t)) log.Write("config.last-good.json 갱신");
+            if (HubFiles.TryWriteAtomic(lg, t)) log.Write(L.T("config.last-good.json 갱신", "config.last-good.json updated"));
         }
 
         // ================================================================== 종료 처리
@@ -752,41 +760,44 @@ namespace UartHub
             var now = DateTime.UtcNow;
             double life = (now - coreStartUtc).TotalSeconds;
             string codeS = code.HasValue ? code.Value.ToString(CultureInfo.InvariantCulture) : "?";
-            log.Write("코어 종료 pid=" + corePid + " exit=" + codeS + " 수명=" + life.ToString("0.0", CultureInfo.InvariantCulture) + "s"
-                      + (hangKind != null ? " hang=" + hangKind : "") + (adopted ? " (입양)" : ""));
+            log.Write(L.T("코어 종료 pid=" + corePid + " exit=" + codeS + " 수명=" + life.ToString("0.0", CultureInfo.InvariantCulture) + "s"
+                      + (hangKind != null ? " hang=" + hangKind : "") + (adopted ? " (입양)" : ""),
+                      "Core exited pid=" + corePid + " exit=" + codeS + " lifetime=" + life.ToString("0.0", CultureInfo.InvariantCulture) + "s"
+                      + (hangKind != null ? " hang=" + hangKind : "") + (adopted ? " (adopted)" : "")));
             lastExit = code; lastExitAt = DateTime.Now;
             lastExitReason = "exit=" + codeS + (hangKind != null ? " hang=" + hangKind : "");
             try { core.Dispose(); } catch (Exception) { }
             core = null; pingTask = null; adopted = false;
-            bool upgrade = pendingUpgrade, startAgain = startAfterStop;
-            pendingUpgrade = false; stopRequested = false; startAfterStop = false;
+            string restartAs = pendingRestart;
+            bool startAgain = startAfterStop;
+            pendingRestart = null; stopRequested = false; startAfterStop = false;
             dirty = true;
 
             if (shutdownRequested)
             {
                 state = "exited";
                 QuitRequested = true;
-                log.Write("종료 요청 처리: 코어 종료(exit=" + codeS + ") → 감독 끝냄(control.json 그대로)");
+                log.Write(L.T("종료 요청 처리: 코어 종료(exit=" + codeS + ") → 감독 끝냄(control.json 그대로)", "Shutdown request: core exited (exit=" + codeS + ") → supervisor exits (control.json unchanged)"));
                 return;
             }
             if (HubFiles.IsStopped(hubDir))
             {
                 state = "stopped";
-                log.Write("정지 상태 — 재시작하지 않음(COM 해제)");
+                log.Write(L.T("정지 상태 — 재시작하지 않음(COM 해제)", "Stopped — not restarting (COM ports released)"));
                 return;
             }
             if (code == 0)
             {
-                if (upgrade) { StartCore("upgrade"); return; }
+                if (restartAs != null) { StartCore(restartAs); return; }
                 if (startAgain) { StartCore(null); return; }
                 state = "exited";
-                log.Write("exit 0(정상 종료) — 재시작하지 않음(hub start 로 재개)");
+                log.Write(L.T("exit 0(정상 종료) — 재시작하지 않음(hub start 로 재개)", "exit 0 (clean exit) — not restarting (resume with hub start)"));
                 return;
             }
             if (code == CoreHost.CoreBusyExitCode)
             {
                 nextReason = null;
-                EnterWaiting("코어가 mutex 점유로 끝남(다른 코어 실행 중) → 입양 대기");
+                EnterWaiting(L.T("코어가 mutex 점유로 끝남(다른 코어 실행 중) → 입양 대기", "Core exited because the mutex is held (another core is running) → waiting to adopt"));
                 return;
             }
             if (life >= cfg.BackoffResetS) backoffIdx = 0;
@@ -794,15 +805,17 @@ namespace UartHub
             if (quickDeaths >= cfg.CrashLoopCount && !crashLoop)
             {
                 crashLoop = true;
-                log.Write("크래시 루프 경고: 코어가 " + quickDeaths + "회 연속 기동 뒤 " + cfg.CrashLoopWindowS.ToString(CultureInfo.InvariantCulture)
-                          + "초 안에 죽음(마지막 exit=" + codeS + ") — 백오프로 계속 재시도, tray 경고");
+                log.Write(L.T("크래시 루프 경고: 코어가 " + quickDeaths + "회 연속 기동 뒤 " + cfg.CrashLoopWindowS.ToString(CultureInfo.InvariantCulture)
+                          + "초 안에 죽음(마지막 exit=" + codeS + ") — 백오프로 계속 재시도, tray 경고",
+                          "Crash loop warning: the core died within " + cfg.CrashLoopWindowS.ToString(CultureInfo.InvariantCulture) + "s of starting, " + quickDeaths
+                          + " times in a row (last exit=" + codeS + ") — still retrying with backoff, tray warning"));
             }
             int step = backoffIdx;
             int delay = NextDelay();
             nextStartUtc = now.AddSeconds(delay);
             nextReason = lastExitReason;
             state = "backoff";
-            log.Write("재시작 대기 " + delay + "초 (백오프 " + step + "단계, " + nextReason + ")");
+            log.Write(L.T("재시작 대기 " + delay + "초 (백오프 " + step + "단계, " + nextReason + ")", "Restart in " + delay + "s (backoff step " + step + ", " + nextReason + ")"));
         }
 
         // ================================================================== hang
@@ -828,7 +841,7 @@ namespace UartHub
                 }
                 var okRef = lastPingOkUtc > hangBaselineUtc ? lastPingOkUtc : hangBaselineUtc;
                 double s = (now - okRef).TotalSeconds;
-                if (s > hangS) { kind = "ping"; return "ping 응답 없음 " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s > hang_s " + hangS.ToString(CultureInfo.InvariantCulture); }
+                if (s > hangS) { kind = "ping"; return L.T("ping 응답 없음 " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s > hang_s " + hangS.ToString(CultureInfo.InvariantCulture), "no ping reply " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s > hang_s " + hangS.ToString(CultureInfo.InvariantCulture)); }
             }
             string dir = HubFiles.AliveDir(hubDir);
             if (!Directory.Exists(dir)) return null;
@@ -844,7 +857,7 @@ namespace UartHub
                 if (at < mine) continue;                          // 이 코어가 쓴 적 없는 포트(이전 코어의 잔재)
                 var refT = at > baseLocal ? at : baseLocal;
                 double s = (nowLocal - refT).TotalSeconds;
-                if (s > hangS) { kind = "heartbeat"; return "하트비트 alive\\" + name + " " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s 정지 > hang_s " + hangS.ToString(CultureInfo.InvariantCulture); }
+                if (s > hangS) { kind = "heartbeat"; return L.T("하트비트 alive\\" + name + " " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s 정지 > hang_s " + hangS.ToString(CultureInfo.InvariantCulture), "heartbeat alive\\" + name + " stalled " + s.ToString("0.0", CultureInfo.InvariantCulture) + "s > hang_s " + hangS.ToString(CultureInfo.InvariantCulture)); }
             }
             return null;
         }
@@ -874,7 +887,7 @@ namespace UartHub
                     var args = new List<string>();
                     if (age > StaleRequestS)
                     {
-                        log.Write("오래된 요청 " + id + " (" + age.ToString("0", CultureInfo.InvariantCulture) + "초 전) — 실행하지 않고 버림");
+                        log.Write(L.T("오래된 요청 " + id + " (" + age.ToString("0", CultureInfo.InvariantCulture) + "초 전) — 실행하지 않고 버림", "Stale request " + id + " (" + age.ToString("0", CultureInfo.InvariantCulture) + "s old) — dropped without running"));
                         continue;
                     }
                     try
@@ -889,8 +902,8 @@ namespace UartHub
                     string respPath = Path.Combine(respDir, id + ".json");
                     if (verb == "connect" || verb == "disconnect") { StartConnectRequest(verb, from, args, id, respPath); continue; }   // 오래 걸림: 끝나면 응답(X5)
                     JObj r;
-                    try { r = Handle(verb, from); }
-                    catch (Exception e) { LogError(e); r = new JObj().Set("status", "hub_down").Set("exit", 103L).Set("error", "감독 내부 오류: " + e.Message); }
+                    try { r = Handle(verb, from, args); }
+                    catch (Exception e) { LogError(e); r = new JObj().Set("status", "hub_down").Set("exit", 103L).Set("error", L.T("감독 내부 오류: " + e.Message, "Supervisor internal error: " + e.Message)); }
                     HubFiles.TryWriteAtomic(respPath, r.ToString());
                 }
             }
@@ -905,7 +918,7 @@ namespace UartHub
             }
         }
 
-        JObj Handle(string verb, string from)
+        JObj Handle(string verb, string from, List<string> args)
         {
             switch (verb)
             {
@@ -913,15 +926,16 @@ namespace UartHub
                 case "stop": return RequestStop(from);
                 case "start": return RequestStart(from);
                 case "upgrade": return RequestUpgrade(from);
+                case "language": return RequestLanguage(args.Count == 1 ? args[0] : null, from);
                 case "shutdown": return RequestShutdown(from);
                 case "quit":
                     QuitRequested = true;
-                    log.Write("감독 끝내기 요청(" + from + ") — 코어는 그대로 둔다");
+                    log.Write(L.T("감독 끝내기 요청(" + from + ") — 코어는 그대로 둔다", "Supervisor quit request (" + from + ") — the core keeps running"));
                     return Ok("quit");
                 case "notice_running":                       // 휴대용 실행(X4): 같은 exe 를 다시 더블클릭 → 트레이 풍선만
-                    Notice("UART 허브가 이미 켜져 있습니다. 작업 표시줄 오른쪽의 아이콘을 쓰세요(안 보이면 ^ 안).");
+                    Notice(L.T("UART 허브가 이미 켜져 있습니다. 작업 표시줄 오른쪽의 아이콘을 쓰세요(안 보이면 ^ 안).", "UART Hub is already running. Use its icon at the right end of the taskbar (look under ^ if hidden)."));
                     return Ok("notice");
-                default: return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "감독 요청은 status|stop|start|upgrade|shutdown|quit|notice_running|connect|disconnect: " + (verb ?? "(없음)"));
+                default: return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("감독 요청은 status|stop|start|upgrade|shutdown|quit|notice_running|connect|disconnect: " + (verb ?? "(없음)"), "Supervisor requests are status|stop|start|upgrade|shutdown|quit|notice_running|connect|disconnect: " + (verb ?? "(none)")));
             }
         }
 
@@ -935,7 +949,7 @@ namespace UartHub
         {
             var o = new JObj().Set("stopped", stopped).Set("by", by).Set("at", HubFiles.Iso(DateTime.Now));
             if (HubFiles.TryWriteAtomic(HubFiles.Control(hubDir), o.ToString() + "\n")) { dirty = true; return true; }
-            log.Write("control.json 쓰기 실패");
+            log.Write(L.T("control.json 쓰기 실패", "control.json write failed"));
             return false;
         }
 
@@ -946,16 +960,16 @@ namespace UartHub
             stopRequested = true;
             stopRequestedUtc = DateTime.UtcNow;
             dirty = true;
-            log.Write("코어 pid=" + corePid + " 정상 종료 요청(core.stop, " + reason + ")");
+            log.Write(L.T("코어 pid=" + corePid + " 정상 종료 요청(core.stop, " + reason + ")", "Asked core pid=" + corePid + " to exit cleanly (core.stop, " + reason + ")"));
         }
 
         /// <summary>tray "종료"·uart hub stop: control.json stopped=true 를 **먼저** 쓰고, 코어가 있으면 정상 종료(exit 0)를 요청한다.</summary>
         public JObj RequestStop(string by)
         {
-            if (!WriteControl(true, by)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "control.json 쓰기 실패 — 코어를 멈추지 않음");
-            log.Write("정지 요청(" + by + ") → control.json stopped=true");
-            startAfterStop = false; pendingUpgrade = false;
-            if (icons != null) { Guard(() => icons.RemoveAll("정지 요청(" + by + ")")); iconsCleared = true; }
+            if (!WriteControl(true, by)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("control.json 쓰기 실패 — 코어를 멈추지 않음", "control.json write failed — core not stopped"));
+            log.Write(L.T("정지 요청(" + by + ") → control.json stopped=true", "Stop request (" + by + ") → control.json stopped=true"));
+            startAfterStop = false; pendingRestart = null;
+            if (icons != null) { Guard(() => icons.RemoveAll(L.T("정지 요청(" + by + ")", "stop request (" + by + ")"))); iconsCleared = true; }
             if (state == "running" && core != null)
             {
                 if (!stopRequested) SendCoreStop("stop");
@@ -971,8 +985,8 @@ namespace UartHub
         {
             if (HubFiles.IsStopped(hubDir))
             {
-                if (!WriteControl(false, by)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "control.json 쓰기 실패");
-                log.Write("시작 요청(" + by + ") → control.json stopped=false");
+                if (!WriteControl(false, by)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("control.json 쓰기 실패", "control.json write failed"));
+                log.Write(L.T("시작 요청(" + by + ") → control.json stopped=false", "Start request (" + by + ") → control.json stopped=false"));
             }
             backoffIdx = 0; quickDeaths = 0; crashLoop = false;
             dirty = true;
@@ -989,12 +1003,12 @@ namespace UartHub
         /// <summary>hub upgrade(C-10): 코어를 정상 종료시키고 같은 exe 로 다시 띄운다. 로그에 *** hub restart (upgrade) ***. 실제 버전 교체는 설치기만 한다.</summary>
         public JObj RequestUpgrade(string by)
         {
-            if (HubFiles.IsStopped(hubDir)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "정지 상태 — hub start 먼저");
+            if (HubFiles.IsStopped(hubDir)) return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("정지 상태 — hub start 먼저", "Hub is stopped — run hub start first"));
             string to = Hub.Version;
-            log.Write("업그레이드 요청(" + by + ") v" + (coreVersion ?? "?") + " → v" + (to ?? "?"));
+            log.Write(L.T("업그레이드 요청(" + by + ") v" + (coreVersion ?? "?") + " → v" + (to ?? "?"), "Upgrade request (" + by + ") v" + (coreVersion ?? "?") + " → v" + (to ?? "?")));
             if (state == "running" && core != null)
             {
-                pendingUpgrade = true;
+                pendingRestart = "upgrade";
                 if (!stopRequested) SendCoreStop("upgrade");
                 return Ok("upgrading").Set("to_version", to);
             }
@@ -1003,14 +1017,63 @@ namespace UartHub
         }
 
         /// <summary>
+        /// 감독 요청 language(uart hub language auto|ko|en · 트레이 설정 ▸ 언어 — 감독 스레드): config.json 의 "language" 를 글자로 고치고(Config.WithLanguage —
+        /// auto 는 키를 지움, 주석·순서·CRLF·BOM 그대로, 원자 쓰기) ApplyLanguage. 값이 틀리거나 config.json 을 읽거나 고치거나 쓰지 못하면 106 rejected(아무것도 바꾸지 않음).
+        /// 응답 = ApplyLanguage 의 것(action unchanged · restarting · applied) + setting(auto|ko|en) · language(감독의 새 언어) · 깨끗이 지우지 못해 "auto" 를 썼으면 note.
+        /// </summary>
+        public JObj RequestLanguage(string value, string by)
+        {
+            string v = value?.Trim().ToLowerInvariant(), path = HubFiles.ConfigPath(hubDir), text = null, why = null;
+            JObj Rejected(string e) { log.Write(L.T("언어 요청(" + by + ") " + (value ?? "-") + " 거부: " + e, "Language request (" + by + ") " + (value ?? "-") + " rejected: " + e)); return new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", e); }
+            if (!L.IsValidSetting(v)) return Rejected(L.T("언어는 auto|ko|en: " + (value ?? "(없음)"), "the language must be auto|ko|en: " + (value ?? "(none)")));
+            if (File.Exists(path))
+            {
+                // BOM 을 지키려고 바이트로 읽는다(HubFiles.ReadShared 는 BOM 을 떼고 읽는다)
+                try { using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); using var ms = new MemoryStream(); fs.CopyTo(ms); text = new UTF8Encoding(false).GetString(ms.ToArray()); }
+                catch (Exception e) { return Rejected(L.T("config.json 을 읽지 못함: " + e.Message, "could not read config.json: " + e.Message)); }
+            }
+            string n = Config.WithLanguage(text, v, out why);
+            if (n == null) return Rejected(L.T("config.json 을 고치지 못함: " + why, "could not edit config.json: " + why));
+            if (n != (text ?? ""))
+            {
+                if (!HubFiles.TryWriteAtomic(path, n)) return Rejected(L.T("config.json 쓰기 실패", "config.json write failed"));
+                log.Write("config.json language → " + v + " (" + by + ")" + (why != null ? " — " + why : ""));
+            }
+            var r = ApplyLanguage(by).Set("setting", v).Set("language", L.Current);
+            if (why != null) r.Set("note", why);
+            return r;
+        }
+
+        /// <summary>
+        /// 언어 바꾸기(RequestLanguage 가 config.json "language" 를 쓴 뒤 감독 스레드에서 부른다): config 를 다시 읽어 감독 언어를 바로 바꾸고
+        /// (PickConfig → L.ConfigureFromFile — 트레이 제목·풍선·hub.log 는 다음 글부터), 코어는 hub upgrade 와 같은 길로 정상 종료 뒤 같은 exe 로 다시 띄운다
+        /// (케이블 로그 *** hub restart (language) ***, 이미 다른 사유(upgrade)로 다시 띄우는 중이면 그 사유 그대로). 언어가 그대로면 코어는 두고 "unchanged".
+        /// 코어가 없으면(정지·백오프) 다음 기동 때 새 config 로 뜬다. 응답 action: unchanged · restarting · applied. 트레이 메뉴 글은 부른 쪽이 다시 그린다.
+        /// </summary>
+        public JObj ApplyLanguage(string by)
+        {
+            string before = L.Current;
+            PickConfig(false);
+            log.Write("language " + before + " -> " + L.Current + " (" + by + ")");
+            if (L.Current == before) return Ok("unchanged");                // 코어도 같은 규칙(환경변수 → config → Windows)으로 정하므로 다시 띄울 일 없음
+            if (state == "running" && core != null && !HubFiles.IsStopped(hubDir))
+            {
+                pendingRestart ??= "language";
+                if (!stopRequested) SendCoreStop("language");
+                return Ok("restarting");
+            }
+            return Ok("applied");
+        }
+
+        /// <summary>
         /// 감독 요청 shutdown(C-5, 설치기·업데이트·제거 전용): control.json 의 stopped 를 건드리지 않고 코어를 정상 종료(exit 0)시킨 뒤 감독도 끝낸다.
         /// 다시 설치해도 정지 상태가 남지 않는다. 아이콘은 지우지 않는다(새 감독이 이어받음).
         /// </summary>
         public JObj RequestShutdown(string by)
         {
-            log.Write("종료 요청(" + by + ") — control.json 은 그대로, 코어 정상 종료 뒤 감독도 끝냄");
+            log.Write(L.T("종료 요청(" + by + ") — control.json 은 그대로, 코어 정상 종료 뒤 감독도 끝냄", "Shutdown request (" + by + ") — control.json unchanged; the supervisor exits after the core exits cleanly"));
             shutdownRequested = true;
-            startAfterStop = false; pendingUpgrade = false;
+            startAfterStop = false; pendingRestart = null;
             dirty = true;
             if (state == "running" && core != null)
             {
@@ -1036,7 +1099,7 @@ namespace UartHub
             o.Set("last_exit_at", lastExitAt.HasValue ? HubFiles.Iso(lastExitAt.Value) : null).Set("last_exit_reason", lastExitReason);
             o.Set("backoff_step", (long)backoffIdx).Set("quick_deaths", (long)quickDeaths).Set("crash_loop", crashLoop);
             if (state == "backoff") o.Set("next_start_in_s", Math.Max(0, Math.Round((nextStartUtc - now).TotalSeconds, 1))); else o.Null("next_start_in_s");
-            o.Set("config", cfgPath == "" ? "(기본값)" : cfgPath).Set("config_warning", configWarning)
+            o.Set("config", cfgPath == "" ? L.T("(기본값)", "(defaults)") : cfgPath).Set("config_warning", configWarning)
              .Set("stop_requested", stopRequested).Set("hub_dir", hubDir);
             o.Set("pending", PendingCables.Select(c => new JObj().Set("cable", c.Cable).Set("com", c.Com).Set("description", c.Description)));
             o.Set("on_demand", OnDemand);
@@ -1060,7 +1123,7 @@ namespace UartHub
         public void Shutdown()
         {
             WriteState(true);
-            log.Write("감독 종료 pid=" + myPid + (core != null ? " (코어 pid=" + corePid + " 는 계속 실행)" : ""));
+            log.Write(L.T("감독 종료 pid=" + myPid + (core != null ? " (코어 pid=" + corePid + " 는 계속 실행)" : ""), "Supervisor exiting pid=" + myPid + (core != null ? " (core pid=" + corePid + " keeps running)" : "")));
         }
 
         // ================================================================== 트레이
@@ -1084,20 +1147,20 @@ namespace UartHub
         /// </summary>
         public static string TitleOf(string state, bool crashLoop, bool configWarning, int connected, int pending, int conflicts, int aging = 0)
         {
-            string s = crashLoop ? "계속 꺼짐, 로그 확인 필요"
-                     : configWarning ? "설정 파일 오류 (마지막 정상 설정으로 동작 중)"
+            string s = crashLoop ? L.T("계속 꺼짐, 로그 확인 필요", "Keeps stopping, check the log")
+                     : configWarning ? L.T("설정 파일 오류 (마지막 정상 설정으로 동작 중)", "Config file error (using the last good config)")
                      : state switch
                      {
-                         "running" => connected > 0 ? "연결 " + connected.ToString(CultureInfo.InvariantCulture) + "개" : "연결 없음",
-                         "stopped" or "exited" => "정지됨",
-                         "backoff" => "다시 켜는 중",
-                         "starting" or "waiting_core" => "켜는 중",
+                         "running" => connected > 0 ? L.T("연결 " + connected.ToString(CultureInfo.InvariantCulture) + "개", connected.ToString(CultureInfo.InvariantCulture) + " connected") : L.T("연결 없음", "No connections"),
+                         "stopped" or "exited" => L.T("정지됨", "Stopped"),
+                         "backoff" => L.T("다시 켜는 중", "Restarting"),
+                         "starting" or "waiting_core" => L.T("켜는 중", "Starting"),
                          _ => state,
                      };
-            if (aging > 0 && state == "running" && !crashLoop && !configWarning) s += " · 에이징 중 " + aging.ToString(CultureInfo.InvariantCulture) + "개";
-            if (pending > 0) s += " · 확인 필요 " + pending.ToString(CultureInfo.InvariantCulture);
-            if (conflicts > 0) s += " · 아이콘 이름 충돌 " + conflicts.ToString(CultureInfo.InvariantCulture);
-            return "UART 허브 · " + s;
+            if (aging > 0 && state == "running" && !crashLoop && !configWarning) s += L.T(" · 에이징 중 " + aging.ToString(CultureInfo.InvariantCulture) + "개", " · Aging " + aging.ToString(CultureInfo.InvariantCulture));
+            if (pending > 0) s += L.T(" · 확인 필요 " + pending.ToString(CultureInfo.InvariantCulture), " · Needs attention " + pending.ToString(CultureInfo.InvariantCulture));
+            if (conflicts > 0) s += L.T(" · 아이콘 이름 충돌 " + conflicts.ToString(CultureInfo.InvariantCulture), " · Icon name conflicts " + conflicts.ToString(CultureInfo.InvariantCulture));
+            return L.T("UART 허브 · " + s, "UART Hub · " + s);
         }
 
         void PollLs(DateTime now)
@@ -1134,11 +1197,11 @@ namespace UartHub
                 prevStatus.TryGetValue(r.Cable ?? "", out var was);
                 if (!baseline && r.Status == "attached" && was != "attached")
                 {
-                    log.Write("케이블 붙음 :" + r.Port + " " + r.Com + " " + (r.Board ?? "-") + " (" + r.Cable + ")");
+                    log.Write(L.T("케이블 붙음 :" + r.Port + " " + r.Com + " " + (r.Board ?? "-") + " (" + r.Cable + ")", "Cable attached :" + r.Port + " " + r.Com + " " + (r.Board ?? "-") + " (" + r.Cable + ")"));
                     if (attachEvents.Count < 32) attachEvents.Enqueue(r);
                 }
                 if (r.Status == "pending" && was != "pending")
-                    log.Write((OnDemand ? "연결 대기(on_demand — /connect-uart 로 연결, 묻지 않음) " : "확인 필요(첫 연결) ") + r.Com + " " + r.Cable + (r.Description != null ? " (" + r.Description + ")" : ""));
+                    log.Write((OnDemand ? L.T("연결 대기(on_demand — /connect-uart 로 연결, 묻지 않음) ", "Waiting to connect (on_demand — connect with /connect-uart, no prompt) ") : L.T("확인 필요(첫 연결) ", "Needs attention (first connection) ")) + r.Com + " " + r.Cable + (r.Description != null ? " (" + r.Description + ")" : ""));
                 HeldNotice(r);
             }
             prevStatus = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1177,7 +1240,7 @@ namespace UartHub
             if (!HubFiles.IsStopped(hubDir)) { iconsCleared = false; return; }
             if (iconsCleared) return;
             iconsCleared = true;
-            icons.RemoveAll("정지 상태");
+            icons.RemoveAll(L.T("정지 상태", "stopped"));
             dirty = true;
         }
 
@@ -1207,7 +1270,7 @@ namespace UartHub
             string tok = Path.Combine(hubDir, "token");
             string json = "[" + string.Join(",", new[] { "session" }.Concat(argv).Select(Json.Str)) + "]";
             string l = ControlClient.CallWithTokenFile(port, tok, 10000, json);
-            log.Write("트레이 session " + string.Join(" ", argv) + " → " + (l == null ? "코어 응답 없음" : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
+            log.Write(L.T("트레이 session ", "Tray session ") + string.Join(" ", argv) + " → " + (l == null ? L.T("코어 응답 없음", "no core reply") : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
             return l;
         }
 
@@ -1217,7 +1280,7 @@ namespace UartHub
             string tok = Path.Combine(hubDir, "token");
             string json = "[" + string.Join(",", new[] { "cable" }.Concat(argv).Select(Json.Str)) + "]";
             string l = ControlClient.CallWithTokenFile(port, tok, 5000, json);
-            log.Write("트레이 cable " + string.Join(" ", argv) + " → " + (l == null ? "코어 응답 없음" : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
+            log.Write(L.T("트레이 cable ", "Tray cable ") + string.Join(" ", argv) + " → " + (l == null ? L.T("코어 응답 없음", "no core reply") : l.Length > 200 ? l.Substring(0, 200) + "…" : l));
             return l;
         }
 
@@ -1239,7 +1302,7 @@ namespace UartHub
         /// <summary>감독 요청 connect·disconnect: 흐름은 받을 때(감독 스레드) 만들고 백그라운드로 돌려, 끝나면 sup\resp\&lt;id&gt;.json(요청자는 길게 기다린다).</summary>
         void StartConnectRequest(string verb, string from, List<string> args, string id, string respPath)
         {
-            log.Write("감독 요청 " + verb + " " + string.Join(" ", args) + " (" + from + ")");
+            log.Write(L.T("감독 요청 " + verb + " " + string.Join(" ", args) + " (" + from + ")", "Supervisor request " + verb + " " + string.Join(" ", args) + " (" + from + ")"));
             string cancel = Path.Combine(HubFiles.ReqDir(hubDir), id + ".cancel");          // CLI 가 시간 초과·종료 때 쓴다(*.json 이 아니라 요청으로 읽히지 않음)
             var flow = NewConnectFlow(() => File.Exists(cancel));
             Task.Run(() =>
@@ -1248,14 +1311,14 @@ namespace UartHub
                 try
                 {
                     int baud = 0;
-                    if (args.Count > (verb == "connect" ? 2 : 1)) r = new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", verb + ": 인자가 많음(" + string.Join(" ", args) + ")");
+                    if (args.Count > (verb == "connect" ? 2 : 1)) r = new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T(verb + ": 인자가 많음(" + string.Join(" ", args) + ")", verb + ": too many arguments (" + string.Join(" ", args) + ")"));
                     else if (args.Count == 2 && (!int.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out baud) || !Config.IsStandardBaud(baud)))
-                        r = new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "baud 는 " + Config.StandardBaudText + " 중 하나: '" + args[1] + "'");
+                        r = new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("baud 는 " + Config.StandardBaudText + " 중 하나: '" + args[1] + "'", "baud must be one of " + Config.StandardBaudText + ": '" + args[1] + "'"));
                     else if (verb == "connect") r = args.Count == 0 ? flow.Table() : flow.Connect(args[0], from, baud);
-                    else r = args.Count == 1 ? flow.Disconnect(args[0], from) : new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", "disconnect: COMx 가 필요함");
+                    else r = args.Count == 1 ? flow.Disconnect(args[0], from) : new JObj().Set("status", "rejected").Set("exit", 106L).Set("error", L.T("disconnect: COMx 가 필요함", "disconnect: COMx is required"));
                 }
-                catch (Exception e) { LogError(e); r = new JObj().Set("status", "hub_down").Set("exit", 103L).Set("error", "감독 내부 오류: " + e.GetType().Name + ": " + e.Message); }
-                if (File.Exists(cancel)) { HubFiles.TryDelete(cancel); log.Write("감독 요청 " + id + ": 요청자가 떠남 — 응답은 쓰지 않음"); return; }
+                catch (Exception e) { LogError(e); r = new JObj().Set("status", "hub_down").Set("exit", 103L).Set("error", L.T("감독 내부 오류: " + e.GetType().Name + ": " + e.Message, "Supervisor internal error: " + e.GetType().Name + ": " + e.Message)); }
+                if (File.Exists(cancel)) { HubFiles.TryDelete(cancel); log.Write(L.T("감독 요청 " + id + ": 요청자가 떠남 — 응답은 쓰지 않음", "Supervisor request " + id + ": the requester left — no reply written")); return; }
                 HubFiles.TryWriteAtomic(respPath, r.ToString());
             });
         }
@@ -1281,7 +1344,7 @@ namespace UartHub
             var skip = cfg.HolderScanSkip;
             Task.Run(() =>
             {
-                string who = "다른 프로그램", name = "다른 프로그램";
+                string who = L.T("다른 프로그램", "another program"), name = L.T("다른 프로그램", "another program");
                 string mode = "?";
                 try
                 {
@@ -1290,10 +1353,10 @@ namespace UartHub
                     var h = sc.Of(com).FirstOrDefault();
                     if (h != null) { who = h.Label + "(pid " + h.Pid + ")"; name = h.Label; }
                 }
-                catch (Exception e) { log.Write("F1 점유자 찾기 실패 " + com + ": " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { log.Write(L.T("F1 점유자 찾기 실패 " + com + ": " + e.GetType().Name + ": " + e.Message, "F1 holder lookup failed " + com + ": " + e.GetType().Name + ": " + e.Message)); }
                 if (ConnectFlow.IsActive(com)) return;
-                log.Write("F1 " + com + " held_by_other — " + who + " 사용 중(끝내지 않음, 찾기 " + mode + ")");
-                Notice(com + " 사용 중: " + name + ". 허브가 열지 못했습니다. 다시 연결하려면 /connect-uart " + com);
+                log.Write(L.T("F1 " + com + " held_by_other — " + who + " 사용 중(끝내지 않음, 찾기 " + mode + ")", "F1 " + com + " held_by_other — in use by " + who + " (not closed, lookup " + mode + ")"));
+                Notice(L.T(com + " 사용 중: " + name + ". 허브가 열지 못했습니다. 다시 연결하려면 /connect-uart " + com, com + " is in use by " + name + ". The hub could not open it. To connect again: /connect-uart " + com));
             });
         }
     }

@@ -58,11 +58,11 @@ namespace UartHub
             int days = plan.Count(i => i.Dir && DateRe.IsMatch(Path.GetFileName(i.From))), live = plan.Count(i => i.Dir && !DateRe.IsMatch(Path.GetFileName(i.From)));
             int jsonl = plan.Count(i => !i.Dir && i.From.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)), txt = plan.Count(i => !i.Dir) - jsonl;
             var parts = new List<string>();
-            if (days > 0) parts.Add("날짜 폴더 " + days + "개 → " + Config.ConsoleDirName + "\\");
+            if (days > 0) parts.Add(L.T("날짜 폴더 " + days + "개 → " + Config.ConsoleDirName + "\\", days + " date folder(s) → " + Config.ConsoleDirName + "\\"));
             if (live > 0) parts.Add("live → " + Config.ConsoleDirName + "\\live");
-            if (jsonl > 0) parts.Add("사건 기록 jsonl " + jsonl + "개 → 허브 폴더\\events");
-            if (txt > 0) parts.Add("앞뒤 로그 txt " + txt + "개 → " + Config.EventsTxtDirName + "\\<날짜>");
-            return "로그 폴더 정리(같은 드라이브 안 이름 바꾸기만, 대상에 이미 있으면 그대로): " + string.Join(" · ", parts);
+            if (jsonl > 0) parts.Add(L.T("사건 기록 jsonl " + jsonl + "개 → 허브 폴더\\events", jsonl + " event record jsonl file(s) → hub folder\\events"));
+            if (txt > 0) parts.Add(L.T("앞뒤 로그 txt " + txt + "개 → " + Config.EventsTxtDirName + "\\<날짜>", txt + " before/after log txt file(s) → " + Config.EventsTxtDirName + "\\<date>"));
+            return L.T("로그 폴더 정리(같은 드라이브 안 이름 바꾸기만, 대상에 이미 있으면 그대로): ", "Log folder cleanup (rename within the same drive only; left as is if the target already exists): ") + string.Join(" · ", parts);
         }
 
         /// <summary>옮기기. log = install.log 한 줄. 돌려주는 값 = (옮김, 건너뜀). 시험 격리 위반은 그대로 던진다.</summary>
@@ -75,7 +75,7 @@ namespace UartHub
                 string why = null;
                 try
                 {
-                    if (SystemAccess.DirExists(it.To) || SystemAccess.FileExists(it.To)) why = "대상에 이미 있음";
+                    if (SystemAccess.DirExists(it.To) || SystemAccess.FileExists(it.To)) why = L.T("대상에 이미 있음", "target already exists");
                     else
                     {
                         SystemAccess.CreateDir(Path.GetDirectoryName(it.To));
@@ -85,7 +85,7 @@ namespace UartHub
                 catch (TestIsolationViolation) { throw; }
                 catch (Exception e) { why = e.GetType().Name + ": " + e.Message; }
                 if (why == null) moved++; else skipped++;
-                log("  로그 폴더 " + (why == null ? "옮김 " : "옮기지 않음(" + why + ") ") + it.From + " → " + it.To);
+                log(L.T("  로그 폴더 " + (why == null ? "옮김 " : "옮기지 않음(" + why + ") ") + it.From + " → " + it.To, "  Log folder " + (why == null ? "moved " : "not moved (" + why + ") ") + it.From + " → " + it.To));
             }
             if (plan.Count > 0)
             {
@@ -93,14 +93,14 @@ namespace UartHub
                 try
                 {
                     foreach (var d in SystemAccess.ListDirs(evOld)) if (DateRe.IsMatch(Path.GetFileName(d))) SystemAccess.DeleteEmptyDir(d);
-                    if (SystemAccess.DeleteEmptyDir(evOld)) log("  빈 옛 폴더 지움 " + evOld);
+                    if (SystemAccess.DeleteEmptyDir(evOld)) log(L.T("  빈 옛 폴더 지움 " + evOld, "  Removed empty old folder " + evOld));
                 }
                 catch (TestIsolationViolation) { throw; }
-                catch (Exception e) { log("  옛 events 폴더 정리 못 함(그대로 둠): " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { log(L.T("  옛 events 폴더 정리 못 함(그대로 둠): " + e.GetType().Name + ": " + e.Message, "  Could not clean up old events folder (left as is): " + e.GetType().Name + ": " + e.Message)); }
                 string con = SystemAccess.Guard(Path.Combine(baseRoot, Config.ConsoleDirName), "write");
                 int failed = LogHider.SweepAll(con, out int hidden);
-                log("  숨김 속성(.raw·.idx·live): " + hidden + "개" + (failed > 0 ? ", 바꾸지 못함 " + failed + "개(코어가 1분마다 다시)" : ""));
-                log("  로그 폴더 정리: 옮김 " + moved + "개, 그대로 둠 " + skipped + "개");
+                log(L.T("  숨김 속성(.raw·.idx·live): " + hidden + "개" + (failed > 0 ? ", 바꾸지 못함 " + failed + "개(코어가 1분마다 다시)" : ""), "  Hidden attribute (.raw/.idx/live): " + hidden + (failed > 0 ? ", could not set " + failed + " (the core retries every minute)" : "")));
+                log(L.T("  로그 폴더 정리: 옮김 " + moved + "개, 그대로 둠 " + skipped + "개", "  Log folder cleanup: moved " + moved + ", left " + skipped));
             }
             return (moved, skipped);
         }

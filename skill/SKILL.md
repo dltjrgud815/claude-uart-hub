@@ -33,6 +33,7 @@ $U ls --json
 | "에이징 기록 중이야?" | `$U session status --json` | ⑧ |
 | "에이징 (지금까지) 결과 정리해줘" | `$U session summary 7001 --json` — **세션은 끝내지 않는다** | ⑤ |
 | "에이징 끝내고 정리해줘" | `$U session stop 7001 --json` | ⑦ |
+| "허브 영어로 바꿔줘" · "허브 한국어로" | `$U hub language en --json` (`ko`·`auto` = Windows 표시 언어) — 언어가 바뀌면 허브를 다시 켜 열린 터미널이 끊긴다 | `action`(`restarting`·`applied`·`unchanged`) |
 
 ## 반드시 지킬 것
 
@@ -55,6 +56,8 @@ $U ls --json
    "7001 은 에이징 '<이름>' 기록 중(<경과>)입니다 — 보내면 그 기록에 섞이고 on/off 지그면 명령 중 전원이 끊길 수 있습니다. 보낼까요?" 처럼 알리고 답을 기다린다(사용자가 이미 그 사실을 알고 시킨 경우는 그대로).
 
 ## 종료코드와 JSON 판정
+
+허브가 영어로 돌면(Windows 표시 언어 또는 config `language`) 허브 메시지(`hint_text`·오류 문구·요약·이벤트 txt)가 영어일 수 있다. JSON 키·`hint` 코드·종료코드는 같으니 판정은 그것으로 한다.
 
 | `status` | 셸 종료코드 | 의미 · 할 일 |
 |---|---|---|
@@ -119,17 +122,18 @@ $U run 7002 'uname -a' --json
 ## 에이징 — 세션·감시·정리
 
 **에이징 세션**(포트별)을 시작한 동안만 허브가 그 포트의 콘솔 줄을 사람이 보는 폴더에 남기고 **사건**을 감지한다(`log_layout: 3`, 새 등록의 기본).
-세션 밖의 콘솔 줄은 숨김 임시 기록(`<허브 폴더>/임시기록`, 24시간·2GB)에만 있다 — `log`·`logpath`·`wait` 는 지금처럼 쓴다. 세션 밖에서는 사건 감지·풍선이 없다.
+세션 밖의 콘솔 줄은 숨김 임시 기록(`<허브 폴더>/임시기록`, 영어 허브는 `spool`, 24시간·2GB)에만 있다 — `log`·`logpath`·`wait` 는 지금처럼 쓴다. 세션 밖에서는 사건 감지·풍선이 없다.
 
 - 세션 폴더 `<로그 폴더>/에이징/<이름>_<yyyyMMdd-HHmm>/`: `콘솔.log`(세션 동안 RX 줄, 줄머리 `[시각 +경과초]`, 허브 재시작·케이블 재연결 뒤 이어 쓰고 `*** 기록 끊김 … ***` 표시) ·
   `이벤트/<HHMMSS>_<종류>.txt`(panic·oops·앱 오류마다, 아래 이벤트 txt 형식) · 끝낼 때 `요약.txt`(기간·부팅 수 cmd/soft/hard·이벤트 목록·기록 끊긴 구간).
+  영어로 시작한 세션은 `aging/<이름>_<yyyyMMdd-HHmm>/`: `console.log`(`*** Recording gap … ***`) · `events/<HHMMSS>_<kind>.txt` · `summary.txt`. 세션은 시작할 때의 언어를 끝까지 쓰므로(`sessions.json` 의 `lang`) 경로는 응답의 `folder`·`summary`·`context` 를 그대로 쓴다.
 - 세션 명령은 **COM 을 열고 닫지 않고 보드로 보내지도 않는다** — 사용자가 시키면 Claude 가 불러도 된다. 연결 안 된 포트면 시작이 102 로 거부된다(사용자에게 `/connect-uart COMx` 를 부탁 — 규칙 7).
   세션은 허브·코어가 다시 켜져도 이어 간다(`<허브 폴더>/sessions.json`). 트레이의 COM 포트 ▸ COMx ▸ "에이징 시작…" · "에이징 끝내기" 와 같은 일이다.
 
 ```bash
 $U session start 7001 "야간 전원 에이징"     # 이름은 폴더 이름이 된다(못 쓰는 글자는 '_'), 생략하면 <보드>_<yyyyMMdd-HHmm>. 응답 folder·name
 $U session status --json                     # 세션마다 port·com·board·name·folder·started·elapsed_s·console_log{path,bytes,lines}·last_rx_age_s·events{total,by_kind}·boots·gaps·connected
-$U session stop 7001 --json                  # 세션을 끝내고 요약.txt 를 쓴다. 응답 summary(경로)·summary_text(내용)
+$U session stop 7001 --json                  # 세션을 끝내고 요약.txt(영어 세션은 summary.txt)를 쓴다. 응답 summary(경로)·summary_text(내용)
 $U session summary 7001 --json              # 그 포트가 에이징 중이면 세션 시작부터(scope "session" + session{name,started,folder,console_log}). --since 24h 처럼 주면 그 기간(scope "since"). 이전 이름 aging 도 그대로
 ```
 
@@ -141,8 +145,8 @@ $U session summary 7001 --json              # 그 포트가 에이징 중이면 
 
 ### ⑦ "7001 에이징 끝내고 정리해줘" — 세션 끝·요약
 
-1. `$U session stop 7001 --json` → `summary`(요약.txt 경로)를 Read 로 읽는다(응답의 `summary_text` 와 같다).
-2. 요약의 기간·기록한 시간·부팅 표(cmd/soft/hard)·이벤트 목록·기록 끊긴 구간을 표로 보고한다. 이벤트 줄의 `→ 이벤트\<HHMMSS>_<종류>.txt` 는 세션 폴더 기준 경로다 — 몇 개를 Read 로 읽어 원인 줄·Call trace 맨 위 함수·모듈을 덧붙인다(⑤ 와 같은 방식).
+1. `$U session stop 7001 --json` → `summary`(요약.txt·summary.txt 경로)를 Read 로 읽는다(응답의 `summary_text` 와 같다).
+2. 요약의 기간·기록한 시간·부팅 표(cmd/soft/hard)·이벤트 목록·기록 끊긴 구간을 표로 보고한다. 이벤트 줄의 `→ 이벤트\<HHMMSS>_<종류>.txt`(영어 세션은 `→ events\…`)는 세션 폴더 기준 경로다 — 몇 개를 Read 로 읽어 원인 줄·Call trace 맨 위 함수·모듈을 덧붙인다(⑤ 와 같은 방식).
 3. 106 `에이징 중이 아님` 이면 `$U session status --json` 으로 지금 세션을 보여 주고 어느 포트인지 묻는다.
 
 ### ⑧ "지금 에이징 기록 중이야?" · "7001 에이징 잘 되고 있어?" — 세션 상태
@@ -167,6 +171,7 @@ $U session summary 7001 --json              # 그 포트가 에이징 중이면 
 - 사건 한 줄: `{ts, port, cable, board, kind, class(boot 만), line(그 줄), log, log_line(rx_offset), context(앞뒤 로그 파일|null), boot_seq, since_boot_s, suspect·cause·silence_s(있을 때만)}`.
   `log` 는 감지할 때 기록 중이던 .log 다 — 자정·크기 전환 바로 뒤의 사건이면 다음 파일일 수 있으니 정확한 자리는 `ts` 와 `log_line` 으로 찾는다.
 - 알림 종류(panic·oops·app_error) 사건마다 **에이징 이벤트 txt**(`context`): 세션 중이면 `<세션 폴더>/이벤트/<HHMMSS>_<종류>[_의심].txt`, 옛 배치(`log_layout: 2`)는 `<로그 폴더>/에이징이벤트/<날짜>/<HHMMSS>_<보드>(<포트>)_<종류>[_의심].txt`(종류 = `커널패닉`·`Oops`·`앱오류_<코드>` — 코드는 프로필 `app_codes` 가 정한다).
+  영어 세션의 txt 는 `events/<HHMMSS>_<kind>[_suspect].txt`(kind = `kernel-panic`·`oops`·`app-error_<코드>`)이고 머리 줄도 영어다(`Event:`·`Board:`·`Time:`·`Cause line:`·`Console log file:`·`Why suspect:` → `----- 200 lines before -----` → `----- after -----` → 끝 줄 `Result:`).
   머리 줄(`이벤트 종류:`·`보드:`·`시각:`·`원인 줄:`·`콘솔 로그 파일:`, 의심이면 `의심 이유:`) → `----- 앞 200줄 -----` → `----- 이후 -----`(`>>>` = 사건 줄, 뒤 100줄 또는 30초) → 끝 줄 `결과:`(재부팅 시각 / 응답 없음 / 계속 동작 — 사건 뒤 최대 60초 지나 생김, 그 전엔 아직 쓰는 중).
   같은 부팅의 30초 안 연속 줄(Call trace, oops 뒤 panic 등)은 **한 파일**이고 종류마다 사건 한 줄. 더 심한 종류가 합류하면 파일 이름이 바뀐다(그 사건의 `context_was` = 옛 이름 — `context` 파일이 없으면 뒤 사건의 `context` 를 본다).
   bug·oom·부팅·연결/분리에는 txt 가 없다(`context:null`, jsonl 에만 — `aging` 이 부팅 수·간격·기록 공백에 쓴다). 옛 배치(`log_layout` 없음)는 `<로그 폴더>/events/<날짜>/` 의 앞뒤 로그(끝 줄 `# 끝 — …`).
@@ -204,7 +209,7 @@ $U session summary 7002 --since 24h --json   # 부팅 수(cmd/soft/hard)·간격
    - **명령이 0 이 아닌 종료코드로 끝났으면(102 대상 없음 · 103 래퍼 끊김 · 106 인자 오류 등) 다시 걸지 않는다** — 그 종료코드와 마지막 줄을 사용자에게 보고하고 멈춘다(같은 명령을 되풀이하지 않는다).
    - Monitor 가 없으면 Bash `run_in_background` 로 `… --follow --json --kind … --max 1` 을 돌린다(사건 하나가 오면 exit 0 으로 끝나 알림이 온다). 보고한 뒤 같은 방식(`--since` 마지막 `ts`)으로 다시 건다 — 0 이 아닌 종료코드면 위와 같이 멈추고 보고한다.
 4. 사건 줄이 오면 **바로** 보고한다:
-   - 오류 사건(`context` 있음): 그 `context` 파일을 Read 로 읽는다(끝 줄 `결과:`(옛 배치는 `# 끝`)이 아직 없으면 몇 초 뒤 다시 읽는다 — 이후 줄은 최대 30초, 결과 줄은 최대 60초 뒤에 생긴다). `>>>` 줄(원인 줄), 그 아래 `Call trace:` 의 맨 위 함수들,
+   - 오류 사건(`context` 있음): 그 `context` 파일을 Read 로 읽는다(끝 줄 `결과:`·`Result:`(옛 배치는 `# 끝`)이 아직 없으면 몇 초 뒤 다시 읽는다 — 이후 줄은 최대 30초, 결과 줄은 최대 60초 뒤에 생긴다). `>>>` 줄(원인 줄), 그 아래 `Call trace:` 의 맨 위 함수들,
      `pc :`·`lr :`·`Comm:`·`Modules linked in:` 의 모듈·프로세스, 앞쪽 줄에서 직전에 무슨 일이 있었는지를 요약한다. 같은 `context` 의 사건(oops 뒤 panic 등)은 한 번에 묶어 보고한다.
      `context:null`(`context_skipped`)이면 같은 종류가 잦아 앞뒤 로그를 줄인 것 — `line` 과 "또 일어남(몇 번째)"만 짧게 보고한다.
    - (`boot` 를 더해 지켜볼 때) `boot` 에 `cause` 가 있으면 "panic(또는 oops) 뒤 리셋" 으로 보고한다 — `cause.line`(원인 줄)과 `cause.context`(그 panic 의 앞뒤 로그)를 읽어 위의 오류 사건처럼 요약한다. 그 panic 이 suspect 로 먼저 왔었다면 이것이 그 확인이다.
@@ -217,7 +222,7 @@ $U session summary 7002 --since 24h --json   # 부팅 수(cmd/soft/hard)·간격
 
 ### ⑤ "어젯밤 에이징 결과 정리해줘" — 에이징 결과 정리
 
-**정리는 세션을 끝내지 않는다**(끝내기는 사용자가 "끝내고"라고 할 때만 — ⑦). 세션을 끝낸 뒤면 그 세션 폴더의 `요약.txt` 를 먼저 읽는다. 진행 중인 세션은 `$U session summary 7002 --json`(세션 시작부터), 기간을 직접 정해 보려면:
+**정리는 세션을 끝내지 않는다**(끝내기는 사용자가 "끝내고"라고 할 때만 — ⑦). 세션을 끝낸 뒤면 그 세션 폴더의 `요약.txt`(영어 세션은 `summary.txt`)를 먼저 읽는다. 진행 중인 세션은 `$U session summary 7002 --json`(세션 시작부터), 기간을 직접 정해 보려면:
 ```bash
 $U session summary 7002 --since 24h --json
 #   {"status":"ok","boots":{"total":288,"cmd":280,"soft":5,"hard":3},"unexpected_reboots":8,

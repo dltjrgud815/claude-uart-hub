@@ -33,9 +33,28 @@ namespace UartHub
         {
             var cfg = hub.Config;
             if (cfg.LogLayout < 3 || string.IsNullOrEmpty(cfg.LogRoot)) return null;
-            HideDir(cfg.LogRoot);
+            HideAll(cfg);
             return new SpoolSweeper(hub);
         }
+
+        /// <summary>
+        /// 훑을 임시 기록 폴더들(cfg.SpoolDirs — LogRoot 와, 언어를 바꾸기 전에 생긴 다른 이름의 옛 폴더가 있으면 그것도). 옛 폴더는 만들지 않는다.
+        /// 에이징 뿌리(에이징·aging)와 같은 폴더는 절대 훑지 않는다 — Sweep 은 날짜 폴더(8자리 숫자)의 파일만 지우지만 한 번 더 막는다.
+        /// </summary>
+        static IEnumerable<string> Roots(Config cfg)
+        {
+            var aging = cfg.AgingRoots.Select(a => Full(a)).ToList();
+            foreach (var d in cfg.SpoolDirs)
+            {
+                if (string.IsNullOrEmpty(d) || aging.Contains(Full(d), StringComparer.OrdinalIgnoreCase)) continue;
+                if (!string.Equals(d, cfg.LogRoot, StringComparison.OrdinalIgnoreCase) && !Directory.Exists(d)) continue;
+                yield return d;
+            }
+        }
+
+        static string Full(string p) { try { return Path.GetFullPath(p).TrimEnd('\\', '/'); } catch (Exception) { return p; } }
+
+        static void HideAll(Config cfg) { foreach (var d in Roots(cfg)) HideDir(d); }
 
         void Run()
         {
@@ -43,12 +62,21 @@ namespace UartHub
             try
             {
                 var cfg = hub.Config;
-                HideDir(cfg.LogRoot);
-                int failed = Sweep(cfg.LogRoot, DateTime.Now, cfg.SpoolKeepHours, (long)(cfg.SpoolMaxMb * 1024 * 1024), CurrentFiles(hub), out int deleted, out long freed);
-                if (deleted > 0) hub.Log.WriteThrottled("spool-sweep", "임시 기록 정리: " + deleted + "개 지움(" + (freed / (1024 * 1024)).ToString(CultureInfo.InvariantCulture) + "MB)");
-                if (failed > 0) hub.Log.WriteThrottled("spool-sweep-fail", "임시 기록 정리: " + failed + "개 지우지 못함(잠김·권한 — 다음 차례에 다시)");
+                HideAll(cfg);
+                var keep = CurrentFiles(hub);
+                int failed = 0, deleted = 0;
+                long freed = 0;
+                foreach (var root in Roots(cfg))
+                {
+                    failed += Sweep(root, DateTime.Now, cfg.SpoolKeepHours, (long)(cfg.SpoolMaxMb * 1024 * 1024), keep, out int d1, out long f1);
+                    deleted += d1; freed += f1;
+                }
+                if (deleted > 0) hub.Log.WriteThrottled("spool-sweep", L.T("임시 기록 정리: " + deleted + "개 지움(" + (freed / (1024 * 1024)).ToString(CultureInfo.InvariantCulture) + "MB)",
+                                                                           "spool cleanup: deleted " + deleted + " file(s) (" + (freed / (1024 * 1024)).ToString(CultureInfo.InvariantCulture) + " MB)"));
+                if (failed > 0) hub.Log.WriteThrottled("spool-sweep-fail", L.T("임시 기록 정리: " + failed + "개 지우지 못함(잠김·권한 — 다음 차례에 다시)",
+                                                                               "spool cleanup: could not delete " + failed + " file(s) (locked or permission — retrying next round)"));
             }
-            catch (Exception e) { hub.Log.WriteThrottled("spool-sweep-fail", "임시 기록 정리 실패: " + e.GetType().Name + ": " + e.Message); }
+            catch (Exception e) { hub.Log.WriteThrottled("spool-sweep-fail", L.T("임시 기록 정리 실패: " + e.GetType().Name + ": " + e.Message, "spool cleanup failed: " + e.GetType().Name + ": " + e.Message)); }
             finally { Volatile.Write(ref busy, 0); }
         }
 

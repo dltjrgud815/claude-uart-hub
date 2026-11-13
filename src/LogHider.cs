@@ -47,9 +47,9 @@ namespace UartHub
             try
             {
                 int failed = Sweep(root, DateTime.Now, out int hidden);
-                if (failed > 0) log?.WriteThrottled("log-hide", "숨김 속성: " + failed + "개 바꾸지 못함(백신 잠금·권한 — 다음 차례에 다시)");
+                if (failed > 0) log?.WriteThrottled("log-hide", L.T("숨김 속성: " + failed + "개 바꾸지 못함(백신 잠금·권한 — 다음 차례에 다시)", "hidden attribute: could not set on " + failed + " item(s) (antivirus lock or permission — retrying next round)"));
             }
-            catch (Exception e) { log?.WriteThrottled("log-hide", "숨김 속성 훑기 실패: " + e.GetType().Name + ": " + e.Message); }
+            catch (Exception e) { log?.WriteThrottled("log-hide", L.T("숨김 속성 훑기 실패: " + e.GetType().Name + ": " + e.Message, "hidden attribute sweep failed: " + e.GetType().Name + ": " + e.Message)); }
             finally { Volatile.Write(ref busy, 0); }
         }
 

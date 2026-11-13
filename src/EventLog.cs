@@ -228,8 +228,10 @@ namespace UartHub
             if (candidates.Count == 1) return candidates[0];
             code = candidates.Count == 0 ? 102 : 105;
             why = candidates.Count == 0
-                ? "대상 '" + target + "' 에 맞는 포트 없음(사건 기록·state.json·config.json 에서 찾음) — 포트 번호(예: 7001)로 지정"
-                : "대상 '" + target + "' 이(가) 포트 " + string.Join(",", candidates) + " 에 맞음 — 포트 번호로 지정";
+                ? L.T("대상 '" + target + "' 에 맞는 포트 없음(사건 기록·state.json·config.json 에서 찾음) — 포트 번호(예: 7001)로 지정",
+                      "No port matches '" + target + "' (looked in event records, state.json and config.json) — give a port number (e.g. 7001)")
+                : L.T("대상 '" + target + "' 이(가) 포트 " + string.Join(",", candidates) + " 에 맞음 — 포트 번호로 지정",
+                      "'" + target + "' matches ports " + string.Join(",", candidates) + " — give a port number");
             return 0;
         }
 
@@ -457,11 +459,11 @@ namespace UartHub
             var o = bs.OrderByDescending(b => b.Severity).ThenBy(b => b.Port).ToList();
             var first = o.FirstOrDefault(b => b.Open != null);
             string text = string.Join(sep, o.Select(b => b.Core + More(b.Count)))
-                          + (first != null ? (sep.Contains('\n') ? "\n" : " ") + "누르면 " + first.Name + "의 앞뒤 로그가 열립니다." : "");
+                          + (first != null ? (sep.Contains('\n') ? "\n" : " ") + L.T("누르면 " + first.Name + "의 앞뒤 로그가 열립니다.", "Click to open the context log of " + first.Name + ".") : "");
             return new Balloon { Port = o[0].Port, Text = text, Open = first?.Open, Name = o[0].Name, Core = o[0].Core, Count = o.Sum(b => b.Count), Severity = o[0].Severity };
         }
 
-        static string More(int count) => count > 1 ? " (외 " + (count - 1).ToString(CultureInfo.InvariantCulture) + "건)" : "";
+        static string More(int count) => count > 1 ? L.T(" (외 " + (count - 1).ToString(CultureInfo.InvariantCulture) + "건)", " (+" + (count - 1).ToString(CultureInfo.InvariantCulture) + " more)") : "";
 
         /// <summary>
         /// 풍선 글(UI_COPY.md "풍선"): "EVB-A1 (7001): Kernel panic, 17:38:51." · "… panic 뒤 재부팅, 17:38:53." · "… 예상 못 한 재부팅(하드), 17:40:05." ·
@@ -475,20 +477,23 @@ namespace UartHub
             string com = head.Com ?? items.LastOrDefault(e => e.Com != null)?.Com;
             string name = DesktopIcons.NameOf(DesktopIcons.LabelOf(board, com), port);
             string core = name + ": " + What(head.Kind, head.Class, head.CauseKind, head.Of)
-                          + (head.Kind == "confirm" ? " 보드가 멈췄을 수 있습니다." : ", " + head.Ts.LocalDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + ".");
-            string text = core + (open != null ? " 누르면 앞뒤 로그가 열립니다." : "") + More(items.Count);
+                          + (head.Kind == "confirm" ? L.T(" 보드가 멈췄을 수 있습니다.", " The board may have hung.") : ", " + head.Ts.LocalDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + ".");
+            string text = core + (open != null ? L.T(" 누르면 앞뒤 로그가 열립니다.", " Click to open the context log.") : "") + More(items.Count);
             return new Balloon { Port = port, Text = text, Open = open, Name = name, Core = core, Count = items.Count, Severity = EventKinds.Severity(head.Kind, head.Class, head.CauseKind) };
         }
 
-        /// <summary>풍선의 사건 이름(사람용 — CLI·앞뒤 로그 머리말의 EventKinds.Label 과 따로 둔다). confirm 은 마침표까지("panic 뒤 응답 없음.").</summary>
-        public static string What(string kind, string cls, string causeKind = null, string of = null) => kind switch
+        /// <summary>
+        /// 풍선의 사건 이름(사람용 — CLI·앞뒤 로그 머리말의 EventKinds.Label 과 따로 둔다). confirm 은 마침표까지("panic 뒤 응답 없음.").
+        /// lang null = 지금 언어(요약.txt 는 세션 언어).
+        /// </summary>
+        public static string What(string kind, string cls, string causeKind = null, string of = null, string lang = null) => kind switch
         {
-            "boot" when causeKind != null => Short(causeKind) + " 뒤 재부팅",
-            "boot" => "예상 못 한 재부팅(" + (cls == "hard" ? "하드" : cls == "soft" ? "소프트" : cls) + ")",
-            "confirm" => Short(of ?? "panic") + " 뒤 응답 없음.",
-            _ => EventKinds.Label(kind, cls),
+            "boot" when causeKind != null => AgingLang.T(lang, Short(causeKind, lang) + " 뒤 재부팅", "Reboot after " + Short(causeKind, lang)),
+            "boot" => AgingLang.T(lang, "예상 못 한 재부팅(" + (cls == "hard" ? "하드" : cls == "soft" ? "소프트" : cls) + ")", "Unexpected reboot (" + cls + ")"),
+            "confirm" => AgingLang.T(lang, Short(of ?? "panic", lang) + " 뒤 응답 없음.", "No response after " + Short(of ?? "panic", lang) + "."),
+            _ => EventKinds.Label(kind, cls, lang: lang),
         };
 
-        static string Short(string kind) => kind switch { "panic" => "panic", "oops" => "Oops", "bug" => "BUG", "oom" => "OOM", "app_error" => "앱 오류", _ => kind };
+        static string Short(string kind, string lang) => kind switch { "panic" => "panic", "oops" => "Oops", "bug" => "BUG", "oom" => "OOM", "app_error" => AgingLang.T(lang, "앱 오류", "app error"), _ => kind };
     }
 }

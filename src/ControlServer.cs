@@ -73,8 +73,8 @@ namespace UartHub
         public int Port => hub.Config.ControlPort;
         public string TokenPath => Path.Combine(hub.Config.EffectiveHubDir, "token");
 
-        /// <summary>hub stop/start/upgrade 처리기(감독 연결 지점, CoreHost 가 설정: 감독 요청 스풀로 전달). null 이면 106 unsupported.</summary>
-        public Func<string, JObj> HubCommandHandler { get; set; }
+        /// <summary>hub stop/start/upgrade/language 처리기(감독 연결 지점, CoreHost 가 설정: 감독 요청 스풀로 전달 — 동사, 그 뒤 인자). null 이면 106 unsupported.</summary>
+        public Func<string, string[], JObj> HubCommandHandler { get; set; }
 
         /// <summary>hub status 의 supervisor 필드(감독 상태 파일 sup.json + 생존 확인, CoreHost 가 설정). null 이면 supervisor:null.</summary>
         public Func<JObj> SupervisorStatus { get; set; }
@@ -86,7 +86,7 @@ namespace UartHub
             {
                 // 남이 읽을 수 있는 토큰은 만들지 않는다: 제어 포트를 열지 않고(기록 코어는 계속, P1) 사유를 남긴다.
                 BindError = "token: " + e.GetType().Name + ": " + e.Message;
-                hub.Log.Write("control 기동 실패 — 토큰을 현재 사용자 전용 ACL 로 만들지 못함(" + TokenPath + "): " + e.GetType().Name + ": " + e.Message);
+                hub.Log.Write(L.T("control 기동 실패 — 토큰을 현재 사용자 전용 ACL 로 만들지 못함(" + TokenPath + "): " + e.GetType().Name + ": " + e.Message, "control did not start — could not create the token with a current-user-only ACL (" + TokenPath + "): " + e.GetType().Name + ": " + e.Message));
                 return;
             }
             try
@@ -98,7 +98,7 @@ namespace UartHub
             catch (SocketException e)
             {
                 BindError = e.SocketErrorCode + ": " + e.Message;
-                hub.Log.Write("control bind 실패 127.0.0.1:" + Port + " " + BindError);
+                hub.Log.Write(L.T("control bind 실패 127.0.0.1:" + Port + " " + BindError, "control bind failed 127.0.0.1:" + Port + " " + BindError));
                 return;
             }
             hub.Log.Write("control 127.0.0.1:" + Port + " listen");
@@ -126,10 +126,10 @@ namespace UartHub
                     if (t.Length >= 16) return t;
                 }
             }
-            catch (Exception e) { hub.Log.Write("token 읽기 실패: " + e.Message); }
+            catch (Exception e) { hub.Log.Write(L.T("token 읽기 실패: " + e.Message, "token read failed: " + e.Message)); }
             string n = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
             WritePrivate(TokenPath, n);
-            hub.Log.Write("token 생성 " + TokenPath + " (상속 끊음, 현재 사용자만)");
+            hub.Log.Write(L.T("token 생성 " + TokenPath + " (상속 끊음, 현재 사용자만)", "token created " + TokenPath + " (inheritance removed, current user only)"));
             return n;
         }
 
@@ -202,7 +202,7 @@ namespace UartHub
                     int nl = Array.IndexOf(buf, (byte)'\n', pos, len - pos);
                     int end = nl < 0 ? len : nl;
                     ms.Write(buf, pos, end - pos);
-                    if (ms.Length > max) throw new IOException("줄이 너무 김");
+                    if (ms.Length > max) throw new IOException(L.T("줄이 너무 김", "line too long"));
                     pos = nl < 0 ? len : nl + 1;
                     if (nl >= 0) return Decode(ms);
                 }
@@ -227,7 +227,7 @@ namespace UartHub
                     if (Interlocked.Increment(ref unauthenticated) > MaxUnauthenticated)
                     {
                         Interlocked.Decrement(ref unauthenticated);
-                        why = "hello 전 연결 " + MaxUnauthenticated + "개 초과 — 인사 없이 끊음";
+                        why = L.T("hello 전 연결 " + MaxUnauthenticated + "개 초과 — 인사 없이 끊음", "more than " + MaxUnauthenticated + " connections before hello — closed without greeting");
                         return;
                     }
                     counted = true;
@@ -240,12 +240,12 @@ namespace UartHub
                     Write(ns, new JObj().Set("uart_hub", 1L).Set("nonce", nonce).ToString());
                     // 첫 바이트가 '{' 가 아니면(GET/POST… 등 HTTP, 아무 텍스트) 줄 끝을 기다리지 않고 끊는다(§3.6)
                     int first = rd.PeekByte();
-                    if (first != '{') { why = first < 0 ? "hello 없이 끊김" : "첫 바이트가 '{' 아님(HTTP 등)"; return; }
+                    if (first != '{') { why = first < 0 ? L.T("hello 없이 끊김", "closed without hello") : L.T("첫 바이트가 '{' 아님(HTTP 등)", "first byte is not '{' (HTTP etc.)"); return; }
                     string hello = rd.ReadLine(MaxHelloLine);
                     string cnonce = HelloOk(hello, nonce);
-                    if (cnonce == null) { why = hello == null ? "hello 없이 끊김" : "hello 불일치(토큰이 다르거나 형식 오류)"; return; }
+                    if (cnonce == null) { why = hello == null ? L.T("hello 없이 끊김", "closed without hello") : L.T("hello 불일치(토큰이 다르거나 형식 오류)", "hello mismatch (wrong token or bad format)"); return; }
                     // 기한과 정확히 겹치면 한쪽만 이긴다: 타이머가 먼저면(소켓을 닫음) proof 를 보내지 않고 기한 초과로 끝낸다
-                    if (Interlocked.CompareExchange(ref authed, 1, 0) != 0) { why = "hello 기한 " + HelloTimeoutMs + "ms 초과 또는 수신 오류"; return; }
+                    if (Interlocked.CompareExchange(ref authed, 1, 0) != 0) { why = L.T("hello 기한 " + HelloTimeoutMs + "ms 초과 또는 수신 오류", "hello deadline " + HelloTimeoutMs + "ms passed or receive error"); return; }
                     deadline.Dispose();
                     deadline = null;
                     Interlocked.Decrement(ref unauthenticated);
@@ -261,8 +261,8 @@ namespace UartHub
                         try { resp = Handle(line, sock); }
                         catch (Exception e)
                         {
-                            hub.Log.Write("control 처리 오류: " + e.GetType().Name + ": " + e.Message);
-                            resp = hub.Arbiter.Error(null, 103, "hub_down", "허브 내부 오류: " + e.GetType().Name + ": " + e.Message);
+                            hub.Log.Write(L.T("control 처리 오류: " + e.GetType().Name + ": " + e.Message, "control handler error: " + e.GetType().Name + ": " + e.Message));
+                            resp = hub.Arbiter.Error(null, 103, "hub_down", L.T("허브 내부 오류: " + e.GetType().Name + ": " + e.Message, "Hub internal error: " + e.GetType().Name + ": " + e.Message));
                         }
                         if (resp == null) return;               // 클라이언트가 떠났다
                         Write(ns, resp.ToString());
@@ -273,14 +273,14 @@ namespace UartHub
             {
                 /* 연결 오류는 그 연결만 끝낸다 */
                 if (Volatile.Read(ref authed) != 1 && why == null)
-                    why = e is IOException || e is ObjectDisposedException || e is SocketException ? "hello 기한 " + HelloTimeoutMs + "ms 초과 또는 수신 오류" : e.GetType().Name;
+                    why = e is IOException || e is ObjectDisposedException || e is SocketException ? L.T("hello 기한 " + HelloTimeoutMs + "ms 초과 또는 수신 오류", "hello deadline " + HelloTimeoutMs + "ms passed or receive error") : e.GetType().Name;
             }
             finally
             {
                 deadline?.Dispose();
                 if (counted) Interlocked.Decrement(ref unauthenticated);
                 lock (sync) clients.Remove(c);
-                if (why != null && !stopping) hub.Log.WriteThrottled("control-hello|" + why, "control hello 실패 " + peer + ": " + why + " — 응답 없이 끊음");
+                if (why != null && !stopping) hub.Log.WriteThrottled("control-hello|" + why, L.T("control hello 실패 " + peer + ": " + why + " — 응답 없이 끊음", "control hello failed " + peer + ": " + why + " — closed without reply"));
             }
         }
 
@@ -377,12 +377,12 @@ namespace UartHub
                     if (eq > 0) { k = s.Substring(0, eq); v = s.Substring(eq + 1); }
                     if ((Flags.Contains(k) || (extraFlags?.Contains(k) ?? false)) && v == null) { a.Flag.Add(k); continue; }
                     if (Valued.Contains(k) || (extraValued?.Contains(k) ?? false)) { if (v != null) a.Val[k] = v; else waiting = k; continue; }
-                    err = "알 수 없는 옵션 " + k;
+                    err = L.T("알 수 없는 옵션 " + k, "unknown option " + k);
                     return null;
                 }
                 if (a.Cmd == null) a.Cmd = s; else a.Pos.Add(s);
             }
-            if (waiting != null) { err = waiting + " 에 값이 없음"; return null; }
+            if (waiting != null) { err = L.T(waiting + " 에 값이 없음", waiting + " has no value"); return null; }
             return a;
         }
 
@@ -392,14 +392,14 @@ namespace UartHub
             try
             {
                 using var doc = JsonDocument.Parse(line);
-                if (!doc.RootElement.TryGetProperty("argv", out var av) || av.ValueKind != JsonValueKind.Array) return Reject(null, "요청에 argv 배열이 없음");
+                if (!doc.RootElement.TryGetProperty("argv", out var av) || av.ValueKind != JsonValueKind.Array) return Reject(null, L.T("요청에 argv 배열이 없음", "request has no argv array"));
                 foreach (var e in av.EnumerateArray())
                 {
-                    if (e.ValueKind != JsonValueKind.String) return Reject(null, "argv 는 문자열 배열");
+                    if (e.ValueKind != JsonValueKind.String) return Reject(null, L.T("argv 는 문자열 배열", "argv must be an array of strings"));
                     argv.Add(e.GetString());
                 }
             }
-            catch (JsonException e) { return Reject(null, "JSON 파싱 실패: " + e.Message); }
+            catch (JsonException e) { return Reject(null, L.T("JSON 파싱 실패: " + e.Message, "JSON parse failed: " + e.Message)); }
 
             var a = Parse(argv, out string perr);
             if (a == null) return Reject(null, perr);
@@ -409,21 +409,21 @@ namespace UartHub
 
             switch (a.Cmd)
             {
-                case null: return Reject(null, "명령 없음 (ls|status|run|send|probe|wait|reboot|log|logpath|hub)");
+                case null: return Reject(null, L.T("명령 없음 (ls|status|run|send|probe|wait|reboot|log|logpath|hub)", "no command (ls|status|run|send|probe|wait|reboot|log|logpath|hub)"));
                 case "ls": return Ls(a.Has("--detail"));
                 case "hub": return HubCmd(a);
                 case "cable": return CableCmd(a);
                 case "events":
                 case "aging":
-                    return Reject(null, a.Cmd + " 은 CLI(uart " + a.Cmd + ")가 사건 기록 파일(<log_root>\\events)을 직접 읽는다 — 코어 명령이 아님");
+                    return Reject(null, L.T(a.Cmd + " 은 CLI(uart " + a.Cmd + ")가 사건 기록 파일(<log_root>\\events)을 직접 읽는다 — 코어 명령이 아님", a.Cmd + " is handled by the CLI (uart " + a.Cmd + "), which reads the event files (<log_root>\\events) directly — not a core command"));
                 case "session": return SessionCmd(a);
             }
 
-            if (a.Pos.Count == 0) return Reject(null, a.Cmd + ": 대상 <c> 가 필요함");
+            if (a.Pos.Count == 0) return Reject(null, L.T(a.Cmd + ": 대상 <c> 가 필요함", a.Cmd + ": target <c> is required"));
             var c = Resolve(a.Pos[0], out JObj rerr);
             if (c == null) return rerr;
             int need = a.Cmd == "run" || a.Cmd == "send" ? 2 : 1;
-            if (a.Pos.Count != need) return Reject(c, a.Cmd + ": 인자 수가 " + need + "개여야 함(명령은 따옴표로 한 인자)");
+            if (a.Pos.Count != need) return Reject(c, L.T(a.Cmd + ": 인자 수가 " + need + "개여야 함(명령은 따옴표로 한 인자)", a.Cmd + ": needs exactly " + need + " argument(s) (quote the command as one argument)"));
 
             switch (a.Cmd)
             {
@@ -448,12 +448,12 @@ namespace UartHub
                         IdleS = a.Val.ContainsKey("--idle") ? idleS : -1,
                     };
                     r.Gate = r.Kind == TxKind.Probe ? TxGate.Probe : a.Has("--force") ? TxGate.Force : r.Kind == TxKind.Send ? TxGate.Token : TxGate.Prompt;
-                    if (r.Inline && r.Kind != TxKind.Run) return Reject(c, "--inline 은 run 전용");
-                    if (r.ClientReqId != null && !ReqIdRe.IsMatch(r.ClientReqId)) return Reject(c, "--req-id 는 [A-Za-z0-9._:-] 1~64자");
-                    if (r.Kind == TxKind.Send && r.Cmd.IndexOfAny(new[] { '\r', '\n' }) >= 0) return Reject(c, "send 원문에 CR·LF 금지(한 줄, 개행은 {ENTER})");
+                    if (r.Inline && r.Kind != TxKind.Run) return Reject(c, L.T("--inline 은 run 전용", "--inline is for run only"));
+                    if (r.ClientReqId != null && !ReqIdRe.IsMatch(r.ClientReqId)) return Reject(c, L.T("--req-id 는 [A-Za-z0-9._:-] 1~64자", "--req-id must be 1-64 characters of [A-Za-z0-9._:-]"));
+                    if (r.Kind == TxKind.Send && r.Cmd.IndexOfAny(new[] { '\r', '\n' }) >= 0) return Reject(c, L.T("send 원문에 CR·LF 금지(한 줄, 개행은 {ENTER})", "send text must not contain CR or LF (one line; use {ENTER} for a newline)"));
                     return Submit(c, r, sock);
                 default:
-                    return Reject(c, "알 수 없는 명령 '" + a.Cmd + "'");
+                    return Reject(c, L.T("알 수 없는 명령 '" + a.Cmd + "'", "unknown command '" + a.Cmd + "'"));
             }
         }
 
@@ -463,7 +463,7 @@ namespace UartHub
             string s = a.Get(k);
             if (s == null) return true;
             if (!double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out v) || v < min || v > max)
-            { err = k + " 값이 잘못됨: " + s; return false; }
+            { err = L.T(k + " 값이 잘못됨: " + s, k + " has a bad value: " + s); return false; }
             return true;
         }
 
@@ -476,7 +476,7 @@ namespace UartHub
             {
                 if (Gone(sock))
                 {
-                    if (req.Cancel()) hub.Log.Write("control 연결 끊김 → 요청 취소(미전송) " + req.ReqId);
+                    if (req.Cancel()) hub.Log.Write(L.T("control 연결 끊김 → 요청 취소(미전송) " + req.ReqId, "control connection lost → request cancelled (not sent) " + req.ReqId));
                     return null;
                 }
                 if (hub.Clock.MonoMs >= req.DeadlineMs) hub.Arbiter.ExpireIfWaiting(req);
@@ -490,7 +490,7 @@ namespace UartHub
         }
 
         // ================================================================== F2(X5 부록 B.5): attach 뒤 받은 바이트
-        const string NoOutputText = "보드에서 받은 데이터가 없습니다(연결 뒤 0바이트)";
+        static string NoOutputText => L.T("보드에서 받은 데이터가 없습니다(연결 뒤 0바이트)", "No data received from the board (0 bytes since connecting)");
 
         /// <summary>붙어 있는 케이블이 이 attach 뒤 받은 바이트(링 End − attach 때 End). 붙어 있지 않으면 -1.</summary>
         static long RxSinceAttach(Cable c)
@@ -529,7 +529,7 @@ namespace UartHub
         }
 
         // ================================================================== 에이징 세션(부록 C.12)
-        const string SessionUsage = "사용: session start <port|COMx> [이름] · session stop <port|COMx> · session status [--json]";
+        static string SessionUsage => L.T("사용: session start <port|COMx> [이름] · session stop <port|COMx> · session status [--json]", "Usage: session start <port|COMx> [name] · session stop <port|COMx> · session status [--json]");
 
         /// <summary>
         /// session start|stop|status. 세션은 COM 을 열고 닫지 않는다 — 시작은 지금 연결된 케이블에만(아니면 102 + /connect-uart 안내).
@@ -551,11 +551,11 @@ namespace UartHub
                     if (c == null || !c.IsAttached) return NotConnected(c, t);
                     int port = c.TcpPort;
                     if (Sessions.Get(port) is AgingSession ex)
-                        return hub.Arbiter.Error(c, 106, "rejected", "포트 " + port + " 은(는) 이미 에이징 중('" + ex.Name + "') — 끝내려면 session stop " + port).Set("folder", ex.Folder);
+                        return hub.Arbiter.Error(c, 106, "rejected", L.T("포트 " + port + " 은(는) 이미 에이징 중('" + ex.Name + "') — 끝내려면 session stop " + port, "Port " + port + " is already aging ('" + ex.Name + "') — to end it: session stop " + port)).Set("folder", ex.Folder);
                     string board = BoardOf(c);
                     string given = a.Pos.Count == 3 ? a.Pos[2] : null;
                     string name = given != null ? AgingNames.Sanitize(given) : AgingNames.DefaultName(board, c.Com, port, now);
-                    if (name == null) return Reject(c, "이름에 쓸 수 있는 글자가 없음: '" + given + "' — 다른 이름을 주거나 이름 없이(기본 이름 <보드>_<시각>)");
+                    if (name == null) return Reject(c, L.T("이름에 쓸 수 있는 글자가 없음: '" + given + "' — 다른 이름을 주거나 이름 없이(기본 이름 <보드>_<시각>)", "The name has no usable characters: '" + given + "' — give another name or none (default name <board>_<time>)"));
                     string root = hub.Config.AgingRoot, folder = null;
                     for (int n = 1; n < 1000; n++)
                     {
@@ -567,13 +567,13 @@ namespace UartHub
                     {
                         Directory.CreateDirectory(folder);
                         Directory.CreateDirectory(s.EventsDir);
-                        if (!Sessions.Add(s)) return Reject(c, "포트 " + port + " 은(는) 이미 에이징 중");
+                        if (!Sessions.Add(s)) return Reject(c, L.T("포트 " + port + " 은(는) 이미 에이징 중", "Port " + port + " is already aging"));
                     }
                     catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException || e is NotSupportedException)
                     {
-                        return Reject(c, "에이징 폴더를 만들지 못함(" + folder + "): " + e.Message);
+                        return Reject(c, L.T("에이징 폴더를 만들지 못함(" + folder + "): " + e.Message, "Could not create the aging folder (" + folder + "): " + e.Message));
                     }
-                    hub.Log.Write("에이징 시작 :" + port + " '" + name + "' " + folder);
+                    hub.Log.Write(L.T("에이징 시작 :" + port + " '" + name + "' " + folder, "Aging started :" + port + " '" + name + "' " + folder));
                     bool synced = Events.WaitSession(port, s, 3000);
                     var o = new JObj().Set("status", "ok").Set("exit", 0L).Set("action", "start");
                     foreach (var kv in Fields(SessionBrief(s, now))) o.Raw(kv.Key, kv.Value);
@@ -587,7 +587,7 @@ namespace UartHub
                     int port = SessionPort(a.Pos[1]);
                     var s = port > 0 ? Sessions.Remove(port) : null;
                     if (s == null)
-                        return hub.Arbiter.Error(null, 106, "rejected", "'" + a.Pos[1] + "' 은(는) 에이징 중이 아님(session status 로 확인)").Set("aging", false);
+                        return hub.Arbiter.Error(null, 106, "rejected", L.T("'" + a.Pos[1] + "' 은(는) 에이징 중이 아님(session status 로 확인)", "'" + a.Pos[1] + "' is not aging (check with session status)")).Set("aging", false);
                     Events.WaitSession(port, null, 5000);
                     DateTime until = hub.Clock.Now;
                     var evs = AgingSummary.Events(hub.Config.EventsJsonlDir, s, until);
@@ -595,7 +595,7 @@ namespace UartHub
                     string err = null;
                     try { File.WriteAllText(s.SummaryPath, text, new UTF8Encoding(false)); }
                     catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { err = e.Message; }
-                    hub.Log.Write("에이징 끝 :" + port + " '" + s.Name + "' " + AgingText.Duration((until - s.Started).TotalSeconds) + (err != null ? " — 요약.txt 쓰기 실패: " + err : ""));
+                    hub.Log.Write(L.T("에이징 끝 :" + port + " '" + s.Name + "' " + AgingText.Duration((until - s.Started).TotalSeconds) + (err != null ? " — 요약.txt 쓰기 실패: " + err : ""), "Aging ended :" + port + " '" + s.Name + "' " + AgingText.Duration((until - s.Started).TotalSeconds) + (err != null ? " — could not write " + Path.GetFileName(s.SummaryPath) + ": " + err : "")));
                     var o = new JObj().Set("status", "ok").Set("exit", 0L).Set("action", "stop");
                     foreach (var kv in Fields(SessionDetail(s, until, evs))) o.Raw(kv.Key, kv.Value);
                     o.Set("ended", AgingSession.Iso(until)).Set("summary", err == null ? s.SummaryPath : null).Set("summary_text", text);
@@ -606,11 +606,11 @@ namespace UartHub
                 {
                     if (a.Pos.Count != 1) return Reject(null, SessionUsage);
                     var list = Sessions.All();
-                    return new JObj().Set("status", "ok").Set("exit", 0L).Set("aging_root", hub.Config.AgingRoot).Set("count", (long)list.Count)
+                    return new JObj().Set("status", "ok").Set("exit", 0L).Set("aging_root", hub.Config.AgingRoot).Set("aging_roots", hub.Config.AgingRoots).Set("count", (long)list.Count)
                         .Set("sessions", list.Select(s => SessionDetail(s, now, AgingSummary.Events(hub.Config.EventsJsonlDir, s, now))));
                 }
                 case "summary":
-                    return Reject(null, "session summary 는 CLI(uart session summary)가 사건 기록 파일을 직접 읽는다 — 코어 명령이 아님");
+                    return Reject(null, L.T("session summary 는 CLI(uart session summary)가 사건 기록 파일을 직접 읽는다 — 코어 명령이 아님", "session summary is handled by the CLI (uart session summary), which reads the event files directly — not a core command"));
                 default:
                     return Reject(null, SessionUsage);
             }
@@ -621,8 +621,10 @@ namespace UartHub
         {
             string com = c?.Com ?? (ComRe.IsMatch(target) ? target.ToUpperInvariant()
                        : int.TryParse(target, NumberStyles.None, CultureInfo.InvariantCulture, out int p) ? hub.Cables.Snapshot().FirstOrDefault(x => x.TcpPort == p)?.Com : null);
-            return hub.Arbiter.Error(c, 102, "no_cable", "에이징을 시작하지 않음 — '" + target + "' 이(가) 연결되어 있지 않음. 먼저 /connect-uart " + (com ?? "COMx")
-                                     + " 로 연결해 주세요(Claude 는 스스로 연결하지 않음)").Set("blocked_reason", "not_connected");
+            return hub.Arbiter.Error(c, 102, "no_cable", L.T("에이징을 시작하지 않음 — '" + target + "' 이(가) 연결되어 있지 않음. 먼저 /connect-uart " + (com ?? "COMx")
+                                     + " 로 연결해 주세요(Claude 는 스스로 연결하지 않음)",
+                                     "Aging not started — '" + target + "' is not connected. Connect it first with /connect-uart " + (com ?? "COMx")
+                                     + " (Claude does not connect on its own)")).Set("blocked_reason", "not_connected");
         }
 
         /// <summary>세션 대상 → 포트: 정수 · 세션의 COM · 세션 이름 · 케이블 해석(alias·보드명). 못 찾으면 0.</summary>
@@ -690,19 +692,19 @@ namespace UartHub
                 var one = hit[0];
                 string why = one.Status switch { CableStatus.Pending => "pending", CableStatus.Released => "released", CableStatus.Ignored => "ignored", _ => null };
                 if (why == null) return one;
-                string how = why == "ignored" ? "config.json 이 제외함(mode: ignore)"
-                           : hub.Config.OnDemand ? "연결 안 됨 — 사용자가 /connect-uart " + (one.Com ?? "COMx") + " 로 연결해야 함(Claude 는 스스로 연결하지 않음)"
-                           : why == "pending" ? "새 케이블 확인 창에 답하거나 트레이 '케이블 설정'에서 정해야 함"
-                           : "트레이 '케이블 설정'에서 제외됨([해제]로 다시 붙음)";
-                err = hub.Arbiter.Error(one, 102, "no_cable", "대상 '" + target + "' 케이블을 쓰지 않음(" + why + ") — " + how).Set("blocked_reason", why);
+                string how = why == "ignored" ? L.T("config.json 이 제외함(mode: ignore)", "excluded by config.json (mode: ignore)")
+                           : hub.Config.OnDemand ? L.T("연결 안 됨 — 사용자가 /connect-uart " + (one.Com ?? "COMx") + " 로 연결해야 함(Claude 는 스스로 연결하지 않음)", "not connected — the user must connect it with /connect-uart " + (one.Com ?? "COMx") + " (Claude does not connect on its own)")
+                           : why == "pending" ? L.T("새 케이블 확인 창에 답하거나 트레이 '케이블 설정'에서 정해야 함", "answer the new cable prompt or decide in the tray 'Cable settings'")
+                           : L.T("트레이 '케이블 설정'에서 제외됨([해제]로 다시 붙음)", "excluded in the tray 'Cable settings' ([Include again] reattaches it)");
+                err = hub.Arbiter.Error(one, 102, "no_cable", L.T("대상 '" + target + "' 케이블을 쓰지 않음(" + why + ") — " + how, "Target '" + target + "' cable is not in use (" + why + ") — " + how)).Set("blocked_reason", why);
                 return null;
             }
             if (hit.Count == 0)
             {
-                err = hub.Arbiter.Error(null, 102, "no_cable", "대상 '" + target + "' 에 맞는 케이블 없음");
+                err = hub.Arbiter.Error(null, 102, "no_cable", L.T("대상 '" + target + "' 에 맞는 케이블 없음", "No cable matches target '" + target + "'"));
                 return null;
             }
-            err = hub.Arbiter.Error(null, 105, "ambiguous", "대상 '" + target + "' 이(가) " + hit.Count + "개에 맞음 — 포트 번호로 지정")
+            err = hub.Arbiter.Error(null, 105, "ambiguous", L.T("대상 '" + target + "' 이(가) " + hit.Count + "개에 맞음 — 포트 번호로 지정", "Target '" + target + "' matches " + hit.Count + " cables — use the port number"))
                 .Set("candidates", hit.Select(x => new JObj().Set("port", (long)x.TcpPort).Set("com", x.Com).Set("alias", x.Alias).Set("board", BoardOf(x)).Set("cable", x.Id)));
             return null;
         }
@@ -779,7 +781,7 @@ namespace UartHub
         JObj Log(Cable c, Args a, int tail)
         {
             var ring = c.Ring;
-            if (ring == null) return hub.Arbiter.Error(c, 102, "no_cable", "기록하지 않는 케이블(" + c.StatusText + ")");
+            if (ring == null) return hub.Arbiter.Error(c, 102, "no_cable", L.T("기록하지 않는 케이블(" + c.StatusText + ")", "cable is not being recorded (" + c.StatusText + ")"));
             string since = a.Get("--since");
             if (since != null)
             {
@@ -826,8 +828,8 @@ namespace UartHub
             if (verb != "decide" && verb != "exclude" && verb != "include" && verb != "baud") return Reject(null, Usage);
             if (a.Pos.Count != (verb == "decide" || verb == "baud" ? 3 : 2)) return Reject(null, Usage);
             var c = hub.Cables.Find(a.Pos[1]);
-            if (c == null) return hub.Arbiter.Error(null, 102, "no_cable", "케이블 '" + a.Pos[1] + "' 없음(이번 허브 실행에서 보이지 않음)");
-            if (c.Mode == "ignore") return Reject(c, "config.json 이 제외함(cables." + c.Id + ".mode = ignore) — 트레이에서 바꿀 수 없음");
+            if (c == null) return hub.Arbiter.Error(null, 102, "no_cable", L.T("케이블 '" + a.Pos[1] + "' 없음(이번 허브 실행에서 보이지 않음)", "No cable '" + a.Pos[1] + "' (not seen in this hub run)"));
+            if (c.Mode == "ignore") return Reject(c, L.T("config.json 이 제외함(cables." + c.Id + ".mode = ignore) — 트레이에서 바꿀 수 없음", "excluded by config.json (cables." + c.Id + ".mode = ignore) — cannot be changed from the tray"));
             bool pending = c.TcpPort == 0;
             if (verb == "baud") return BaudCmd(c, a.Pos[2]);
             if (verb == "decide")
@@ -835,12 +837,12 @@ namespace UartHub
                 string ans = a.Pos[2];
                 if (ans != "board" && ans != "ignore") return Reject(c, Usage);
                 if (!pending || !hub.Cables.Decide(c, ans == "board", out int port))
-                    return Reject(c, "확인 대기(pending) 케이블이 아님(" + c.StatusText + ") — cable exclude|include 를 쓴다");
+                    return Reject(c, L.T("확인 대기(pending) 케이블이 아님(" + c.StatusText + ") — cable exclude|include 를 쓴다", "not a pending cable (" + c.StatusText + ") — use cable exclude|include"));
                 return hub.Arbiter.Resp("ok", 0, c, null).Set("port", (long)port).Set("decision", ans);   // 다음 스캔이 새 객체로 붙이거나(board) released 로 만든다
             }
-            if (pending) return Reject(c, "확인 대기(pending) 케이블 — cable decide " + c.Id + " board|ignore 로 답한다");
+            if (pending) return Reject(c, L.T("확인 대기(pending) 케이블 — cable decide " + c.Id + " board|ignore 로 답한다", "pending cable — answer with cable decide " + c.Id + " board|ignore"));
             bool ok = verb == "exclude" ? hub.Cables.Exclude(c) : hub.Cables.Include(c);
-            if (!ok) return Reject(c, verb + " 할 수 없는 케이블(" + c.StatusText + ")");
+            if (!ok) return Reject(c, L.T(verb + " 할 수 없는 케이블(" + c.StatusText + ")", "cannot " + verb + " this cable (" + c.StatusText + ")"));
             return hub.Arbiter.Resp("ok", 0, c, c.Ring?.Format(c.Ring.End)).Set("cable_status", c.StatusText);
         }
 
@@ -852,7 +854,7 @@ namespace UartHub
         JObj BaudCmd(Cable c, string rateText)
         {
             if (!int.TryParse(rateText, NumberStyles.None, CultureInfo.InvariantCulture, out int rate) || !Config.IsStandardBaud(rate))
-                return Reject(c, "baud 는 " + Config.StandardBaudText + " 중 하나: '" + rateText + "'");
+                return Reject(c, L.T("baud 는 " + Config.StandardBaudText + " 중 하나: '" + rateText + "'", "baud must be one of " + Config.StandardBaudText + ": '" + rateText + "'"));
             bool changed = hub.Cables.SetBaud(c.Id, rate, out int old, out bool reopened);
             // 메모리 값이 이미 같아도 파일이 다르면(사람이 고친 뒤 등) 파일을 맞춘다 — 글자로 고친 결과가 지금 파일과 같으면 쓰지 않는다
             string err = null;
@@ -861,19 +863,19 @@ namespace UartHub
             try
             {
                 string text = File.Exists(path) ? HubFiles.ReadShared(path) : null;
-                if (File.Exists(path) && text == null) err = "config.json 을 읽지 못함";
+                if (File.Exists(path) && text == null) err = L.T("config.json 을 읽지 못함", "could not read config.json");
                 else
                 {
                     string n = Config.WithCableBaud(text, c.Id, rate, out string why);
                     if (n == null) err = why;
                     else if (n == text) persisted = true;
                     else if (HubFiles.TryWriteAtomic(path, n)) persisted = wrote = true;
-                    else err = "config.json 쓰기 실패";
+                    else err = L.T("config.json 쓰기 실패", "config.json write failed");
                 }
             }
             catch (Exception e) { err = e.GetType().Name + ": " + e.Message; }
             if (changed || wrote || err != null)
-                hub.Log.Write("cable baud " + c.Id + " " + old + " -> " + rate + (wrote ? " — config.json cables." + c.Id + ".baud 저장" : persisted ? " — config.json 이미 같음" : " — config.json 저장 못 함(" + err + "), 이번 실행에만"));
+                hub.Log.Write(L.T("cable baud " + c.Id + " " + old + " -> " + rate + (wrote ? " — config.json cables." + c.Id + ".baud 저장" : persisted ? " — config.json 이미 같음" : " — config.json 저장 못 함(" + err + "), 이번 실행에만"), "cable baud " + c.Id + " " + old + " -> " + rate + (wrote ? " — saved to config.json cables." + c.Id + ".baud" : persisted ? " — config.json already the same" : " — could not save to config.json (" + err + "), this run only")));
             var o = hub.Arbiter.Resp("ok", 0, c, c.Ring?.Format(c.Ring.End)).Set("baud", (long)rate).Set("old_baud", (long)old).Set("reopened", reopened).Set("persisted", persisted);
             if (err != null) o.Set("persist_error", err);
             return o;
@@ -892,9 +894,9 @@ namespace UartHub
                     .Set("cables", hub.Cables.Remembered().Select(r => new JObj().Set("cable", r.Id).Set("port", (long)r.Port).Set("board", r.Board).Set("com", r.Com)));
             }
             if (a.Pos.Count != 2) return Reject(null, usage);
-            if (!hub.Cables.Forget(a.Pos[1], out int port, out string why))
-                return why == "기록 없음" ? hub.Arbiter.Error(null, 102, "no_cable", "케이블 '" + a.Pos[1] + "' 의 기록 없음")
-                                          : Reject(null, "케이블 '" + a.Pos[1] + "' 은 " + why + " — 꽂혀 있는 UART 는 정리하지 않음");
+            if (!hub.Cables.Forget(a.Pos[1], out int port, out string why, out bool noRecord))
+                return noRecord ? hub.Arbiter.Error(null, 102, "no_cable", L.T("케이블 '" + a.Pos[1] + "' 의 기록 없음", "No record of cable '" + a.Pos[1] + "'"))
+                                          : Reject(null, L.T("케이블 '" + a.Pos[1] + "' 은 " + why + " — 꽂혀 있는 UART 는 정리하지 않음", "Cable '" + a.Pos[1] + "' is " + why + " — plugged-in UARTs are not cleaned up"));
             return new JObj().Set("status", "ok").Set("exit", 0L).Set("cable", a.Pos[1]).Set("port", (long)port);
         }
 
@@ -910,16 +912,17 @@ namespace UartHub
                 o.Set("profile", ProductProfile.Current.StatusJson());                       // 제품 프로필(없으면 null, 깨졌으면 error)
                 JObj sv = null;
                 try { sv = SupervisorStatus?.Invoke(); }
-                catch (Exception e) { hub.Log.Write("감독 상태 읽기 실패: " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { hub.Log.Write(L.T("감독 상태 읽기 실패: " + e.GetType().Name + ": " + e.Message, "Supervisor status read failed: " + e.GetType().Name + ": " + e.Message)); }
                 return sv == null ? o.Null("supervisor") : o.Set("supervisor", sv);
             }
-            if (verb == "stop" || verb == "start" || verb == "upgrade")
+            if (verb == "stop" || verb == "start" || verb == "upgrade" || verb == "language")
             {
+                if (verb == "language" && a.Pos.Count != 2) return Reject(null, "hub language auto|ko|en");
                 var h = HubCommandHandler;
-                if (h != null) return h(verb);
-                return new JObj().Set("status", "unsupported").Set("exit", 106L).Set("error", "hub " + verb + " 는 감독(uart_hub.ps1)이 처리한다 — 이 코어는 감독과 연결되지 않음");
+                if (h != null) return h(verb, a.Pos.Skip(1).ToArray());
+                return new JObj().Set("status", "unsupported").Set("exit", 106L).Set("error", L.T("hub " + verb + " 는 감독(uart_hub.ps1)이 처리한다 — 이 코어는 감독과 연결되지 않음", "hub " + verb + " is handled by the supervisor (uart_hub.ps1) — this core is not connected to a supervisor"));
             }
-            return Reject(null, "hub status|stop|start|upgrade");
+            return Reject(null, "hub status|stop|start|upgrade|language");
         }
 
         // ================================================================== wait
@@ -927,25 +930,25 @@ namespace UartHub
         {
             from = 0;
             var ring = c.Ring;
-            if (!RingBuffer.TryParse(since, out long ep, out long off)) return Reject(c, "--since 형식은 epoch:offset");
+            if (!RingBuffer.TryParse(since, out long ep, out long off)) return Reject(c, L.T("--since 형식은 epoch:offset", "--since format is epoch:offset"));
             if (ep != ring.Epoch || off < ring.Start) return SinceExpired(c, since);
-            if (off > ring.End) return Reject(c, "--since 가 현재 위치(" + ring.Format(ring.End) + ")보다 뒤");
+            if (off > ring.End) return Reject(c, L.T("--since 가 현재 위치(" + ring.Format(ring.End) + ")보다 뒤", "--since is past the current position (" + ring.Format(ring.End) + ")"));
             from = off;
             return null;
         }
 
         JObj SinceExpired(Cable c, string since)
-            => hub.Arbiter.Error(c, 106, "since_expired", "--since " + since + " 는 링 버퍼 범위(" + c.Ring.Format(c.Ring.Start) + "~) 밖이거나 다른 허브 실행(epoch)의 값");
+            => hub.Arbiter.Error(c, 106, "since_expired", L.T("--since " + since + " 는 링 버퍼 범위(" + c.Ring.Format(c.Ring.Start) + "~) 밖이거나 다른 허브 실행(epoch)의 값", "--since " + since + " is outside the ring buffer (" + c.Ring.Format(c.Ring.Start) + "~) or from another hub run (epoch)"));
 
         JObj Wait(Cable c, Args a, double timeoutS, Socket sock)
         {
             var ring = c.Ring;
-            if (ring == null) return hub.Arbiter.Error(c, 102, "no_cable", "기록하지 않는 케이블(" + c.StatusText + ")");
+            if (ring == null) return hub.Arbiter.Error(c, 102, "no_cable", L.T("기록하지 않는 케이블(" + c.StatusText + ")", "cable is not being recorded (" + c.StatusText + ")"));
             string pat = a.Get("--pattern");
-            if (string.IsNullOrEmpty(pat)) return Reject(c, "wait: --pattern 필요");
+            if (string.IsNullOrEmpty(pat)) return Reject(c, L.T("wait: --pattern 필요", "wait: --pattern is required"));
             Regex re;
             try { re = new Regex(pat, RegexOptions.Multiline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(2)); }
-            catch (ArgumentException e) { return Reject(c, "정규식 오류: " + e.Message); }
+            catch (ArgumentException e) { return Reject(c, L.T("정규식 오류: " + e.Message, "regex error: " + e.Message)); }
             long from = ring.End;
             string since = a.Get("--since");
             if (since != null)
@@ -976,7 +979,7 @@ namespace UartHub
                     string text = sb.ToString();
                     Match m;
                     try { m = re.Match(text, Math.Max(0, scanned - 65536)); }
-                    catch (RegexMatchTimeoutException) { return Reject(c, "정규식 시간 초과(2초)"); }
+                    catch (RegexMatchTimeoutException) { return Reject(c, L.T("정규식 시간 초과(2초)", "regex timed out (2 s)")); }
                     scanned = text.Length;
                     if (m.Success)
                     {
@@ -993,7 +996,7 @@ namespace UartHub
                 if (now >= deadline)
                 {
                     var lines = sb.ToString().Split('\n').Where(x => x.Trim().Length > 0).ToList();
-                    return hub.Arbiter.Error(c, 100, "timeout", "패턴 /" + pat + "/ 이 " + waitS + "초 안에 나오지 않음")
+                    return hub.Arbiter.Error(c, 100, "timeout", L.T("패턴 /" + pat + "/ 이 " + waitS + "초 안에 나오지 않음", "pattern /" + pat + "/ did not appear within " + waitS + " s"))
                         .Set("rx_offset", ring.Format(cur.Position)).Set("last_lines", lines.Skip(Math.Max(0, lines.Count - 3))).Set("nudges", (long)nudges);
                 }
                 if (Gone(sock)) return null;

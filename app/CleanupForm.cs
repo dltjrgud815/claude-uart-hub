@@ -16,7 +16,7 @@ namespace UartHub.App
 {
     sealed class CleanupForm : HubDialog
     {
-        public const string Title = "미연결 UART 정리";
+        public static string Title => L.T("미연결 UART 정리", "Clean up disconnected UARTs");
         readonly Action<List<string>, Action> remove;
         readonly CheckList list;
         readonly Button go, cancel;
@@ -32,19 +32,21 @@ namespace UartHub.App
             SuspendLayout();
             if (rows == null)
             {
-                AddHead(error ?? "허브가 응답하지 않습니다.");
-                cancel = AddButton("닫기", Close);
+                AddHead(error ?? L.T("허브가 응답하지 않습니다.", "The hub is not responding."));
+                cancel = AddButton(L.T("닫기", "Close"), Close);
             }
             else if (rows.Count == 0)
             {
-                AddHead("정리할 UART가 없습니다.");
-                cancel = AddButton("닫기", Close);
+                AddHead(L.T("정리할 UART가 없습니다.", "There are no UARTs to clean up."));
+                cancel = AddButton(L.T("닫기", "Close"), Close);
             }
             else
             {
-                AddHead("PC에서 빠져 있는 UART 기록입니다.");
-                AddBody("지금 PC에 꽂혀 있지 않은 UART의 포트 번호 기록만 지웁니다. 꽂혀 있는 UART는 연결 여부와 상관없이 여기에 나오지 않습니다. "
-                        + "나중에 다시 꽂으면 새 UART로 보고 새 번호를 받습니다.");
+                AddHead(L.T("PC에서 빠져 있는 UART 기록입니다.", "These UARTs are not plugged into this PC."));
+                AddBody(L.T("지금 PC에 꽂혀 있지 않은 UART의 포트 번호 기록만 지웁니다. 꽂혀 있는 UART는 연결 여부와 상관없이 여기에 나오지 않습니다. "
+                            + "나중에 다시 꽂으면 새 UART로 보고 새 번호를 받습니다.",
+                            "Only the port number records of UARTs that are not plugged in are deleted. Plugged-in UARTs never show here, connected or not. "
+                            + "If you plug one in again later, it counts as a new UART and gets a new number."));
                 list = Bind(new CheckList(this), () => FBody);
                 foreach (var r in rows)
                 {
@@ -54,8 +56,8 @@ namespace UartHub.App
                 }
                 AddRow(list, 14, list.Arrange);
                 status = AddNote("", 10);
-                go = AddButton("기록 지우기", Go);
-                cancel = AddButton("취소", Close);
+                go = AddButton(L.T("기록 지우기", "Delete records"), Go);
+                cancel = AddButton(L.T("취소", "Cancel"), Close);
             }
             AcceptButton = cancel;                                           // Enter·Esc·처음 포커스 = 취소(닫기)
             CancelButton = cancel;
@@ -69,7 +71,7 @@ namespace UartHub.App
         static string Line(RememberedCable r)
         {
             var parts = new List<string>();
-            if (r.Port > 0) parts.Add("포트 " + r.Port.ToString(CultureInfo.InvariantCulture));
+            if (r.Port > 0) parts.Add(L.T("포트 ", "Port ") + r.Port.ToString(CultureInfo.InvariantCulture));
             if (!string.IsNullOrWhiteSpace(r.Board)) parts.Add(r.Board.Trim());
             if (!string.IsNullOrWhiteSpace(r.Com)) parts.Add(r.Com.Trim());
             return parts.Count > 0 ? string.Join(" · ", parts) : r.Id;
@@ -86,7 +88,7 @@ namespace UartHub.App
             if (ids.Count == 0) return;
             go.Enabled = cancel.Enabled = false;
             foreach (var r in list.Rows) r.Enabled = false;
-            status.Text = "지우는 중…";
+            status.Text = L.T("지우는 중…", "Deleting…");
             SetShown(status, true);
             Relayout();
             remove(ids, CloseQuietly);
@@ -197,7 +199,7 @@ namespace UartHub.App
             public Acc(CheckRow row) : base(row) { this.row = row; }
             public override AccessibleRole Role => AccessibleRole.CheckButton;
             public override AccessibleStates State => base.State | (row.Checked ? AccessibleStates.Checked : AccessibleStates.None);
-            public override string DefaultAction => row.Checked ? "선택 해제" : "선택";
+            public override string DefaultAction => row.Checked ? L.T("선택 해제", "Uncheck") : L.T("선택", "Check");
             public override void DoDefaultAction() { if (row.Enabled) row.Checked = !row.Checked; }
         }
 

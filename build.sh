@@ -6,7 +6,7 @@
 #         build.sh --use <ver>        무빌드 시험용(빌드 안 함): 지정 빌드의 Windows 사본을 찾아 out/<ver> 와 같은 바이트인지 확인하고 아래 마지막 줄만 낸다
 #                                     (release-<ver> → <ver> 순, 둘 다 없으면 out/<ver> 에서 <ver> 사본을 다시 만든다)
 #         build.sh --package <ver>    배포 폴더(계획 부록 D.2, X7): 시험을 마친 고정판 out/release/UartHub-<ver>.exe(.sha256 과 대조) →
-#                                     out/package/UartHub_<ver>/{INSTALL_UART_HUB.md, UartHub.exe(이름만 바꿈), USAGE_ONE_PAGE.md, GUIDE.md, [UartHub.profile.json], SHA256SUMS} + out/package/UartHub_<ver>.zip.
+#                                     out/package/UartHub_<ver>/{INSTALL_UART_HUB.md, INSTALL_UART_HUB.en.md, UartHub.exe(이름만 바꿈), USAGE_ONE_PAGE.md, USAGE_ONE_PAGE.en.md, GUIDE.md, [UartHub.profile.json], SHA256SUMS} + out/package/UartHub_<ver>.zip.
 #                                     제품 프로필: UART_HUB_PACKAGE_PROFILE=<경로>(빈 값 = 넣지 않음), 없으면 비공개 internal/profile.json 이 있을 때만 넣는다.
 #                                     <ver> 는 꼭 적고, --pin 으로 고정돼 있어야 한다(빌드·고정 안 함 — 고정 → 5종 시험 → 묶음 순서, §5).
 #                                     마지막 줄 PACKAGE= / ZIP= / EXE_SHA256= / ZIP_SHA256= (전달 메시지에 두 해시를 적는다 — SHA256SUMS 는 깨짐만, 바꿔치기는 이 값으로 확인)
@@ -55,10 +55,10 @@ if [[ "${1:-}" == "--package" ]]; then
   PK="$HUB_DIR/out/package"; D="$PK/UartHub_$VER"
   rm -rf "$D" "$D.zip"; mkdir -p "$D"
   cp "$EXE" "$D/UartHub.exe"
-  cp "$HUB_DIR/INSTALL_UART_HUB.md" "$HUB_DIR/USAGE_ONE_PAGE.md" "$HUB_DIR/GUIDE.md" "$D/"
+  cp "$HUB_DIR/INSTALL_UART_HUB.md" "$HUB_DIR/INSTALL_UART_HUB.en.md" "$HUB_DIR/USAGE_ONE_PAGE.md" "$HUB_DIR/USAGE_ONE_PAGE.en.md" "$HUB_DIR/GUIDE.md" "$D/"
   # 제품 프로필: UART_HUB_PACKAGE_PROFILE(경로, 빈 값 = 넣지 않음) → 없으면 비공개 internal/profile.json(있을 때만). exe 옆 UartHub.profile.json 으로.
   PROF="${UART_HUB_PACKAGE_PROFILE-$HUB_DIR/internal/profile.json}"
-  sums=(UartHub.exe INSTALL_UART_HUB.md USAGE_ONE_PAGE.md GUIDE.md)
+  sums=(UartHub.exe INSTALL_UART_HUB.md INSTALL_UART_HUB.en.md USAGE_ONE_PAGE.md USAGE_ONE_PAGE.en.md GUIDE.md)
   if [[ -n "$PROF" && -f "$PROF" ]]; then cp "$PROF" "$D/UartHub.profile.json"; sums+=(UartHub.profile.json); fi
   (cd "$D" && sha256sum "${sums[@]}" > SHA256SUMS && sha256sum -c --quiet SHA256SUMS) || { echo "build: SHA256SUMS 확인 실패" >&2; exit 2; }
   [[ "$(sha "$D/UartHub.exe")" == "$SHA" ]] || { echo "build: 배포 폴더 exe 가 고정판과 다름" >&2; exit 2; }

@@ -44,7 +44,7 @@ namespace UartHub
         public string Label => ComHolders.Label(Name);
 
         public JObj ToJObj() => new JObj().Set("name", Name).Set("pid", (long)Pid).Set("label", Label).Set("parent", Parent);
-        public override string ToString() => Label + "(pid " + Pid.ToString(CultureInfo.InvariantCulture) + (Parent != null ? ", 부모 " + Parent : "") + ")";
+        public override string ToString() => Label + "(pid " + Pid.ToString(CultureInfo.InvariantCulture) + (Parent != null ? L.T(", 부모 ", ", parent ") + Parent : "") + ")";
     }
 
     /// <summary>찾는 범위. Candidates = 알려진 시리얼 도구만(F1). FullIfNone = 후보로 못 찾은 COM 만 같은 세션 전체(사람이 부른 connect·표).</summary>
@@ -54,7 +54,7 @@ namespace UartHub
     public sealed class HolderScan
     {
         public readonly Dictionary<string, List<ComHolder>> ByCom = new Dictionary<string, List<ComHolder>>(StringComparer.OrdinalIgnoreCase);
-        public string Note, Mode = "후보";
+        public string Note, Mode = L.T("후보", "candidates");
         public long Ms;
         public List<ComHolder> Of(string com) => com != null && ByCom.TryGetValue(com, out var l) ? l : new List<ComHolder>();
     }
@@ -62,9 +62,9 @@ namespace UartHub
     public static class ComHolders
     {
         /// <summary>끝내도 되는 단일 세션 터미널(이미지 이름 → 표시 이름). 이 목록 밖은 절대 끝내지 않는다.</summary>
-        static readonly (string Exe, string Label)[] AllowList =
+        static (string Exe, string Label)[] AllowList => new (string Exe, string Label)[]
         {
-            ("MoTTY.exe", "MobaXterm 세션"), ("ttermpro.exe", "TeraTerm"), ("putty.exe", "PuTTY"), ("kitty.exe", "KiTTY"),
+            ("MoTTY.exe", L.T("MobaXterm 세션", "MobaXterm session")), ("ttermpro.exe", "TeraTerm"), ("putty.exe", "PuTTY"), ("kitty.exe", "KiTTY"),
         };
 
         /// <summary>후보(먼저 여는) 알려진 시리얼 도구 — 이름(.exe 없이, 대소문자 무시), 끝 * 는 앞부분 일치.</summary>
@@ -95,7 +95,7 @@ namespace UartHub
 
         public static string Label(string exe)
         {
-            if (string.IsNullOrEmpty(exe)) return "알 수 없는 프로그램";
+            if (string.IsNullOrEmpty(exe)) return L.T("알 수 없는 프로그램", "unknown program");
             foreach (var a in AllowList) if (string.Equals(a.Exe, exe, StringComparison.OrdinalIgnoreCase)) return a.Label;
             return NoExe(exe);
         }
@@ -137,7 +137,7 @@ namespace UartHub
                 var more = SystemAccess.IsTest ? FakeScan(rest, exclude, 0, others) : RealScan(rest, exclude, 0, others);
                 foreach (var kv in more.ByCom) res.ByCom[kv.Key] = kv.Value;
                 res.Note = res.Note ?? more.Note;
-                res.Mode = "후보 → 전체 " + rest.Count + "개";
+                res.Mode = L.T("후보 → 전체 " + rest.Count + "개", "candidates → all " + rest.Count);
             }
             res.Ms = sw.ElapsedMilliseconds;
             return res;
@@ -162,9 +162,9 @@ namespace UartHub
         /// </summary>
         public static string Terminate(ComHolder h, ICollection<int> exclude)
         {
-            if (h == null) return "점유자 없음";
-            if (!IsAllowed(h.Name)) return "허용 목록 밖(" + h.Name + ") — 끝내지 않음";
-            if (h.Pid <= 4 || h.Pid == Environment.ProcessId || (exclude != null && exclude.Contains(h.Pid))) return "끝낼 수 없는 pid " + h.Pid;
+            if (h == null) return L.T("점유자 없음", "no holder");
+            if (!IsAllowed(h.Name)) return L.T("허용 목록 밖(" + h.Name + ") — 끝내지 않음", "not on the allow list (" + h.Name + ") — not terminated");
+            if (h.Pid <= 4 || h.Pid == Environment.ProcessId || (exclude != null && exclude.Contains(h.Pid))) return L.T("끝낼 수 없는 pid " + h.Pid, "cannot terminate pid " + h.Pid);
             return SystemAccess.IsTest ? FakeTerminate(h) : RealTerminate(h, exclude);
         }
 
@@ -206,7 +206,7 @@ namespace UartHub
             var all = FakeAll();
             var hit = all.FirstOrDefault(x => string.Equals(x.Com, h.Com, StringComparison.OrdinalIgnoreCase) && x.Pid == h.Pid
                                               && string.Equals(x.Name, h.Name, StringComparison.OrdinalIgnoreCase) && x.StartTicks == h.StartTicks);
-            if (hit == null) return "(시험) 점유자가 바뀜 — pid " + h.Pid + " " + h.Name + " 이 더 이상 " + h.Com + " 을 쥐지 않음";
+            if (hit == null) return L.T("(시험) 점유자가 바뀜 — pid " + h.Pid + " " + h.Name + " 이 더 이상 " + h.Com + " 을 쥐지 않음", "(test) holder changed — pid " + h.Pid + " " + h.Name + " no longer holds " + h.Com);
             all.Remove(hit);
             var o = new JObj();
             foreach (var g in all.GroupBy(x => x.Com, StringComparer.OrdinalIgnoreCase))
@@ -406,9 +406,9 @@ namespace UartHub
                     if (st != STATUS_INFO_LENGTH_MISMATCH) break;
                     Marshal.FreeHGlobal(buf); buf = IntPtr.Zero;
                     len = Math.Max(len * 2, ret + (1 << 16));
-                    if (len > (512 << 20)) { r.Note = "핸들 표가 너무 큼"; return r; }
+                    if (len > (512 << 20)) { r.Note = L.T("핸들 표가 너무 큼", "handle table too large"); return r; }
                 }
-                if (st != 0) { r.Note = "핸들 표 조회 실패 0x" + st.ToString("X8", CultureInfo.InvariantCulture); return r; }
+                if (st != 0) { r.Note = L.T("핸들 표 조회 실패 0x" + st.ToString("X8", CultureInfo.InvariantCulture), "handle table query failed 0x" + st.ToString("X8", CultureInfo.InvariantCulture)); return r; }
                 long count = Marshal.ReadInt64(buf);
 
                 int fileType = -1;
@@ -417,7 +417,7 @@ namespace UartHub
                     IntPtr e = buf + TableHeader + (int)(i * EntrySize);
                     if ((uint)Marshal.ReadInt64(e, OffPid) == self && Marshal.ReadInt64(e, OffHandle) == pv) { fileType = (ushort)Marshal.ReadInt16(e, OffType); break; }
                 }
-                if (fileType < 0) { r.Note = "File 형식 번호를 찾지 못함"; return r; }
+                if (fileType < 0) { r.Note = L.T("File 형식 번호를 찾지 못함", "File type number not found"); return r; }
 
                 var opened = new Dictionary<uint, IntPtr>();
                 var skipped = new HashSet<uint>();
@@ -428,7 +428,7 @@ namespace UartHub
                 {
                     for (long i = 0; i < count; i++)
                     {
-                        if (deadline.ElapsedMilliseconds > ScanBudgetMs) { r.Note = "시간 제한(" + ScanBudgetMs + "ms) — 일부만 봄"; break; }
+                        if (deadline.ElapsedMilliseconds > ScanBudgetMs) { r.Note = L.T("시간 제한(" + ScanBudgetMs + "ms) — 일부만 봄", "time limit (" + ScanBudgetMs + "ms) — only part scanned"); break; }
                         IntPtr e = buf + TableHeader + (int)(i * EntrySize);
                         uint pid = (uint)Marshal.ReadInt64(e, OffPid);
                         if (pid == self || pid <= 4 || skipped.Contains(pid)) continue;
@@ -453,7 +453,7 @@ namespace UartHub
                             worker = new QueryWorker();
                             hangs[pid] = hangs.TryGetValue(pid, out int hn) ? hn + 1 : 1;
                             if (hangs[pid] >= MaxHangsPerProcess) skipped.Add(pid);
-                            if (++hangsTotal >= MaxHangsTotal) { r.Note = "핸들 이름 질의가 " + hangsTotal + "번 멈춤 — 일부만 봄"; break; }
+                            if (++hangsTotal >= MaxHangsTotal) { r.Note = L.T("핸들 이름 질의가 " + hangsTotal + "번 멈춤 — 일부만 봄", "handle name query hung " + hangsTotal + " times — only part scanned"); break; }
                             continue;
                         }
                         CloseHandle(d);
@@ -478,21 +478,21 @@ namespace UartHub
         static string RealTerminate(ComHolder h, ICollection<int> exclude)
         {
             IntPtr ph = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, false, (uint)h.Pid);
-            if (ph == IntPtr.Zero) return "프로세스를 열지 못함(err " + Marshal.GetLastWin32Error() + ") — 이미 끝났거나 권한 없음";
+            if (ph == IntPtr.Zero) return L.T("프로세스를 열지 못함(err " + Marshal.GetLastWin32Error() + ") — 이미 끝났거나 권한 없음", "could not open the process (err " + Marshal.GetLastWin32Error() + ") — already exited or no permission");
             try
             {
-                if (WaitForSingleObject(ph, 0) == WAIT_OBJECT_0) return "이미 끝남";
+                if (WaitForSingleObject(ph, 0) == WAIT_OBJECT_0) return L.T("이미 끝남", "already exited");
                 long st = StartTicksOf(ph);
-                if (st == 0 || h.StartTicks == 0) return "시작 시각을 읽지 못함(권한) — 끝내지 않음";
-                if (st != h.StartTicks) return "시작 시각이 다름(pid 재사용) — 끝내지 않음";
+                if (st == 0 || h.StartTicks == 0) return L.T("시작 시각을 읽지 못함(권한) — 끝내지 않음", "could not read the start time (permission) — not terminated");
+                if (st != h.StartTicks) return L.T("시작 시각이 다름(pid 재사용) — 끝내지 않음", "start time differs (pid reused) — not terminated");
                 string img = ImageName(ph);
-                if (!string.Equals(img, h.Name, StringComparison.OrdinalIgnoreCase)) return "이미지 이름이 다름(" + (img ?? "?") + " ≠ " + h.Name + ") — 끝내지 않음";
+                if (!string.Equals(img, h.Name, StringComparison.OrdinalIgnoreCase)) return L.T("이미지 이름이 다름(" + (img ?? "?") + " ≠ " + h.Name + ") — 끝내지 않음", "image name differs (" + (img ?? "?") + " ≠ " + h.Name + ") — not terminated");
                 ProcessIdToSessionId((uint)Environment.ProcessId, out uint mySess);
-                if (!ProcessIdToSessionId((uint)h.Pid, out uint ss) || ss != mySess) return "다른 세션의 프로세스 — 끝내지 않음";
+                if (!ProcessIdToSessionId((uint)h.Pid, out uint ss) || ss != mySess) return L.T("다른 세션의 프로세스 — 끝내지 않음", "process in another session — not terminated");
                 // 핸들 ph 를 쥐고 있는 동안 이 pid 는 다른 프로세스에 다시 쓰이지 않는다 → 아래 확인과 끝내기는 같은 프로세스(허용 목록 이름 = 후보)
                 var again = RealScan(new List<string> { h.Com }, exclude ?? new int[0], h.Pid, IsAllowed);
-                if (!again.Of(h.Com).Any(x => x.Pid == h.Pid)) return "더 이상 " + h.Com + " 을 쥐고 있지 않음" + (again.Note != null ? "(" + again.Note + ")" : "") + " — 끝내지 않음";
-                if (!TerminateProcess(ph, 1)) return "TerminateProcess 실패(err " + Marshal.GetLastWin32Error() + ")";
+                if (!again.Of(h.Com).Any(x => x.Pid == h.Pid)) return L.T("더 이상 " + h.Com + " 을 쥐고 있지 않음" + (again.Note != null ? "(" + again.Note + ")" : "") + " — 끝내지 않음", "no longer holds " + h.Com + (again.Note != null ? " (" + again.Note + ")" : "") + " — not terminated");
+                if (!TerminateProcess(ph, 1)) return L.T("TerminateProcess 실패(err " + Marshal.GetLastWin32Error() + ")", "TerminateProcess failed (err " + Marshal.GetLastWin32Error() + ")");
                 WaitForSingleObject(ph, 3000);
                 return null;
             }

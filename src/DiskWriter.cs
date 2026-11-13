@@ -111,7 +111,7 @@ namespace UartHub
             try { return f(cable.TcpPort) ?? (IReadOnlyList<string>)Array.Empty<string>(); }
             catch (Exception e)
             {
-                hlog.Write("writer " + cable.Id + " 시작 머리 줄 실패: " + e.GetType().Name + ": " + e.Message);
+                hlog.Write(L.T("writer " + cable.Id + " 시작 머리 줄 실패: " + e.GetType().Name + ": " + e.Message, "writer " + cable.Id + " start header lines failed: " + e.GetType().Name + ": " + e.Message));
                 return Array.Empty<string>();
             }
         }
@@ -185,7 +185,7 @@ namespace UartHub
                 catch (Exception e)
                 {
                     Interlocked.Increment(ref errors);
-                    hlog.Write("writer " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message);
+                    hlog.Write(L.T("writer " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message, "writer " + cable.Id + " error: " + e.GetType().Name + ": " + e.Message));
                     long lost = 0;
                     if (it != null && it.Kind == QKind.Data && it.Data != null)
                     {
@@ -284,7 +284,7 @@ namespace UartHub
         void OnData(QItem it)
         {
             if (!inSession) BeginSession(it.Wall, it.Mono, cable.Com);
-            if (testFail != 0 && Interlocked.Exchange(ref testFail, 0) != 0) throw new IOException("시험 주입 writer 오류");
+            if (testFail != 0 && Interlocked.Exchange(ref testFail, 0) != 0) throw new IOException(L.T("시험 주입 writer 오류", "test-injected writer error"));
             // 꼬리 기록은 도착 시각으로 판정한다: writer 가 늦게 깨어나도(디스크 지연) 결과가 같다.
             if (!atLineStart && it.Mono - lineLastMono >= cfg.TailFlushMs) FlushPartialLine();
             byte[] d = it.Data;
@@ -450,7 +450,7 @@ namespace UartHub
         void SetBoard(string name, string prev)
         {
             board = name;
-            try { state.SetBoard(cable.Id, name); } catch (Exception e) { hlog.Write("state.json 보드명 저장 실패: " + e.Message); }
+            try { state.SetBoard(cable.Id, name); } catch (Exception e) { hlog.Write(L.T("state.json 보드명 저장 실패: " + e.Message, "state.json board name save failed: " + e.Message)); }
             if (cur != null)
                 Idx(cur, "{\"k\":\"board\",\"off\":" + (atLineStart ? cur.RawBytes : lineStartOff) + ",\"el\":" + El(lineLastMono)
                          + ",\"board\":" + Json.Str(name) + ",\"prev\":" + Json.Str(prev) + "}");
@@ -517,7 +517,7 @@ namespace UartHub
                 }
                 return fs;
             }
-            throw new IOException("빈 파일명을 찾지 못함: " + Path.Combine(dir, baseName));
+            throw new IOException(L.T("빈 파일명을 찾지 못함: " + Path.Combine(dir, baseName), "no free file name found: " + Path.Combine(dir, baseName)));
         }
 
         /// <summary>
@@ -530,7 +530,7 @@ namespace UartHub
             errLost += lost;
             string msg = (e.GetType().Name + ": " + e.Message).Replace('\r', ' ').Replace('\n', ' ');
             errNote = "*** writer error " + (errCount > 1 ? "x" + errCount + " " : "") + msg
-                      + " (기록 못 한 RX " + errLost + "B 이상, 앞 파일은 닫힘) ***";
+                      + L.T(" (기록 못 한 RX " + errLost + "B 이상, 앞 파일은 닫힘) ***", " (at least " + errLost + "B of RX not recorded, previous file closed) ***");
         }
 
         /// <summary>&lt;TCP포트&gt;_&lt;보드명|unknown&gt;_&lt;HHMMSS&gt;. 이름이 겹치면 호출자가 _n 을 붙인다.</summary>
@@ -566,7 +566,7 @@ namespace UartHub
                     {
                         try { File.Move(Path.Combine(fs.Dir, name + moved[i]), Path.Combine(fs.Dir, fs.BaseName + moved[i])); } catch (Exception) { }
                     }
-                    hlog.Write("rename 실패(" + fs.BaseName + " → " + name + "): " + ex.Message);
+                    hlog.Write(L.T("rename 실패(" + fs.BaseName + " → " + name + "): " + ex.Message, "rename failed (" + fs.BaseName + " → " + name + "): " + ex.Message));
                     return false;
                 }
                 string from = fs.BaseName;
@@ -628,7 +628,7 @@ namespace UartHub
                 AtomicFile.WriteAllText(Path.Combine(cfg.EffectiveHubDir, "alive", cable.TcpPort.ToString(CultureInfo.InvariantCulture)),
                                         clock.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture) + "\n");
             }
-            catch (Exception e) { hlog.Write("alive 갱신 실패: " + e.Message); }
+            catch (Exception e) { hlog.Write(L.T("alive 갱신 실패: " + e.Message, "alive update failed: " + e.Message)); }
         }
     }
 }

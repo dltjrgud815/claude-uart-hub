@@ -31,27 +31,31 @@ namespace UartHub
         static int EventsCmd(string cmd, ControlServer.ParsedArgs pa)
         {
             bool aging = cmd == "aging";
-            string usage = aging ? "사용: session summary <port|COMx|보드> [--since <ISO|12h|30m>] [--json] (이전 이름 aging)"
-                                 : "사용: events [<port|COMx|보드>] [--since <ISO|12h|30m>] [--kind k1,k2] [--follow [--max N]] [--json]";
+            string usage = aging ? L.T("사용: session summary <port|COMx|보드> [--since <ISO|12h|30m>] [--json] (이전 이름 aging)",
+                                       "Usage: session summary <port|COMx|board> [--since <ISO|12h|30m>] [--json] (old name: aging)")
+                                 : L.T("사용: events [<port|COMx|보드>] [--since <ISO|12h|30m>] [--kind k1,k2] [--follow [--max N]] [--json]",
+                                       "Usage: events [<port|COMx|board>] [--since <ISO|12h|30m>] [--kind k1,k2] [--follow [--max N]] [--json]");
             if (pa == null) throw QuitTool(106, usage);
             bool follow = pa.Flags.Contains("--follow");
             var okFlags = aging ? new[] { "--json" } : new[] { "--json", "--follow" };
             var okVals = aging ? new[] { "--since" } : new[] { "--since", "--kind", "--max" };
             var other = pa.Flags.Where(f => !okFlags.Contains(f)).Concat(pa.Values.Keys.Where(k => !okVals.Contains(k))).ToList();
-            if (other.Count > 0) throw QuitTool(106, cmd + ": 쓸 수 없는 옵션 " + string.Join(" ", other) + " — " + usage);
+            if (other.Count > 0) throw QuitTool(106, L.T(cmd + ": 쓸 수 없는 옵션 " + string.Join(" ", other) + " — " + usage, cmd + ": option not allowed " + string.Join(" ", other) + " — " + usage));
             if (pa.Pos.Count > 1 || (aging && pa.Pos.Count != 1)) throw QuitTool(106, usage);
             int max = 0;
             if (pa.Values.TryGetValue("--max", out var mv))
             {
-                if (!follow) throw QuitTool(106, "events: --max 는 --follow 와 함께만");
-                if (!int.TryParse(mv, NumberStyles.None, CultureInfo.InvariantCulture, out max) || max < 1) throw QuitTool(106, "events: --max 는 1 이상 정수: '" + mv + "'");
+                if (!follow) throw QuitTool(106, L.T("events: --max 는 --follow 와 함께만", "events: --max only with --follow"));
+                if (!int.TryParse(mv, NumberStyles.None, CultureInfo.InvariantCulture, out max) || max < 1) throw QuitTool(106, L.T("events: --max 는 1 이상 정수: '" + mv + "'", "events: --max must be an integer of 1 or more: '" + mv + "'"));
             }
             var now = DateTimeOffset.Now;
             DateTimeOffset? since = null;
             string sinceText = pa.Values.TryGetValue("--since", out var sv) ? sv : null;
             if (sinceText != null)
             {
-                if (!EventLog.TryParseSince(sinceText, now, out var s)) throw QuitTool(106, cmd + ": --since 는 ISO 시각(2026-11-05T08:00) 또는 12h·30m·45s·2d: '" + sinceText + "'");
+                if (!EventLog.TryParseSince(sinceText, now, out var s))
+                    throw QuitTool(106, L.T(cmd + ": --since 는 ISO 시각(2026-11-05T08:00) 또는 12h·30m·45s·2d: '" + sinceText + "'",
+                                            cmd + ": --since takes an ISO time (2026-11-05T08:00) or 12h, 30m, 45s, 2d: '" + sinceText + "'"));
                 since = s;
             }
             HashSet<string> kinds = null;
@@ -61,10 +65,11 @@ namespace UartHub
                 foreach (var k in kv.Split(',').Select(x => x.Trim().ToLowerInvariant()).Where(x => x.Length > 0))
                 {
                     if (Array.IndexOf(EventKinds.All, k) < 0 && !(k.StartsWith("boot:", StringComparison.Ordinal) && new[] { "cmd", "soft", "hard" }.Contains(k.Substring(5))))
-                        throw QuitTool(106, "events: --kind 는 " + string.Join(",", EventKinds.All) + "(boot:cmd|soft|hard 도 됨): '" + k + "'");
+                        throw QuitTool(106, L.T("events: --kind 는 " + string.Join(",", EventKinds.All) + "(boot:cmd|soft|hard 도 됨): '" + k + "'",
+                                                "events: --kind takes " + string.Join(",", EventKinds.All) + " (boot:cmd|soft|hard too): '" + k + "'"));
                     kinds.Add(k);
                 }
-                if (kinds.Count == 0) throw QuitTool(106, "events: --kind 가 비었음");
+                if (kinds.Count == 0) throw QuitTool(106, L.T("events: --kind 가 비었음", "events: --kind is empty"));
             }
 
             var cfg = EventLog.ConfigOf(hubDir);
@@ -92,18 +97,21 @@ namespace UartHub
                 // --since 앞의 마지막 연결 기록이 분리면 기간은 분리된 채 시작한다(B8)
                 bool detachedAtStart = since.HasValue && all.LastOrDefault(e => e.Ts < since.Value && (e.Kind == "attach" || e.Kind == "detach"))?.Kind == "detach";
                 var o = EventLog.Aging(port.Value, evs, since, now, EventLog.FileOf(dir, port.Value), detachedAtStart);
-                if (!File.Exists(EventLog.FileOf(dir, port.Value))) o.Set("note", "사건 기록 없음 — 이 포트를 허브가 기록한 적이 없거나 아직 사건이 없음");
+                if (!File.Exists(EventLog.FileOf(dir, port.Value)))
+                    o.Set("note", L.T("사건 기록 없음 — 이 포트를 허브가 기록한 적이 없거나 아직 사건이 없음", "No event record — the hub has never recorded this port, or there are no events yet"));
                 o.Set("scope", scope);
                 if (sess != null)
                     o.Set("session", new JObj().Set("name", sess.Name).Set("started", AgingSession.Iso(sess.Started)).Set("folder", sess.Folder)
-                                               .Set("console_log", new JObj().Set("path", Path.Combine(sess.Folder ?? "", AgingSession.ConsoleName))));
+                                               .Set("console_log", new JObj().Set("path", sess.ConsolePath)));       // 세션 언어의 이름(콘솔.log | console.log)
                 // 부팅 판정 근거: 허브는 로더 표시·boot_re 로만 부팅을 센다. 로더 표시가 다르거나 커널이 quiet 인 보드는 재부팅해도 0 으로 남는다.
                 var prof = ProductProfile.Current;
                 o.Set("boot_detection", new JObj().Set("loader_marker_re", string.IsNullOrEmpty(cfg.LoaderMarkerRe) ? null : cfg.LoaderMarkerRe).Set("boot_re", cfg.BootRe)
                                                   .Set("profile", prof.IsGeneric ? null : prof.Name));
                 if (EventLog.NoBootsHint(evs.Any(e => e.Kind == "boot"), since ?? evs.Select(e => (DateTimeOffset?)e.Ts).FirstOrDefault(), now))
-                    o.Set("hint", "no_boots_seen").Set("hint_text", "이 기간에 부팅을 하나도 알아보지 못했습니다. 보드가 실제로 재부팅했다면(on/off 에이징 등) 허브가 이 보드의 부팅 표시를 모르는 것입니다 — "
-                                                     + "콘솔 로그에서 부팅 줄을 확인하고, 제품 프로필이나 config 의 loader_marker_re·boot_re 를 그 보드에 맞추세요(boot_detection 이 지금 쓰는 패턴).");
+                    o.Set("hint", "no_boots_seen").Set("hint_text", L.T("이 기간에 부팅을 하나도 알아보지 못했습니다. 보드가 실제로 재부팅했다면(on/off 에이징 등) 허브가 이 보드의 부팅 표시를 모르는 것입니다 — "
+                                                     + "콘솔 로그에서 부팅 줄을 확인하고, 제품 프로필이나 config 의 loader_marker_re·boot_re 를 그 보드에 맞추세요(boot_detection 이 지금 쓰는 패턴).",
+                                                     "No boot was recognized in this period. If the board really rebooted (on/off aging, etc.), the hub does not know this board's boot marker — "
+                                                     + "check the boot lines in the console log and set loader_marker_re and boot_re in the product profile or config to match the board (boot_detection shows the patterns in use)."));
                 if (jsonMode) { OutLine(Styled(o.ToString())); return 0; }
                 PrintAging(o.ToString());
                 return 0;
@@ -125,8 +133,9 @@ namespace UartHub
                     OutLine(Styled(o.ToString()));
                     return 0;
                 }
-                if (evs.Count == 0) OutLine("사건 없음 (" + StylePath(dir) + (port.HasValue ? ", 포트 " + port.Value : "") + (since.HasValue ? ", " + SinceIso() + " 부터" : "") + ")");
-                if (total > evs.Count) OutLine("(사건 " + total + "건 중 마지막 " + evs.Count + "건)");
+                if (evs.Count == 0) OutLine(L.T("사건 없음 (" + StylePath(dir) + (port.HasValue ? ", 포트 " + port.Value : "") + (since.HasValue ? ", " + SinceIso() + " 부터" : "") + ")",
+                                                "No events (" + StylePath(dir) + (port.HasValue ? ", port " + port.Value : "") + (since.HasValue ? ", since " + SinceIso() : "") + ")"));
+                if (total > evs.Count) OutLine(L.T("(사건 " + total + "건 중 마지막 " + evs.Count + "건)", "(last " + evs.Count + " of " + total + " events)"));
                 foreach (var e in evs) PrintEvent(e);
                 return 0;
             }
@@ -139,7 +148,8 @@ namespace UartHub
             if (jsonMode)
                 OutLine(Styled(new JObj().Set("status", "ok").Set("exit", 0L).Set("follow", true).Set("ts", EventLog.Ts(DateTime.Now)).Set("events_dir", dir).Set("ports", portsJson)
                     .Set("since", SinceIso()).Set("kinds", kinds?.OrderBy(x => x, StringComparer.Ordinal)).ToString()));
-            else OutLine("사건 기다리는 중 — " + StylePath(dir) + (port.HasValue ? " 포트 " + port.Value : " 모든 포트") + (max > 0 ? " (" + max + "건 뒤 끝)" : " (끝내려면 Ctrl-C)"));
+            else OutLine(L.T("사건 기다리는 중 — " + StylePath(dir) + (port.HasValue ? " 포트 " + port.Value : " 모든 포트") + (max > 0 ? " (" + max + "건 뒤 끝)" : " (끝내려면 Ctrl-C)"),
+                             "Waiting for events — " + StylePath(dir) + (port.HasValue ? " port " + port.Value : " all ports") + (max > 0 ? " (stops after " + max + ")" : " (Ctrl-C to stop)")));
             if (stdoutBroken) return 141;
             int sent = 0;
             while (true)
@@ -187,20 +197,22 @@ namespace UartHub
             string action = S(r, "action");
             if (action == "start")
             {
-                OutLine("에이징을 시작했습니다: '" + S(r, "name") + "' · 포트 " + S(r, "port") + (S(r, "com") != null ? " (" + S(r, "com") + ")" : ""));
-                OutLine("폴더: " + StylePath(S(r, "folder")));
+                OutLine(L.T("에이징을 시작했습니다: '" + S(r, "name") + "' · 포트 " + S(r, "port") + (S(r, "com") != null ? " (" + S(r, "com") + ")" : ""),
+                            "Aging started: '" + S(r, "name") + "' · port " + S(r, "port") + (S(r, "com") != null ? " (" + S(r, "com") + ")" : "")));
+                OutLine(L.T("폴더: ", "Folder: ") + StylePath(S(r, "folder")));
                 return;
             }
             if (action == "stop")
             {
-                OutLine("에이징을 끝냈습니다. " + (S(r, "summary") != null ? "요약을 저장했습니다: " + StylePath(S(r, "summary")) : "요약을 저장하지 못했습니다(" + S(r, "summary_error") + ")"));
+                OutLine(L.T("에이징을 끝냈습니다. " + (S(r, "summary") != null ? "요약을 저장했습니다: " + StylePath(S(r, "summary")) : "요약을 저장하지 못했습니다(" + S(r, "summary_error") + ")"),
+                            "Aging ended. " + (S(r, "summary") != null ? "Summary saved: " + StylePath(S(r, "summary")) : "Could not save the summary (" + S(r, "summary_error") + ")")));
                 OutLine("");
                 foreach (var l in (S(r, "summary_text") ?? "").Replace("\r\n", "\n").TrimEnd('\n').Split('\n')) OutLine(l);
                 return;
             }
             if (!r.TryGetProperty("sessions", out var ss) || ss.ValueKind != JsonValueKind.Array || ss.GetArrayLength() == 0)
             {
-                OutLine("에이징 중인 포트 없음");
+                OutLine(L.T("에이징 중인 포트 없음", "No port is aging"));
                 return;
             }
             foreach (var x in ss.EnumerateArray())
@@ -211,11 +223,15 @@ namespace UartHub
                 var kinds = ev.GetProperty("by_kind").EnumerateObject().Select(k => AgingText.KindName(k.Name) + " " + k.Value.GetRawText()).ToList();
                 var cl = x.GetProperty("console_log");
                 int gaps = x.TryGetProperty("gaps", out var g) && g.ValueKind == JsonValueKind.Array ? g.GetArrayLength() : 0;
-                OutLine(S(x, "port") + " " + (S(x, "com") ?? "-") + " " + (S(x, "board_now") ?? S(x, "board") ?? "-") + " · 에이징 중 '" + S(x, "name") + "' · " + AgingText.Duration(el)
-                        + " · " + AgingText.RxTail(age >= 0 ? age : (double?)null, el) + (S(x, "connected") == "false" ? " · 연결 안 됨" : "")
-                        + " · 이벤트 " + S(ev, "total") + "건" + (kinds.Count > 0 ? "(" + string.Join(", ", kinds) + ")" : "") + (S(ev, "suspect") is string su && su != "0" ? " + 의심 " + su + "건" : "")
-                        + " · 콘솔.log " + long.Parse(S(cl, "lines") ?? "0", CultureInfo.InvariantCulture).ToString("N0", CultureInfo.InvariantCulture) + "줄"
-                        + (gaps > 0 ? " · 기록 끊김 " + gaps + "번" : "") + " · " + StylePath(S(x, "folder")));
+                string susp = S(ev, "suspect"), lines = long.Parse(S(cl, "lines") ?? "0", CultureInfo.InvariantCulture).ToString("N0", CultureInfo.InvariantCulture);
+                string conName = Path.GetFileName(S(cl, "path") ?? "");                                   // 세션 언어의 실제 이름(콘솔.log·console.log)
+                if (conName.Length == 0) conName = AgingSession.ConsoleNameFor(null);
+                OutLine(S(x, "port") + " " + (S(x, "com") ?? "-") + " " + (S(x, "board_now") ?? S(x, "board") ?? "-") + L.T(" · 에이징 중 '", " · aging '") + S(x, "name") + "' · " + AgingText.Duration(el)
+                        + " · " + AgingText.RxTail(age >= 0 ? age : (double?)null, el) + (S(x, "connected") == "false" ? L.T(" · 연결 안 됨", " · not connected") : "")
+                        + L.T(" · 이벤트 " + S(ev, "total") + "건", " · events " + S(ev, "total")) + (kinds.Count > 0 ? "(" + string.Join(", ", kinds) + ")" : "")
+                        + (susp != null && susp != "0" ? L.T(" + 의심 " + susp + "건", " + " + susp + " suspect") : "")
+                        + L.T(" · " + conName + " " + lines + "줄", " · " + conName + " " + lines + " lines")
+                        + (gaps > 0 ? L.T(" · 기록 끊김 " + gaps + "번", " · " + gaps + " recording gap(s)") : "") + " · " + StylePath(S(x, "folder")));
             }
         }
 
@@ -271,12 +287,15 @@ namespace UartHub
         {
             string what = (e.Kind == "boot" ? "boot(" + (e.Class ?? "?") + ")" : e.Kind == "confirm" ? "confirm(" + (e.Of ?? "?") + ")" : e.Kind) + (e.Suspect != null ? "?" : "");
             OutLine(e.Ts.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + "  " + e.Port + " " + (e.Board ?? "-") + "  " + what.PadRight(10)
-                    + " 부팅#" + e.BootSeq + "  " + e.Line);
-            if (e.Suspect != null) OutLine("    명령 출력 속 줄(옛 로그일 수 있음 — 뒤따르는 리셋이 cause 로 확인하거나 앞뒤 로그로 판단)");
-            if (e.CauseKind != null) OutLine("    원인(리셋 직전): " + e.CauseKind + " " + (e.CauseTs ?? "") + " " + e.CauseLine);
-            if (e.Kind == "confirm") OutLine("    " + EventKinds.Label("confirm", null, null, e.Of) + " — 그 뒤 " + (e.SilenceS?.ToString("0", CultureInfo.InvariantCulture) ?? "?") + "초 동안 수신 없음");
-            if (e.Context != null) OutLine("    앞뒤 로그: " + StylePath(e.Context));
-            else if (e.ContextSkipped != null) OutLine("    앞뒤 로그 없음(예산: " + e.ContextSkipped + ")");
+                    + L.T(" 부팅#", " boot#") + e.BootSeq + "  " + e.Line);
+            if (e.Suspect != null) OutLine(L.T("    명령 출력 속 줄(옛 로그일 수 있음 — 뒤따르는 리셋이 cause 로 확인하거나 앞뒤 로그로 판단)",
+                                               "    Line inside command output (may be an old log — a following reset confirms it as cause, or judge from the context log)"));
+            if (e.CauseKind != null) OutLine(L.T("    원인(리셋 직전): ", "    Cause (just before reset): ") + e.CauseKind + " " + (e.CauseTs ?? "") + " " + e.CauseLine);
+            if (e.Kind == "confirm")
+                OutLine("    " + EventKinds.Label("confirm", null, null, e.Of) + L.T(" — 그 뒤 " + (e.SilenceS?.ToString("0", CultureInfo.InvariantCulture) ?? "?") + "초 동안 수신 없음",
+                                                                                " — nothing received for " + (e.SilenceS?.ToString("0", CultureInfo.InvariantCulture) ?? "?") + " s after it"));
+            if (e.Context != null) OutLine(L.T("    앞뒤 로그: ", "    Context log: ") + StylePath(e.Context));
+            else if (e.ContextSkipped != null) OutLine(L.T("    앞뒤 로그 없음(예산: " + e.ContextSkipped + ")", "    No context log (budget: " + e.ContextSkipped + ")"));
         }
 
         static void PrintAging(string json)
@@ -285,25 +304,37 @@ namespace UartHub
             var o = d.RootElement;
             string S(JsonElement e, string k) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && v.ValueKind != JsonValueKind.Null ? (v.ValueKind == JsonValueKind.String ? v.GetString() : v.GetRawText()) : null;
             string T(string iso) => iso != null && DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) ? t.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "-";
-            OutLine("포트 " + S(o, "port") + (S(o, "board") != null ? " (" + S(o, "board") + ")" : "") + " · " + (S(o, "since") != null ? T(S(o, "since")) : "처음") + " ~ " + T(S(o, "until"))
-                    + " · 사건 " + S(o, "events") + "건" + (S(o, "suspect_events") is string se && se != "0" ? " (+ 명령 출력 속 " + se + "건)" : "") + " · " + StylePath(S(o, "events_file")));
+            string se = S(o, "suspect_events");
+            OutLine(L.T("포트 ", "Port ") + S(o, "port") + (S(o, "board") != null ? " (" + S(o, "board") + ")" : "") + " · " + (S(o, "since") != null ? T(S(o, "since")) : L.T("처음", "start")) + " ~ " + T(S(o, "until"))
+                    + L.T(" · 사건 " + S(o, "events") + "건", " · " + S(o, "events") + " events")
+                    + (se != null && se != "0" ? L.T(" (+ 명령 출력 속 " + se + "건)", " (+ " + se + " inside command output)") : "") + " · " + StylePath(S(o, "events_file")));
             if (S(o, "note") != null) OutLine(S(o, "note"));
             var gaps = o.GetProperty("gaps");
-            OutLine("기록한 시간 " + S(o, "covered_s") + "초 / 기간 " + S(o, "period_s") + "초" + (gaps.GetArrayLength() > 0 ? " (기록 공백 " + gaps.GetArrayLength() + "번)" : ""));
+            OutLine(L.T("기록한 시간 " + S(o, "covered_s") + "초 / 기간 " + S(o, "period_s") + "초" + (gaps.GetArrayLength() > 0 ? " (기록 공백 " + gaps.GetArrayLength() + "번)" : ""),
+                        "Recorded " + S(o, "covered_s") + " s / period " + S(o, "period_s") + " s" + (gaps.GetArrayLength() > 0 ? " (" + gaps.GetArrayLength() + " recording gap(s))" : "")));
             var b = o.GetProperty("boots");
-            OutLine("부팅 " + S(b, "total") + "회: cmd " + S(b, "cmd") + " · soft " + S(b, "soft") + " · hard " + S(b, "hard") + " (예상 못 한 재부팅 " + S(o, "unexpected_reboots") + ")"
-                    + (S(b, "with_cause") is string wc && wc != "0" ? " · panic/oops 뒤 리셋 " + wc + "번" : "")
-                    + (S(b, "suspect") is string bs && bs != "0" ? " · 명령 출력 속 부팅 줄 " + bs + "번" : ""));
+            string wc = S(b, "with_cause"), bs = S(b, "suspect");
+            OutLine(L.T("부팅 " + S(b, "total") + "회: cmd " + S(b, "cmd") + " · soft " + S(b, "soft") + " · hard " + S(b, "hard") + " (예상 못 한 재부팅 " + S(o, "unexpected_reboots") + ")"
+                        + (wc != null && wc != "0" ? " · panic/oops 뒤 리셋 " + wc + "번" : "")
+                        + (bs != null && bs != "0" ? " · 명령 출력 속 부팅 줄 " + bs + "번" : ""),
+                        "Boots " + S(b, "total") + ": cmd " + S(b, "cmd") + " · soft " + S(b, "soft") + " · hard " + S(b, "hard") + " (unexpected reboots: " + S(o, "unexpected_reboots") + ")"
+                        + (wc != null && wc != "0" ? " · resets after panic/oops: " + wc : "")
+                        + (bs != null && bs != "0" ? " · boot lines inside command output: " + bs : "")));
             var iv = o.GetProperty("boot_interval_s");
             if (iv.ValueKind == JsonValueKind.Object)
-                OutLine("부팅 간격(초): 최소 " + S(iv, "min") + " · 중간 " + S(iv, "median") + " · 최대 " + S(iv, "max") + " (" + S(iv, "count") + "개"
-                        + (S(iv, "excluded_gap") != "0" ? ", 기록 공백 걸친 " + S(iv, "excluded_gap") + "개 뺌" : "") + ")");
+                OutLine(L.T("부팅 간격(초): 최소 " + S(iv, "min") + " · 중간 " + S(iv, "median") + " · 최대 " + S(iv, "max") + " (" + S(iv, "count") + "개"
+                            + (S(iv, "excluded_gap") != "0" ? ", 기록 공백 걸친 " + S(iv, "excluded_gap") + "개 뺌" : "") + ")",
+                            "Boot interval (s): min " + S(iv, "min") + " · median " + S(iv, "median") + " · max " + S(iv, "max") + " (" + S(iv, "count")
+                            + (S(iv, "excluded_gap") != "0" ? ", " + S(iv, "excluded_gap") + " across recording gaps left out" : "") + ")"));
             foreach (var k in o.GetProperty("kinds").EnumerateObject())
-                OutLine("  " + k.Name.PadRight(10) + S(k.Value, "count").PadLeft(5) + "건  첫 " + T(S(k.Value, "first")) + "  마지막 " + T(S(k.Value, "last"))
-                        + (S(k.Value, "no_context") != "0" ? "  (앞뒤 로그 없음 " + S(k.Value, "no_context") + ")" : "")
-                        + (S(k.Value, "suspect") is string ks && ks != "0" ? "  (+ 명령 출력 속 " + ks + ")" : ""));
+            {
+                string ks = S(k.Value, "suspect");
+                OutLine("  " + k.Name.PadRight(10) + S(k.Value, "count").PadLeft(5) + L.T("건  첫 ", "  first ") + T(S(k.Value, "first")) + L.T("  마지막 ", "  last ") + T(S(k.Value, "last"))
+                        + (S(k.Value, "no_context") != "0" ? L.T("  (앞뒤 로그 없음 " + S(k.Value, "no_context") + ")", "  (no context log: " + S(k.Value, "no_context") + ")") : "")
+                        + (ks != null && ks != "0" ? L.T("  (+ 명령 출력 속 " + ks + ")", "  (+ " + ks + " inside command output)") : ""));
+            }
             var cs = o.GetProperty("contexts");
-            OutLine("앞뒤 로그 " + cs.GetArrayLength() + "개" + (cs.GetArrayLength() > 0 ? ":" : ""));
+            OutLine(L.T("앞뒤 로그 " + cs.GetArrayLength() + "개", "Context logs: " + cs.GetArrayLength()) + (cs.GetArrayLength() > 0 ? ":" : ""));
             foreach (var c in cs.EnumerateArray()) OutLine("  " + T(S(c, "ts")) + " " + (S(c, "kind") + (S(c, "suspect") != null ? "?" : "")).PadRight(10) + StylePath(S(c, "context")));
         }
     }

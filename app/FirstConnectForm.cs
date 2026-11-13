@@ -33,7 +33,7 @@ namespace UartHub.App
         }
 
         /// <param name="slot">이미 떠 있는 질문 창 수(겹치지 않게 위로 쌓는다).</param>
-        public FirstConnectForm(CableRow row, int slot, Action<string, bool, Action<string>> decide, float zoom = 1f) : base("UART 허브 · 새 케이블", zoom)
+        public FirstConnectForm(CableRow row, int slot, Action<string, bool, Action<string>> decide, float zoom = 1f) : base(L.T("UART 허브 · 새 케이블", "UART Hub · New cable"), zoom)
         {
             id = row.Cable;
             this.decide = decide;
@@ -44,15 +44,18 @@ namespace UartHub.App
             string com = row.Com ?? "COM?";
             AddText(new UiText
             {
-                Head = com + ": 보드 케이블인가요?",
-                Body = "예: 허브가 이 COM 포트를 열어 기록하고 바탕화면에 아이콘을 만듭니다.\n"
-                       + "아니오: 허브가 열지 않습니다. 다른 프로그램이 이 COM 포트를 쓸 수 있습니다.\n"
-                       + "답은 기억합니다. 창을 닫으면 나중에 트레이 메뉴의 COM 포트에서 답할 수 있습니다.",
-                Note = (string.IsNullOrEmpty(row.Description) ? "" : row.Description + " · ") + "일련번호 " + id,
+                Head = L.T(com + ": 보드 케이블인가요?", com + ": Is this a board cable?"),
+                Body = L.T("예: 허브가 이 COM 포트를 열어 기록하고 바탕화면에 아이콘을 만듭니다.\n"
+                           + "아니오: 허브가 열지 않습니다. 다른 프로그램이 이 COM 포트를 쓸 수 있습니다.\n"
+                           + "답은 기억합니다. 창을 닫으면 나중에 트레이 메뉴의 COM 포트에서 답할 수 있습니다.",
+                           "Yes: the hub opens and logs this COM port and makes a desktop icon.\n"
+                           + "No: the hub does not open it. Other programs can use this COM port.\n"
+                           + "Your answer is remembered. If you close this window, you can answer later from COM ports in the tray menu."),
+                Note = (string.IsNullOrEmpty(row.Description) ? "" : row.Description + " · ") + L.T("일련번호 ", "Serial number ") + id,
             });
             status = AddText("", () => FBody, Pal.Bad, 10);
-            yes = AddButton("예", () => Answer(true));
-            no = AddButton("아니오", () => Answer(false));
+            yes = AddButton(L.T("예", "Yes"), () => Answer(true));
+            no = AddButton(L.T("아니오", "No"), () => Answer(false));
             ResumeLayout(false);
             Relayout();
             Load += (s, e) => Place();
@@ -76,7 +79,7 @@ namespace UartHub.App
         void Answer(bool board)
         {
             yes.Enabled = no.Enabled = false;
-            Say("보내는 중…", Pal.Muted);
+            Say(L.T("보내는 중…", "Sending…"), Pal.Muted);
             decide(id, board, OnResult);
         }
 
@@ -88,13 +91,14 @@ namespace UartHub.App
             if (code == 0) { CloseQuietly(); return; }
             if (line == null || code < 0)
             {
-                Say("허브가 응답하지 않습니다. 다시 켜는 중일 수 있으니 잠시 뒤 다시 눌러 주세요.", Pal.Bad);
+                Say(L.T("허브가 응답하지 않습니다. 다시 켜는 중일 수 있으니 잠시 뒤 다시 눌러 주세요.", "The hub is not responding. It may be restarting, so try again in a moment."), Pal.Bad);
                 yes.Enabled = no.Enabled = true;
                 return;
             }
-            if (code == 106) Say("이미 정해진 케이블입니다(" + (err ?? "다른 곳에서 답함") + "). 트레이 메뉴의 COM 포트에서 바꿀 수 있습니다.", Pal.Bad);
-            else if (code == 102) Say("케이블이 보이지 않습니다. 뽑혔거나 허브가 다시 켜졌습니다. 다시 꽂으면 다시 묻습니다.", Pal.Bad);
-            else Say("처리하지 못했습니다(exit " + code + "): " + err, Pal.Bad);
+            if (code == 106) Say(L.T("이미 정해진 케이블입니다(" + (err ?? "다른 곳에서 답함") + "). 트레이 메뉴의 COM 포트에서 바꿀 수 있습니다.",
+                                     "This cable is already decided (" + (err ?? "answered elsewhere") + "). You can change it from COM ports in the tray menu."), Pal.Bad);
+            else if (code == 102) Say(L.T("케이블이 보이지 않습니다. 뽑혔거나 허브가 다시 켜졌습니다. 다시 꽂으면 다시 묻습니다.", "The cable is not visible. It was unplugged or the hub restarted. Plug it in again and you will be asked again."), Pal.Bad);
+            else Say(L.T("처리하지 못했습니다(exit " + code + "): " + err, "Could not complete it (exit " + code + "): " + err), Pal.Bad);
             var t = new Timer { Interval = 4000 };
             t.Tick += (s, e) => { t.Dispose(); CloseQuietly(); };
             t.Start();

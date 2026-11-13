@@ -62,7 +62,7 @@ namespace UartHub
         public void Start()
         {
             try { Directory.CreateDirectory(LiveDir); }
-            catch (Exception e) { hub.Log.Write("live 폴더 생성 실패 " + LiveDir + ": " + e.Message); }
+            catch (Exception e) { hub.Log.Write(L.T("live 폴더 생성 실패 " + LiveDir + ": " + e.Message, "failed to create live folder " + LiveDir + ": " + e.Message)); }
             th = new Thread(Loop) { IsBackground = true, Name = "SpoolWatcher" };
             th.Start();
         }
@@ -82,13 +82,13 @@ namespace UartHub
             while (!stop)
             {
                 try { PollOnce(); }
-                catch (Exception e) { hub.Log.Write("spool 오류: " + e.GetType().Name + ": " + e.Message); }
+                catch (Exception e) { hub.Log.Write(L.T("spool 오류: " + e.GetType().Name + ": " + e.Message, "spool error: " + e.GetType().Name + ": " + e.Message)); }
                 long now = Environment.TickCount64;
                 if (lastStatusTick == long.MinValue || now - lastStatusTick >= hub.Config.StatusIntervalMs)
                 {
                     lastStatusTick = now;
                     try { WriteStatus(); }
-                    catch (Exception e) { hub.Log.Write("status 기록 오류: " + e.GetType().Name + ": " + e.Message); }
+                    catch (Exception e) { hub.Log.Write(L.T("status 기록 오류: " + e.GetType().Name + ": " + e.Message, "status write error: " + e.GetType().Name + ": " + e.Message)); }
                 }
                 stopEvt.Wait(hub.Config.SpoolPollMs);
             }
@@ -187,7 +187,7 @@ namespace UartHub
                 }
                 catch (UnauthorizedAccessException e)
                 {
-                    hub.Log.Write("spool " + Path.GetFileName(path) + " 열기 거부: " + e.Message);
+                    hub.Log.Write(L.T("spool " + Path.GetFileName(path) + " 열기 거부: " + e.Message, "spool " + Path.GetFileName(path) + " open denied: " + e.Message));
                     return false;
                 }
             }
@@ -260,7 +260,7 @@ namespace UartHub
                 int left;
                 lock (q) { stop = true; left = q.Count; q.Clear(); Monitor.PulseAll(q); }
                 if (th != null && th != Thread.CurrentThread) th.Join(3000);
-                if (left > 0) w.hub.Log.Write("spool " + cable.Id + " 허브 정지로 미전송 " + left + "줄 버림");
+                if (left > 0) w.hub.Log.Write(L.T("spool " + cable.Id + " 허브 정지로 미전송 " + left + "줄 버림", "spool " + cable.Id + " hub stopped: dropped " + left + " unsent line(s)"));
             }
 
             void Loop()
@@ -275,7 +275,7 @@ namespace UartHub
                         it = q.Dequeue();
                     }
                     try { SendOne(it.Line, it.Deadline); }
-                    catch (Exception e) { w.hub.Log.Write("spool " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message); }
+                    catch (Exception e) { w.hub.Log.Write(L.T("spool " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message, "spool " + cable.Id + " error: " + e.GetType().Name + ": " + e.Message)); }
                 }
             }
 
@@ -308,7 +308,7 @@ namespace UartHub
                         continue;
                     }
                     if (req.Exit != 0 && req.Exit != 101)
-                        hub.Log.Write("spool " + cable.Id + " 줄 미전송(" + req.Exit + "): " + line);
+                        hub.Log.Write(L.T("spool " + cable.Id + " 줄 미전송(" + req.Exit + "): " + line, "spool " + cable.Id + " line not sent (" + req.Exit + "): " + line));
                     w.Done(cable, line, req.Result);
                     return;
                 }
@@ -323,7 +323,8 @@ namespace UartHub
                 string reason = !cable.IsAttached ? "no_cable" : sn?.BlockedReason ?? "ttl";
                 cable.PostEvent("!!! [tx " + id + "] dropped (" + reason + ")");
                 if (!cable.IsAttached) hub.Log.Write("spool " + cable.Id + " !!! [tx " + id + "] dropped (" + reason + "): " + line);
-                var res = hub.Arbiter.Error(cable, 101, "busy", "tx_ttl_s(" + hub.Config.TxTtlS.ToString(CultureInfo.InvariantCulture) + "초) 초과 — 보내지 않음")
+                var res = hub.Arbiter.Error(cable, 101, "busy", L.T("tx_ttl_s(" + hub.Config.TxTtlS.ToString(CultureInfo.InvariantCulture) + "초) 초과 — 보내지 않음",
+                                                                  "tx_ttl_s (" + hub.Config.TxTtlS.ToString(CultureInfo.InvariantCulture) + " s) exceeded — not sent"))
                     .Set("req_id", id).Set("blocked_reason", reason);
                 w.Done(cable, line, res);
             }
@@ -384,7 +385,7 @@ namespace UartHub
             {
                 bool first;
                 lock (sync) { first = !statusErr.ContainsKey(path); statusErr[path] = e.Message; }
-                if (first) hub.Log.Write("status 쓰기 실패 " + path + ": " + e.GetType().Name + ": " + e.Message + " (다음 주기에 다시)");
+                if (first) hub.Log.Write(L.T("status 쓰기 실패 " + path + ": " + e.GetType().Name + ": " + e.Message + " (다음 주기에 다시)", "status write failed " + path + ": " + e.GetType().Name + ": " + e.Message + " (retrying next cycle)"));
             }
         }
     }

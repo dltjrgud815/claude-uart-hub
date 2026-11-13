@@ -49,7 +49,7 @@ namespace UartHub
             }
             catch (Exception e)
             {
-                LoadWarning = "state.json 읽기 실패(" + e.Message + ") → .bad 로 보존";
+                LoadWarning = L.T("state.json 읽기 실패(" + e.Message + ") → .bad 로 보존", "state.json read failed (" + e.Message + ") → kept as .bad");
                 try { File.Copy(path, path + ".bad", true); } catch (Exception) { }
                 assign.Clear(); released.Clear(); boards.Clear(); retired.Clear(); unknown.Clear();
             }

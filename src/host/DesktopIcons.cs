@@ -49,9 +49,9 @@ namespace UartHub
             if (SystemAccess.IsOneDriveDir(dir, out string why))
             {
                 Dir = Path.Combine(SystemAccess.StartMenuPrograms, "UART 허브");
-                Why = "OneDrive 바탕화면(" + why + ") → 시작 메뉴 " + Dir;
+                Why = L.T("OneDrive 바탕화면(" + why + ") → 시작 메뉴 " + Dir, "OneDrive desktop (" + why + ") → Start menu " + Dir);
             }
-            else { Dir = Path.GetFullPath(dir); Why = "바탕화면 " + Dir; }
+            else { Dir = Path.GetFullPath(dir); Why = L.T("바탕화면 " + Dir, "desktop " + Dir); }
         }
 
         // ================================================================== 이름
@@ -67,7 +67,7 @@ namespace UartHub
             return (s.Length == 0 ? "_" : s) + ".lnk";
         }
 
-        string MarkerDesc(string name) => "UART 허브 " + name + " " + ShellLink.Marker(installId);
+        string MarkerDesc(string name) => L.T("UART 허브 " + name + " " + ShellLink.Marker(installId), "UART Hub " + name + " " + ShellLink.Marker(installId));
 
         /// <summary>icons.json 의 그 포트 label(open 의 창 제목용). 없으면 null.</summary>
         public static string LabelFromList(int port)
@@ -115,14 +115,14 @@ namespace UartHub
         /// <summary>감독 기동 때: icons.json 의 남은 항목과 폴더의 자기 아이콘(보조 판정)을 "현재"로 읽는다. 지우거나 고치는 것은 첫 Reconcile·RemoveAll 이 한다.</summary>
         public void Startup()
         {
-            log.Write("아이콘: " + Why + " · 대상 " + exe + " · install_id " + installId);
+            log.Write(L.T("아이콘: " + Why + " · 대상 " + exe + " · install_id " + installId, "icons: " + Why + " · target " + exe + " · install_id " + installId));
             int listed = 0, found = 0, dropped = 0;
             foreach (var e in ReadList(out _))
             {
                 if (e.Port <= 0 || string.IsNullOrEmpty(e.Path)) { dropped++; continue; }
                 var i = Read(e.Path);
                 if (i == null) { dropped++; continue; }                                    // 이미 없음
-                if (!Ours(i, e.Port)) { dropped++; log.Write("아이콘: icons.json 항목이 자기 것이 아님(대상 " + i.Target + " " + i.Arguments + ") — 건드리지 않음: " + e.Path); continue; }
+                if (!Ours(i, e.Port)) { dropped++; log.Write(L.T("아이콘: icons.json 항목이 자기 것이 아님(대상 " + i.Target + " " + i.Arguments + ") — 건드리지 않음: " + e.Path, "icons: icons.json entry is not ours (target " + i.Target + " " + i.Arguments + ") — left alone: " + e.Path)); continue; }
                 Adopt(e);
                 listed++;
             }
@@ -134,7 +134,8 @@ namespace UartHub
                 found++;
                 Adopt(new Entry { Port = p, Path = f, Name = Path.GetFileNameWithoutExtension(f) });
             }
-            log.Write("아이콘: 기동 정리 대상 — icons.json " + listed + "개 · 폴더의 자기 것(보조 판정) " + found + "개 · 버린 항목 " + dropped + "개" + (orphans.Count > 0 ? " · 중복 " + orphans.Count + "개" : ""));
+            log.Write(L.T("아이콘: 기동 정리 대상 — icons.json " + listed + "개 · 폴더의 자기 것(보조 판정) " + found + "개 · 버린 항목 " + dropped + "개" + (orphans.Count > 0 ? " · 중복 " + orphans.Count + "개" : ""),
+                          "icons: to tidy at startup — icons.json " + listed + " · ours in the folder (secondary check) " + found + " · dropped entries " + dropped + (orphans.Count > 0 ? " · duplicates " + orphans.Count : "")));
         }
 
         void Adopt(Entry e)
@@ -150,7 +151,7 @@ namespace UartHub
             bool changed = false;
             foreach (var o in orphans.ToList())
             {
-                if (OursPort(Read(o)) > 0) { Delete(o, "중복"); changed = true; }
+                if (OursPort(Read(o)) > 0) { Delete(o, L.T("중복", "duplicate")); changed = true; }
                 orphans.Remove(o);
             }
             var want = new Dictionary<int, CableRow>();
@@ -160,7 +161,7 @@ namespace UartHub
             {
                 var e = cur[port];
                 cur.Remove(port);
-                DeleteIfOurs(e, "분리");                                // 자기 것이 아니면 목록에서만 뺀다
+                DeleteIfOurs(e, L.T("분리", "detached"));                                // 자기 것이 아니면 목록에서만 뺀다
                 changed = true;
             }
             foreach (var port in conflicts.Keys.Where(p => !want.ContainsKey(p)).ToList()) conflicts.Remove(port);
@@ -180,7 +181,7 @@ namespace UartHub
             {
                 e.Label = label; e.Cable = r.Cable;
                 if (SystemAccess.FileExists(path)) return false;               // 그대로(매 초 내용은 읽지 않는다 — 바뀔 때만 E1 확인)
-                Create(path, port, name, "다시 만듦(파일이 없어짐)");
+                Create(path, port, name, L.T("다시 만듦(파일이 없어짐)", "recreated (file was gone)"));
                 return true;
             }
             // 원하는 이름에 이미 파일이 있다: 자기 것이면 이어받고(설명의 install_id 가 다르면 고침), 남의 것이면 충돌
@@ -192,19 +193,21 @@ namespace UartHub
                     if (!conflicts.ContainsKey(port) || conflicts[port] != name)
                     {
                         conflicts[port] = name;
-                        if (conflictLogged.Add(path)) log.Write("아이콘 이름 충돌: " + path + " 은 남의 파일(대상 " + (i?.Target ?? "?") + " " + (i?.Arguments ?? "") + ") — 만들지 않음");
+                        if (conflictLogged.Add(path)) log.Write(L.T("아이콘 이름 충돌: " + path + " 은 남의 파일(대상 " + (i?.Target ?? "?") + " " + (i?.Arguments ?? "") + ") — 만들지 않음", "icon name conflict: " + path + " is someone else's file (target " + (i?.Target ?? "?") + " " + (i?.Arguments ?? "") + ") — not created"));
                     }
                     return false;
                 }
                 conflicts.Remove(port);
-                if (e != null && !SystemAccess.SamePath(e.Path, path)) { cur.Remove(port); DeleteIfOurs(e, "이름 바뀜(새 이름에 자기 것이 이미 있음)"); }
+                if (e != null && !SystemAccess.SamePath(e.Path, path)) { cur.Remove(port); DeleteIfOurs(e, L.T("이름 바뀜(새 이름에 자기 것이 이미 있음)", "renamed (ours already exists under the new name)")); }
                 bool iconOk = SystemAccess.SamePath(i.IconPath, exe) && i.IconIndex == 0;   // 아이콘 모양 = exe 아이콘(IconLocation exe,0)
                 if ((i.Description ?? "") != MarkerDesc(name) || !iconOk)
                 {
                     Save(path, port, name);
-                    log.Write("아이콘 이어받음(" + (iconOk ? "설명 고침 — install_id 다름·보조 판정" : "아이콘 모양 고침 — exe,0") + "): " + Path.GetFileName(path) + " (SHChangeNotify " + SystemAccess.ShellNotify(SystemAccess.ShcneUpdateItem, path) + ")");
+                    string notify = SystemAccess.ShellNotify(SystemAccess.ShcneUpdateItem, path);
+                    log.Write(L.T("아이콘 이어받음(" + (iconOk ? "설명 고침 — install_id 다름·보조 판정" : "아이콘 모양 고침 — exe,0") + "): " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")",
+                                  "icon adopted (" + (iconOk ? "description fixed — different install_id or language, secondary check" : "icon image fixed — exe,0") + "): " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")"));
                 }
-                else log.Write("아이콘 이어받음: " + Path.GetFileName(path));
+                else log.Write(L.T("아이콘 이어받음: " + Path.GetFileName(path), "icon adopted: " + Path.GetFileName(path)));
                 cur[port] = new Entry { Port = port, Path = path, Name = name, Label = label, Cable = r.Cable };
                 return true;
             }
@@ -214,11 +217,13 @@ namespace UartHub
             {
                 Retry(() => SystemAccess.MoveFile(e.Path, path, false));
                 Save(path, port, name);
-                log.Write("아이콘 이름 바꿈: " + Path.GetFileName(e.Path) + " → " + Path.GetFileName(path) + " (SHChangeNotify " + SystemAccess.ShellNotify(SystemAccess.ShcneRenameItem, e.Path, path) + ")");
+                string notify = SystemAccess.ShellNotify(SystemAccess.ShcneRenameItem, e.Path, path);
+                log.Write(L.T("아이콘 이름 바꿈: " + Path.GetFileName(e.Path) + " → " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")",
+                              "icon renamed: " + Path.GetFileName(e.Path) + " → " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")"));
                 cur[port] = new Entry { Port = port, Path = path, Name = name, Label = label, Cable = r.Cable };
                 return true;
             }
-            if (e != null) log.Write("아이콘: 옛 파일이 없거나 자기 것이 아님 — 남김: " + e.Path);
+            if (e != null) log.Write(L.T("아이콘: 옛 파일이 없거나 자기 것이 아님 — 남김: " + e.Path, "icons: old file missing or not ours — left: " + e.Path));
             Create(path, port, name, null);
             cur[port] = new Entry { Port = port, Path = path, Name = name, Label = label, Cable = r.Cable };
             return true;
@@ -253,14 +258,16 @@ namespace UartHub
         {
             SystemAccess.CreateDir(Dir);
             Save(path, port, name);
-            log.Write("아이콘 만듦: " + Path.GetFileName(path) + " → open " + port + (note != null ? " (" + note + ")" : "") + " (SHChangeNotify " + SystemAccess.ShellNotify(SystemAccess.ShcneCreate, path) + ")");
+            string notify = SystemAccess.ShellNotify(SystemAccess.ShcneCreate, path);
+            log.Write(L.T("아이콘 만듦: " + Path.GetFileName(path) + " → open " + port + (note != null ? " (" + note + ")" : "") + " (SHChangeNotify " + notify + ")",
+                          "icon created: " + Path.GetFileName(path) + " → open " + port + (note != null ? " (" + note + ")" : "") + " (SHChangeNotify " + notify + ")"));
         }
 
         bool DeleteIfOurs(Entry e, string why)
         {
             var i = Read(e.Path);
             if (i == null) return false;
-            if (!Ours(i, e.Port)) { log.Write("아이콘: " + e.Path + " 은 자기 것이 아님(대상 " + i.Target + " " + i.Arguments + ") — 지우지 않음"); return false; }
+            if (!Ours(i, e.Port)) { log.Write(L.T("아이콘: " + e.Path + " 은 자기 것이 아님(대상 " + i.Target + " " + i.Arguments + ") — 지우지 않음", "icons: " + e.Path + " is not ours (target " + i.Target + " " + i.Arguments + ") — not deleted")); return false; }
             Delete(e.Path, why);
             return true;
         }
@@ -268,7 +275,8 @@ namespace UartHub
         void Delete(string path, string why)
         {
             Retry(() => SystemAccess.DeleteFile(path));
-            log.Write("아이콘 지움(" + why + "): " + Path.GetFileName(path) + " (SHChangeNotify " + SystemAccess.ShellNotify(SystemAccess.ShcneDelete, path) + ")");
+            string notify = SystemAccess.ShellNotify(SystemAccess.ShcneDelete, path);
+            log.Write(L.T("아이콘 지움(" + why + "): " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")", "icon deleted (" + why + "): " + Path.GetFileName(path) + " (SHChangeNotify " + notify + ")"));
         }
 
         /// <summary>정지(stop): 자기 아이콘을 모두 지운다(목록 + 폴더의 자기 것). 남의 파일은 그대로.</summary>
@@ -282,7 +290,7 @@ namespace UartHub
             bool had = cur.Count > 0 || orphans.Count > 0 || n > 0;
             cur.Clear(); orphans.Clear(); conflicts.Clear();
             if (had) Save();
-            log.Write("아이콘 전부 지움(" + why + "): " + n + "개");
+            log.Write(L.T("아이콘 전부 지움(" + why + "): " + n + "개", "all icons deleted (" + why + "): " + n));
         }
 
         /// <summary>icons.json(C-12: 읽은 원문의 모르는 키는 그대로, icons 만 바꾼다).</summary>

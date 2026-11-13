@@ -107,7 +107,7 @@ namespace UartHub.App
         public static Font Ui(float pt, FontStyle st = FontStyle.Regular) => new Font(FaceName, pt, st, GraphicsUnit.Point);
         public static Font Mono(float pt) => new Font(MonoFace, pt, FontStyle.Regular, GraphicsUnit.Point);
 
-        public static Stream Res(string name) => typeof(Theme).Assembly.GetManifestResourceStream(name) ?? throw new FileNotFoundException("리소스 없음: " + name);
+        public static Stream Res(string name) => typeof(Theme).Assembly.GetManifestResourceStream(name) ?? throw new FileNotFoundException(L.T("리소스 없음: " + name, "Resource not found: " + name));
 
         /// <summary>.ico 리소스에서 가장 알맞은 크기의 아이콘.</summary>
         public static Icon Icon(string name, Size size)
@@ -480,9 +480,9 @@ namespace UartHub.App
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
             TabStop = true;
             Cursor = Cursors.Hand;
-            Text = "자세히";
+            Text = L.T("자세히", "Details");
             AccessibleRole = AccessibleRole.PushButton;
-            AccessibleName = "자세히";
+            AccessibleName = L.T("자세히", "Details");
             ForeColor = owner.Pal.Link;
         }
 
@@ -490,7 +490,7 @@ namespace UartHub.App
         public bool Expanded
         {
             get => expanded;
-            set { expanded = value; AccessibleDescription = value ? "펼침" : "접힘"; Invalidate(); }
+            set { expanded = value; AccessibleDescription = value ? L.T("펼침", "Expanded") : L.T("접힘", "Collapsed"); Invalidate(); }
         }
 
         public Size Measure()
@@ -572,7 +572,7 @@ namespace UartHub.App
 
         void Changed()
         {
-            AccessibleName = string.Join(", ", names.Select((n, i) => n + " " + (i < current ? "끝남" : i == current ? (failed ? "실패" : "진행 중") : "남음")));
+            AccessibleName = string.Join(", ", names.Select((n, i) => n + " " + (i < current ? L.T("끝남", "done") : i == current ? (failed ? L.T("실패", "failed") : L.T("진행 중", "in progress")) : L.T("남음", "to do"))));
             bool run = current >= 0 && current < names.Length && !failed && IsHandleCreated && Visible;
             if (run) spin.Start(); else spin.Stop();
             Invalidate();
@@ -785,7 +785,7 @@ namespace UartHub.App
             WellText = Bind(new TextBox
             {
                 Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Pal.Well, ForeColor = Pal.WellText,
-                ScrollBars = ScrollBars.Vertical, WordWrap = true, TabStop = false, AccessibleName = "자세히",
+                ScrollBars = ScrollBars.Vertical, WordWrap = true, TabStop = false, AccessibleName = L.T("자세히", "Details"),
             }, () => FMono);
             if (Pal.Dark) WellText.HandleCreated += (s, e) => Dwm.DarkScrollbars(WellText.Handle, true);
             Well.Controls.Add(WellText);

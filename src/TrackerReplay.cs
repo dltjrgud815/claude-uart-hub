@@ -212,7 +212,7 @@ namespace UartHub
                 while (!prev.Join(20))
                 {
                     if (stop) return;
-                    if (Environment.TickCount64 >= until) { hlog?.Write("tracker " + cable.Id + " 앞 세션 펌프 종료 대기 5초 초과 — 복원을 계속"); break; }
+                    if (Environment.TickCount64 >= until) { hlog?.Write(L.T("tracker " + cable.Id + " 앞 세션 펌프 종료 대기 5초 초과 — 복원을 계속", "tracker " + cable.Id + " previous session pump did not exit within 5 s — continuing the restore")); break; }
                 }
             }
             if (stop) return;
@@ -220,7 +220,7 @@ namespace UartHub
             try { pos = prepare(); }
             catch (Exception e)
             {
-                hlog?.Write("tracker prepare 실패 " + cable.Id + ": " + e.GetType().Name + ": " + e.Message);
+                hlog?.Write(L.T("tracker prepare 실패 " + cable.Id + ": " + e.GetType().Name + ": " + e.Message, "tracker prepare failed " + cable.Id + ": " + e.GetType().Name + ": " + e.Message));
                 pos = cable.AttachRxPos;
                 tracker.ResetFresh(pos, clock.MonoMs, AttachSeq);
             }
@@ -240,7 +240,7 @@ namespace UartHub
                             if (ring.End <= cur.Position) tracker.Advance(clock.MonoMs);
                             break;
                         case RingReadStatus.Lost:
-                            hlog?.Write("tracker " + cable.Id + " 링 손실 " + r.Skipped + "B → UNKNOWN");
+                            hlog?.Write(L.T("tracker " + cable.Id + " 링 손실 " + r.Skipped + "B → UNKNOWN", "tracker " + cable.Id + " ring loss " + r.Skipped + "B → UNKNOWN"));
                             break;          // 다음 Data 의 offset 이 앞서 있으면 추적기가 줄 상태를 버리고 UNKNOWN 으로 간다
                         case RingReadStatus.Closed:
                             return;
@@ -248,7 +248,7 @@ namespace UartHub
                 }
                 catch (Exception e)
                 {
-                    hlog?.Write("tracker " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message);
+                    hlog?.Write(L.T("tracker " + cable.Id + " 오류: " + e.GetType().Name + ": " + e.Message, "tracker " + cable.Id + " error: " + e.GetType().Name + ": " + e.Message));
                     Thread.Sleep(50);
                 }
             }

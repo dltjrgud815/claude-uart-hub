@@ -26,20 +26,20 @@ namespace UartHub
         {
             error = null;
             string l = ControlClient.CallWithTokenFile(controlPort, tokenPath, 5000, "[\"cable\",\"remembered\"]");
-            if (l == null) { error = "허브가 꺼져 있어 기록을 읽지 못했습니다."; return null; }
+            if (l == null) { error = L.T("허브가 꺼져 있어 기록을 읽지 못했습니다.", "The hub is not running, so the records could not be read."); return null; }
             try
             {
                 using var d = JsonDocument.Parse(l);
                 var o = d.RootElement;
                 if (HubFiles.Str(o, "status") != "ok" || !o.TryGetProperty("cables", out var cs) || cs.ValueKind != JsonValueKind.Array)
-                { error = "허브가 기록을 주지 않았습니다(" + (HubFiles.Str(o, "message") ?? HubFiles.Str(o, "status") ?? "?") + ")."; return null; }
+                { error = L.T("허브가 기록을 주지 않았습니다(" + (HubFiles.Str(o, "message") ?? HubFiles.Str(o, "status") ?? "?") + ").", "The hub returned no records (" + (HubFiles.Str(o, "message") ?? HubFiles.Str(o, "status") ?? "?") + ")."); return null; }
                 return cs.EnumerateArray().Select(c => new RememberedCable
                 {
                     Id = HubFiles.Str(c, "cable"), Port = (int)HubFiles.Long(c, "port"), Board = HubFiles.Str(c, "board"),
                     Com = HubFiles.Str(c, "com") ?? LastCom(eventsJsonlDir, (int)HubFiles.Long(c, "port")),
                 }).Where(r => r.Id != null).ToList();
             }
-            catch (JsonException e) { error = "허브의 답을 읽지 못했습니다(" + e.Message + ")."; return null; }
+            catch (JsonException e) { error = L.T("허브의 답을 읽지 못했습니다(" + e.Message + ").", "Could not read the hub's reply (" + e.Message + ")."); return null; }
         }
 
         /// <summary>고른 케이블마다 코어의 cable forget. 돌려주는 값 = 지운 수, 실패가 있으면 error(첫 이유).</summary>
@@ -54,7 +54,7 @@ namespace UartHub
                 try { if (l != null) { using var d = JsonDocument.Parse(l); st = HubFiles.Str(d.RootElement, "status"); msg = HubFiles.Str(d.RootElement, "message"); } }
                 catch (JsonException) { }
                 if (st == "ok") n++;
-                else error ??= l == null ? "허브가 꺼져 있어 기록을 지우지 못했습니다." : "기록을 지우지 못했습니다(" + (msg ?? st ?? "?") + ").";
+                else error ??= l == null ? L.T("허브가 꺼져 있어 기록을 지우지 못했습니다.", "The hub is not running, so the records could not be deleted.") : L.T("기록을 지우지 못했습니다(" + (msg ?? st ?? "?") + ").", "Could not delete the records (" + (msg ?? st ?? "?") + ").");
             }
             return n;
         }

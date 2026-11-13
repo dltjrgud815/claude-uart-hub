@@ -145,7 +145,7 @@ namespace UartHub
                 var kv = part.Split(':');
                 if (kv.Length != 2 || !string.Equals(kv[0].Trim(), point, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!int.TryParse(kv[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int ms) || ms <= 0) return 0;
-                Ext("[test] 지연 " + point + " " + ms + "ms");
+                Ext(L.T("[test] 지연 " + point + " " + ms + "ms", "[test] delay " + point + " " + ms + "ms"));
                 Thread.Sleep(ms);
                 return ms;
             }
@@ -234,16 +234,16 @@ namespace UartHub
         /// </summary>
         public static string ExeLocationProblem(string path)
         {
-            if (string.IsNullOrEmpty(path)) return "exe 경로를 모름";
-            if (path.StartsWith(@"\\", StringComparison.Ordinal)) return "네트워크·UNC 경로(" + path + ")";
-            if (path.Length < 3 || path[1] != ':') return "드라이브 문자가 없는 경로(" + path + ")";
+            if (string.IsNullOrEmpty(path)) return L.T("exe 경로를 모름", "exe path unknown");
+            if (path.StartsWith(@"\\", StringComparison.Ordinal)) return L.T("네트워크·UNC 경로(" + path + ")", "network or UNC path (" + path + ")");
+            if (path.Length < 3 || path[1] != ':') return L.T("드라이브 문자가 없는 경로(" + path + ")", "path without a drive letter (" + path + ")");
             var d = Drive(path.Substring(0, 1));
             if (IsTest && !d.Exists) return null;
             return d.Type == "Fixed" ? null
-                 : d.Type == "Removable" ? "이동식 디스크(" + d.Letter + ":)"
-                 : d.Type == "Network" ? "네트워크 드라이브(" + d.Letter + ":)"
-                 : d.Type == "CDRom" ? "CD·DVD(" + d.Letter + ":)"
-                 : "로컬 고정 디스크가 아님(" + d.Letter + ": " + d.Type + ")";
+                 : d.Type == "Removable" ? L.T("이동식 디스크(" + d.Letter + ":)", "removable disk (" + d.Letter + ":)")
+                 : d.Type == "Network" ? L.T("네트워크 드라이브(" + d.Letter + ":)", "network drive (" + d.Letter + ":)")
+                 : d.Type == "CDRom" ? L.T("CD·DVD(" + d.Letter + ":)", "CD/DVD (" + d.Letter + ":)")
+                 : L.T("로컬 고정 디스크가 아님(" + d.Letter + ": " + d.Type + ")", "not a local fixed disk (" + d.Letter + ": " + d.Type + ")");
         }
 
         /// <summary>
@@ -252,7 +252,7 @@ namespace UartHub
         /// </summary>
         public static string Guard(string path, string op)
         {
-            if (string.IsNullOrEmpty(path)) throw new ArgumentException("경로 없음(" + op + ")");
+            if (string.IsNullOrEmpty(path)) throw new ArgumentException(L.T("경로 없음(" + op + ")", "no path (" + op + ")"));
             string full = Path.GetFullPath(path);
             if (!IsTest) return full;
             if (Under(full, TestRoot)) return full;
@@ -298,7 +298,7 @@ namespace UartHub
         public static void Rename(string a, string b)
         {
             string s = Guard(a, "move"), d = Guard(b, "write");
-            if (!MoveFileExW(s, d, 0)) throw new IOException("MoveFileEx 실패(Win32 " + Marshal.GetLastWin32Error() + ")", unchecked((int)0x80070000) | Marshal.GetLastWin32Error());
+            if (!MoveFileExW(s, d, 0)) throw new IOException(L.T("MoveFileEx 실패(Win32 " + Marshal.GetLastWin32Error() + ")", "MoveFileEx failed (Win32 " + Marshal.GetLastWin32Error() + ")"), unchecked((int)0x80070000) | Marshal.GetLastWin32Error());
         }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool MoveFileExW(string from, string to, uint flags);
 
@@ -365,14 +365,14 @@ namespace UartHub
         static void Ext(string line) { try { ExternalLog?.Invoke(line); } catch (Exception) { } }
 
         static string ArgText(IEnumerable<string> args)
-            => string.Join(" ", args.Select(a => a.Contains('\n') || a.Length > 200 ? "<스크립트 " + a.Length + "자>" : a.Length == 0 || a.Contains(' ') ? "\"" + a + "\"" : a));
+            => string.Join(" ", args.Select(a => a.Contains('\n') || a.Length > 200 ? L.T("<스크립트 " + a.Length + "자>", "<script " + a.Length + " chars>") : a.Length == 0 || a.Contains(' ') ? "\"" + a + "\"" : a));
 
         /// <summary>wsl.exe 실행. 표준 입력은 stdin 바이트(null 이면 바로 닫음), cwd 는 TEMP(UNC 경고 회피, K7), 제한 시간이 지나면 kill.</summary>
         public static ExtResult Wsl(string[] args, byte[] stdin, int timeoutMs)
         {
             if (IsTest) return FakeWsl(args, stdin, timeoutMs);
             var r = Capture(Path.Combine(Environment.SystemDirectory, "wsl.exe"), args, stdin, timeoutMs, Temp);
-            Ext("[ext] wsl.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? " (시간 초과)" : "") + " " + r.Ms + "ms");
+            Ext("[ext] wsl.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? L.T(" (시간 초과)", " (timed out)") : "") + " " + r.Ms + "ms");
             return r;
         }
 
@@ -380,7 +380,7 @@ namespace UartHub
         {
             if (IsTest) return FakeSchtasks(args);
             var r = Capture(Path.Combine(Environment.SystemDirectory, "schtasks.exe"), args, null, timeoutMs, Temp);
-            Ext("[ext] schtasks.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? " (시간 초과)" : "") + " " + r.Ms + "ms");
+            Ext("[ext] schtasks.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? L.T(" (시간 초과)", " (timed out)") : "") + " " + r.Ms + "ms");
             return r;
         }
 
@@ -389,7 +389,7 @@ namespace UartHub
         {
             string e = Guard(exe, "exec");
             var r = Capture(e, args, null, timeoutMs, Path.GetDirectoryName(e));
-            Ext("[run] " + Path.GetFileName(e) + " " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? " (시간 초과)" : "") + " " + r.Ms + "ms");
+            Ext("[run] " + Path.GetFileName(e) + " " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? L.T(" (시간 초과)", " (timed out)") : "") + " " + r.Ms + "ms");
             return r;
         }
 
@@ -415,7 +415,7 @@ namespace UartHub
                 pid = p0.Id;
                 try { st = HubFiles.StartTicks(p0); } catch (Exception) { }
             }
-            Ext("[run] " + Path.GetFileName(e) + " " + ArgText(args) + " → pid=" + pid + " (분리 기동" + (how != null ? ", " + how : "") + ")");
+            Ext("[run] " + Path.GetFileName(e) + " " + ArgText(args) + " → pid=" + pid + L.T(" (분리 기동" + (how != null ? ", " + how : "") + ")", " (detached start" + (how != null ? ", " + how : "") + ")"));
             return (pid, st);
         }
 
@@ -446,7 +446,7 @@ namespace UartHub
                 if (!CreateProcessW(exe, cmd, IntPtr.Zero, IntPtr.Zero, false, flags, env, Path.GetDirectoryName(exe), ref si, out var pi))
                 {
                     int err = Marshal.GetLastWin32Error();
-                    how = "작업 이탈 못 함(Win32 " + err + ") → 일반 기동";
+                    how = L.T("작업 이탈 못 함(Win32 " + err + ") → 일반 기동", "could not break away from job (Win32 " + err + ") → normal start");
                     return 0;
                 }
                 CloseHandle(pi.hThread);
@@ -455,7 +455,7 @@ namespace UartHub
                 CloseHandle(pi.hProcess);
                 return pi.dwProcessId;
             }
-            catch (Exception x) { how = "작업 이탈 못 함(" + x.GetType().Name + ") → 일반 기동"; return 0; }
+            catch (Exception x) { how = L.T("작업 이탈 못 함(" + x.GetType().Name + ") → 일반 기동", "could not break away from job (" + x.GetType().Name + ") → normal start"); return 0; }
             finally { if (env != IntPtr.Zero) Marshal.FreeHGlobal(env); }
         }
 
@@ -542,7 +542,7 @@ namespace UartHub
             {
                 // X7 setup 계획: 켜진 배포판만(l_running.txt — 없으면 l_q.txt 와 같음 = 모두 켜짐)
                 string f = Path.Combine(dir, "l_running.txt");
-                if (!Directory.Exists(dir)) { r.Code = -1; r.Err = "fake: WSL 없음(fake_wsl 폴더 없음)"; }
+                if (!Directory.Exists(dir)) { r.Code = -1; r.Err = L.T("fake: WSL 없음(fake_wsl 폴더 없음)", "fake: no WSL (no fake_wsl folder)"); }
                 else
                 {
                     if (!File.Exists(f)) f = Path.Combine(dir, "l_q.txt");
@@ -553,7 +553,7 @@ namespace UartHub
             }
             else if (a == "-l -q" || a == "--list --quiet")
             {
-                if (!Directory.Exists(dir)) { r.Code = -1; r.Err = "fake: WSL 없음(fake_wsl 폴더 없음)"; }
+                if (!Directory.Exists(dir)) { r.Code = -1; r.Err = L.T("fake: WSL 없음(fake_wsl 폴더 없음)", "fake: no WSL (no fake_wsl folder)"); }
                 else
                 {
                     int delay = ReadInt(Path.Combine(dir, "l_q.delay_ms"), 0);
@@ -569,17 +569,17 @@ namespace UartHub
             }
             else if (args.Length >= 8 && args[0] == "-d" && args[2] == "-e" && args[3] == "sh" && args[4] == "-c" && args[6] == "uart_hub")
                 FakeDistro(r, dir, args[1], args[7], args.Length > 8 ? args[8] : null, stdin, timeoutMs);
-            else { r.Code = 1; r.Err = "fake: 응답 파일 없음(" + a + ")"; }
+            else { r.Code = 1; r.Err = L.T("fake: 응답 파일 없음(" + a + ")", "fake: no reply file (" + a + ")"); }
             r.Ms = sw.ElapsedMilliseconds;
-            Ext("[ext:fake] wsl.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? " (시간 초과)" : "") + " " + r.Ms + "ms");
+            Ext("[ext:fake] wsl.exe " + ArgText(args) + " → rc=" + r.Code + (r.TimedOut ? L.T(" (시간 초과)", " (timed out)") : "") + " " + r.Ms + "ms");
             return r;
         }
 
         /// <summary>가짜 배포판 하나에서 skills_wsl.sh 의 probe·write·remove 를 같은 규칙으로 흉내 낸다(출력 key=value 줄, 종료코드 같음).</summary>
         static void FakeDistro(ExtResult r, string dir, string distro, string op, string arg, byte[] stdin, int timeoutMs)
         {
-            if (!Directory.Exists(dir)) { r.Code = -1; r.Err = "fake: WSL 없음(fake_wsl 폴더 없음)"; return; }
-            if (distro.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || distro.StartsWith(".", StringComparison.Ordinal)) { r.Code = 1; r.Err = "fake: 배포판 이름 오류"; return; }
+            if (!Directory.Exists(dir)) { r.Code = -1; r.Err = L.T("fake: WSL 없음(fake_wsl 폴더 없음)", "fake: no WSL (no fake_wsl folder)"); return; }
+            if (distro.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || distro.StartsWith(".", StringComparison.Ordinal)) { r.Code = 1; r.Err = L.T("fake: 배포판 이름 오류", "fake: bad distro name"); return; }
             if (op == "probe")
             {
                 int delay = ReadInt(Path.Combine(dir, distro + ".delay_ms"), 0);
@@ -587,7 +587,7 @@ namespace UartHub
                 if (delay >= timeoutMs) { r.TimedOut = true; r.Code = -1; return; }
             }
             int rc = ReadInt(Path.Combine(dir, distro + ".rc"), 0);
-            if (rc != 0) { r.Code = rc; r.Err = "fake: 배포판 " + distro + " 실행 실패"; return; }
+            if (rc != 0) { r.Code = rc; r.Err = L.T("fake: 배포판 " + distro + " 실행 실패", "fake: distro " + distro + " failed to run"); return; }
             string home = Path.Combine(dir, "home", distro), claude = Path.Combine(home, ".claude"), d = Path.Combine(claude, "skills", "uart"), m = Path.Combine(d, ".uart_hub");
             var o = new StringBuilder();
             var u8 = new UTF8Encoding(false);
@@ -693,11 +693,11 @@ namespace UartHub
             string file = Path.Combine(dir, name + ".xml");
             bool query = args.Any(x => string.Equals(x, "/query", StringComparison.OrdinalIgnoreCase));
             bool del = args.Any(x => string.Equals(x, "/delete", StringComparison.OrdinalIgnoreCase));
-            if (name.Length == 0 || name.IndexOfAny(new[] { '\\', '/', ':' }) >= 0) { r.Code = 1; r.Err = "fake: 작업 이름 없음"; }
+            if (name.Length == 0 || name.IndexOfAny(new[] { '\\', '/', ':' }) >= 0) { r.Code = 1; r.Err = L.T("fake: 작업 이름 없음", "fake: no task name"); }
             else if (!File.Exists(file)) { r.Code = 1; r.Err = "ERROR: The system cannot find the file specified."; }
             else if (query) { r.Code = 0; r.Out = File.ReadAllBytes(file); }
             else if (del) { File.Delete(file); r.Code = 0; r.Out = Encoding.UTF8.GetBytes("SUCCESS: The scheduled task \"" + name + "\" was successfully deleted."); }
-            else { r.Code = 1; r.Err = "fake: 지원하지 않는 인자"; }
+            else { r.Code = 1; r.Err = L.T("fake: 지원하지 않는 인자", "fake: unsupported argument"); }
             Ext("[ext:fake] schtasks.exe " + ArgText(args) + " → rc=" + r.Code);
             return r;
         }
@@ -716,13 +716,13 @@ namespace UartHub
                 if (j.HasValue)
                     foreach (var e in j.Value.EnumerateArray())
                         l.Add(new ProcRow { Pid = (int)HubFiles.Long(e, "pid"), Name = HubFiles.Str(e, "name"), CommandLine = HubFiles.Str(e, "cmd") });
-                Ext("[ext:fake] WMI Win32_Process(pwsh·powershell) → " + l.Count + "개");
+                Ext(L.T("[ext:fake] WMI Win32_Process(pwsh·powershell) → " + l.Count + "개", "[ext:fake] WMI Win32_Process(pwsh·powershell) → " + l.Count + " item(s)"));
                 return l;
             }
             using var s = new ManagementObjectSearcher("SELECT ProcessId, Name, CommandLine FROM Win32_Process WHERE Name = 'pwsh.exe' OR Name = 'powershell.exe'");
             foreach (ManagementObject o in s.Get())
                 using (o) l.Add(new ProcRow { Pid = Convert.ToInt32(o["ProcessId"], CultureInfo.InvariantCulture), Name = o["Name"] as string, CommandLine = o["CommandLine"] as string });
-            Ext("[ext] WMI Win32_Process(pwsh·powershell) → " + l.Count + "개");
+            Ext(L.T("[ext] WMI Win32_Process(pwsh·powershell) → " + l.Count + "개", "[ext] WMI Win32_Process(pwsh·powershell) → " + l.Count + " item(s)"));
             return l;
         }
 
@@ -738,7 +738,7 @@ namespace UartHub
                 {
                     string exe = null;
                     try { exe = p.MainModule?.FileName; } catch (Exception) { }
-                    if (exe == null || !Under(exe, TestRoot)) throw Violation("kill pid=" + pid + " " + (exe ?? "(경로 모름)"));
+                    if (exe == null || !Under(exe, TestRoot)) throw Violation("kill pid=" + pid + " " + (exe ?? L.T("(경로 모름)", "(path unknown)")));
                 }
                 p.Kill();
                 p.WaitForExit(5000);
@@ -864,7 +864,7 @@ namespace UartHub
         /// <summary>제목이 title 인 창을 앞으로(중복 실행한 설치기). 시험 모드에서는 창을 건드리지 않는다.</summary>
         public static bool BringWindowToFront(string title)
         {
-            if (IsTest) { Ext("[ext:fake] 창 앞으로(" + title + ") — 시험 모드라 창을 건드리지 않음"); return false; }
+            if (IsTest) { Ext(L.T("[ext:fake] 창 앞으로(" + title + ") — 시험 모드라 창을 건드리지 않음", "[ext:fake] bring window to front (" + title + ") — test mode, window not touched")); return false; }
             IntPtr h = FindWindowW(null, title);
             if (h == IntPtr.Zero) return false;
             ShowWindow(h, 9);                                    // SW_RESTORE
@@ -930,7 +930,7 @@ namespace UartHub
                         l.Add(new ProcRow { Pid = (int)HubFiles.Long(e, "pid"), Name = n, CommandLine = HubFiles.Str(e, "cmd"), Title = HubFiles.Str(e, "title"),
                                             FgDeny = e.TryGetProperty("fg", out var fg) && fg.ValueKind == JsonValueKind.False });
                     }
-                Ext("[ext:fake] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + "개");
+                Ext(L.T("[ext:fake] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + "개", "[ext:fake] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + " item(s)"));
                 return l;
             }
             string where = string.Join(" OR ", names.Select(n => "Name = '" + n.Replace("'", "") + "'"));
@@ -939,7 +939,7 @@ namespace UartHub
                     using (o) l.Add(new ProcRow { Pid = Convert.ToInt32(o["ProcessId"], CultureInfo.InvariantCulture), Name = o["Name"] as string, CommandLine = o["CommandLine"] as string });
             foreach (var r in l)
                 try { using var p = Process.GetProcessById(r.Pid); r.Title = p.MainWindowTitle; } catch (Exception) { }
-            Ext("[ext] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + "개");
+            Ext(L.T("[ext] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + "개", "[ext] WMI Win32_Process(" + string.Join("·", names) + ") → " + l.Count + " item(s)"));
             return l;
         }
 
@@ -952,7 +952,7 @@ namespace UartHub
             if (IsTest)
             {
                 string res = r.FgDeny ? "flash" : "front";
-                Ext("[ext:fake] 창 앞으로 pid=" + r.Pid + " → " + res + " — 시험 모드라 창을 건드리지 않음");
+                Ext(L.T("[ext:fake] 창 앞으로 pid=" + r.Pid + " → " + res + " — 시험 모드라 창을 건드리지 않음", "[ext:fake] bring window to front pid=" + r.Pid + " → " + res + " — test mode, window not touched"));
                 return res;
             }
             IntPtr h;
@@ -974,20 +974,20 @@ namespace UartHub
         {
             if (IsTest)
             {
-                Ext("[ext:fake] 실행 " + exe + " " + args + " — 시험 모드라 띄우지 않음");
+                Ext(L.T("[ext:fake] 실행 " + exe + " " + args + " — 시험 모드라 띄우지 않음", "[ext:fake] run " + exe + " " + args + " — test mode, not launched"));
                 try { File.AppendAllText(T("fake_launch.log"), exe + " | " + args + "\n", new UTF8Encoding(false)); } catch (Exception) { }
                 return 0;
             }
             var psi = new ProcessStartInfo(exe) { UseShellExecute = false, Arguments = args, WorkingDirectory = Path.GetDirectoryName(exe) };
             using var p = Process.Start(psi);
-            Ext("[ext] 실행 " + exe + " " + args + " → pid=" + p.Id);
+            Ext(L.T("[ext] 실행 " + exe + " " + args + " → pid=" + p.Id, "[ext] run " + exe + " " + args + " → pid=" + p.Id));
             return p.Id;
         }
 
         /// <summary>그 프로세스의 주 창이 뜨면(timeoutMs 안) 제목을 바꾸고, 1초·2초 뒤 제목이 바뀌어 있으면 한 번씩 다시 쓴다(PuTTY 가 시작하며 덮어씀). 시험 모드는 줄만.</summary>
         public static bool SetWindowTitle(int pid, string title, int timeoutMs)
         {
-            if (IsTest) { Ext("[ext:fake] SetWindowText pid=" + pid + " '" + title + "' — 시험 모드라 창을 건드리지 않음"); return true; }
+            if (IsTest) { Ext(L.T("[ext:fake] SetWindowText pid=" + pid + " '" + title + "' — 시험 모드라 창을 건드리지 않음", "[ext:fake] SetWindowText pid=" + pid + " '" + title + "' — test mode, window not touched")); return true; }
             try
             {
                 using var p = Process.GetProcessById(pid);
@@ -1063,7 +1063,7 @@ namespace UartHub
         /// <summary>안내 창(맨 위, 확인 버튼 하나). 시험 모드는 띄우지 않고 "[ui:fake] 안내 창: …" 줄만.</summary>
         public static void ShowNote(string caption, string text)
         {
-            if (IsTest) { Ext("[ui:fake] 안내 창: " + caption + " — " + text.Replace("\n", " ")); return; }
+            if (IsTest) { Ext(L.T("[ui:fake] 안내 창: ", "[ui:fake] guide window: ") + caption + " — " + text.Replace("\n", " ")); return; }
             MessageBoxW(IntPtr.Zero, text, caption, 0x40 | 0x10000 | 0x40000);   // MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST
         }
 
@@ -1098,20 +1098,20 @@ namespace UartHub
         {
             why = null;
             string full = Path.GetFullPath(dir).TrimEnd('\\');
-            if (full.Split('\\').Any(s => s.StartsWith("OneDrive", StringComparison.OrdinalIgnoreCase))) { why = "경로에 OneDrive 폴더"; return true; }
+            if (full.Split('\\').Any(s => s.StartsWith("OneDrive", StringComparison.OrdinalIgnoreCase))) { why = L.T("경로에 OneDrive 폴더", "OneDrive folder in the path"); return true; }
             if (IsTest)
             {
-                if (File.Exists(T("fake_onedrive"))) { why = "시험 주입(fake_onedrive)"; return true; }
+                if (File.Exists(T("fake_onedrive"))) { why = L.T("시험 주입(fake_onedrive)", "test injection (fake_onedrive)"); return true; }
                 return false;
             }
             foreach (var env in new[] { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" })
             {
                 string r = Environment.GetEnvironmentVariable(env);
-                if (!string.IsNullOrWhiteSpace(r) && Under(full, r)) { why = "%" + env + "% 아래"; return true; }
+                if (!string.IsNullOrWhiteSpace(r) && Under(full, r)) { why = L.T("%" + env + "% 아래", "under %" + env + "%"); return true; }
             }
             // 리디렉션 자체는 기준이 아니다(스펙: "OneDrive 동기화 폴더면"). 로컬 고정 드라이브로 옮긴 바탕화면(예 D:\Desktop)은 그대로 쓰고,
             // 네트워크(UNC·네트워크 드라이브)로 리디렉션된 바탕화면만 동기화·공유 위험이 같아 시작 메뉴로 보낸다.
-            if (SamePath(full, Desktop) && !SamePath(full, Path.Combine(UserProfile, "Desktop")) && IsNetworkPath(full)) { why = "바탕화면 KnownFolder 가 네트워크로 리디렉션됨(" + full + ")"; return true; }
+            if (SamePath(full, Desktop) && !SamePath(full, Path.Combine(UserProfile, "Desktop")) && IsNetworkPath(full)) { why = L.T("바탕화면 KnownFolder 가 네트워크로 리디렉션됨(" + full + ")", "Desktop KnownFolder is redirected to the network (" + full + ")"); return true; }
             return false;
         }
 

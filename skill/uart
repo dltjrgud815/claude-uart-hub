@@ -60,14 +60,14 @@ fail() {
 envkind=''
 if [[ -n "${WSL_DISTRO_NAME:-}" ]] || compgen -G '/proc/sys/fs/binfmt_misc/WSLInterop*' > /dev/null; then envkind=wsl
 else case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*) envkind=gitbash ;; esac; fi
-[[ -n "$envkind" ]] || fail 103 hub_down "WSL·Git Bash 가 아님 — Windows 의 UartHub.exe cli 를 직접 쓰세요"
+[[ -n "$envkind" ]] || fail 103 hub_down "WSL·Git Bash 가 아님 — Windows 의 UartHub.exe cli 를 직접 쓰세요 — Not WSL or Git Bash: run UartHub.exe cli on Windows directly"
 if [[ $envkind == wsl ]]; then to_win() { wslpath -w "$1"; }; to_unix() { wslpath -u "$1"; }
 else to_win() { cygpath -w "$1"; }; to_unix() { cygpath -u "$1"; }; fi
 
 exe="${UART_HUB_EXE:-$UART_HUB_EXE_DEFAULT}"
-[[ -n "$exe" ]] || fail 103 hub_down "UartHub.exe 경로 없음(UART_HUB_EXE 미설정, 래퍼에 새겨진 경로 없음) — UartHub.exe 를 더블클릭해 허브를 시작하세요"
+[[ -n "$exe" ]] || fail 103 hub_down "UartHub.exe 경로 없음(UART_HUB_EXE 미설정, 래퍼에 새겨진 경로 없음) — UartHub.exe 를 더블클릭해 허브를 시작하세요 — No UartHub.exe path (UART_HUB_EXE not set, none stored in this wrapper): double-click UartHub.exe to start the hub"
 if [[ "$exe" == /* ]]; then exe_u="$exe"; else exe_u="$(to_unix "$exe" 2>/dev/null)" || exe_u=""; fi
-[[ -n "$exe_u" && -f "$exe_u" ]] || fail 103 hub_down "UartHub.exe 없음($exe) — exe 를 옮겼거나 지웠습니다. 둔 곳의 UartHub.exe 를 더블클릭하세요(경로를 다시 새김)"
+[[ -n "$exe_u" && -f "$exe_u" ]] || fail 103 hub_down "UartHub.exe 없음($exe) — exe 를 옮겼거나 지웠습니다. 둔 곳의 UartHub.exe 를 더블클릭하세요(경로를 다시 새김) — UartHub.exe not found ($exe): it was moved or deleted. Double-click UartHub.exe where it is now (stores the path again)"
 
 # ---- 환경변수(Windows 프로세스에 넘김)
 if [[ -n "${UART_HUB_DIR:-}" && "$UART_HUB_DIR" == /* ]]; then UART_HUB_DIR="$(to_win "$UART_HUB_DIR")"; fi

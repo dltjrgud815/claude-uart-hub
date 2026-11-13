@@ -120,14 +120,15 @@ namespace UartHub
     /// </summary>
     public static class SupervisorChannel
     {
-        public static JObj Request(string hubDir, string verb, string from, int timeoutMs)
+        public static JObj Request(string hubDir, string verb, string from, int timeoutMs, string[] args = null)
         {
             string id = from + "-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             string req = Path.Combine(HubFiles.ReqDir(hubDir), id + ".json");
             string resp = Path.Combine(HubFiles.RespDir(hubDir), id + ".json");
             var body = new JObj().Set("id", id).Set("verb", verb).Set("from", from).Set("pid", (long)Environment.ProcessId).Set("at", HubFiles.Iso(DateTime.Now));
+            if (args != null && args.Length > 0) body.Set("args", args);
             try { AtomicFile.WriteAllText(req, body.ToString()); }
-            catch (Exception e) { return Err(103, "hub_down", "감독 요청 파일을 쓰지 못함: " + e.Message); }
+            catch (Exception e) { return Err(103, "hub_down", L.T("감독 요청 파일을 쓰지 못함: " + e.Message, "Could not write the supervisor request file: " + e.Message)); }
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < timeoutMs)
             {
@@ -144,8 +145,8 @@ namespace UartHub
             }
             bool taken = !File.Exists(req);
             HubFiles.TryDelete(req);
-            return Err(103, "hub_down", taken ? "감독이 요청을 가져갔지만 " + timeoutMs + "ms 안에 응답하지 않음"
-                                              : "감독(uart_hub.ps1) 미응답 — 감독이 실행 중인지 확인");
+            return Err(103, "hub_down", taken ? L.T("감독이 요청을 가져갔지만 " + timeoutMs + "ms 안에 응답하지 않음", "The supervisor took the request but did not reply within " + timeoutMs + "ms")
+                                              : L.T("감독(uart_hub.ps1) 미응답 — 감독이 실행 중인지 확인", "No reply from the supervisor (uart_hub.ps1) — check that it is running"));
         }
 
         static JObj Err(long code, string status, string msg) => new JObj().Set("status", status).Set("exit", code).Set("error", msg);
@@ -197,7 +198,7 @@ namespace UartHub
         {
             var h = new CoreHost(hub, hubDir, configPath);
             AppDomain.CurrentDomain.UnhandledException += h.OnUnhandled;
-            hub.Control.HubCommandHandler = verb => SupervisorChannel.Request(hubDir, verb, "core", 8000);
+            hub.Control.HubCommandHandler = (verb, args) => SupervisorChannel.Request(hubDir, verb, "core", 8000, args);
             hub.Control.SupervisorStatus = () => SupervisorChannel.Status(hubDir);
             h.WritePid("starting");
             return h;
@@ -215,7 +216,7 @@ namespace UartHub
             var o = new JObj().Set("pid", (long)pid).Set("start_ticks", startTicks).Set("started", HubFiles.Iso(startLocal))
                 .Set("version", Hub.Version).Set("config", configPath).Set("control_port", (long)hub.Config.ControlPort).Set("control", control)
                 .Set("restart_reason", hub.RestartReason);
-            if (!HubFiles.TryWriteAtomic(HubFiles.CorePid(hubDir), o.ToString())) hub.Log.Write("core.pid 쓰기 실패");
+            if (!HubFiles.TryWriteAtomic(HubFiles.CorePid(hubDir), o.ToString())) hub.Log.Write(L.T("core.pid 쓰기 실패", "core.pid write failed"));
         }
 
         /// <summary>감독이 이 코어에 정상 종료를 요청했는가(core.stop 의 pid == 내 pid).</summary>
@@ -234,7 +235,7 @@ namespace UartHub
             var j = HubFiles.ReadJson(HubFiles.CorePid(hubDir));
             if (j.HasValue && HubFiles.Long(j.Value, "pid") == pid) HubFiles.TryDelete(HubFiles.CorePid(hubDir));
             if (StopRequested) HubFiles.TryDelete(HubFiles.CoreStop(hubDir));
-            hub.Log.Write("코어 정상 종료(exit 0)");
+            hub.Log.Write(L.T("코어 정상 종료(exit 0)", "Core exited cleanly (exit 0)"));
         }
 
         void OnUnhandled(object sender, UnhandledExceptionEventArgs e)
@@ -247,7 +248,7 @@ namespace UartHub
             try { foreach (var c in hub.Cables.Snapshot()) c.PostEvent("*** hub crash (" + what + ") ***"); } catch (Exception) { }
             bool drained = false;
             try { drained = hub.WaitDrained(3000); } catch (Exception) { }
-            try { hub.Log.Write("hub crash: 큐 flush " + (drained ? "완료" : "시간 초과") + " → exit " + CrashExitCode); } catch (Exception) { }
+            try { hub.Log.Write(L.T("hub crash: 큐 flush " + (drained ? "완료" : "시간 초과") + " → exit " + CrashExitCode, "hub crash: queue flush " + (drained ? "done" : "timed out") + " → exit " + CrashExitCode)); } catch (Exception) { }
             Environment.Exit(CrashExitCode);   // 런타임 기본 처리(WER 보고)보다 빠르고 종료코드가 정해진다
         }
     }

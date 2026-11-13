@@ -25,6 +25,7 @@ param(
 $ErrorActionPreference = 'Stop'
 # 시뮬용 가상 제품 프로필(FakeBoard 의 로더 표시·U-Boot 프롬프트·앱 오류 줄과 짝). 이 프로세스·띄우는 UartHub.exe 가 모두 물려받는다.
 $env:UART_HUB_PROFILE = Join-Path $PSScriptRoot 'profile.test.json'
+$env:UART_HUB_LANG = 'ko'   # 시험 기대값은 한국어 문구 — Windows 언어와 무관하게 한국어로 고정(영어판 시험은 시나리오 안에서 L.Use("en")·환경변수로 따로)
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $PSStyle.OutputRendering = 'PlainText'
 [Console]::Out.NewLine = "`n"

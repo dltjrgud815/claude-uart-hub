@@ -68,7 +68,7 @@ namespace UartHub
                 while (!stopping)
                 {
                     if (stopEvt.Wait(cfg.ScanIntervalMs)) break;
-                    try { ScanOnce(); } catch (Exception e) { hlog.Write("scan 오류: " + e.GetType().Name + ": " + e.Message); }
+                    try { ScanOnce(); } catch (Exception e) { hlog.Write(L.T("scan 오류: " + e.GetType().Name + ": " + e.Message, "scan error: " + e.GetType().Name + ": " + e.Message)); }
                 }
             }) { IsBackground = true, Name = "CableScan" };
             scanThread.Start();
@@ -81,7 +81,7 @@ namespace UartHub
             foreach (var p in providers)
             {
                 try { seen.AddRange(p.Scan()); }
-                catch (Exception e) { hlog.Write("열거 실패(" + p.GetType().Name + "): " + e.Message); }
+                catch (Exception e) { hlog.Write(L.T("열거 실패(" + p.GetType().Name + "): " + e.Message, "enumeration failed (" + p.GetType().Name + "): " + e.Message)); }
             }
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var info in seen) if (!string.IsNullOrEmpty(info.CableId)) seenIds.Add(info.CableId);
@@ -138,8 +138,8 @@ namespace UartHub
                 cables[info.CableId] = c;
                 if (c.Writer != null) c.Writer.StartPreamble = StartPreamble;
                 c.Writer?.Start();
-                hlog.Write("케이블 등록 " + info.CableId + " → :" + port + (cc.Mode == "ignore" ? " (ignore)" : pending ? " (pending)" : ""));
-                if (pending) hlog.Write("cable pending " + info.CableId + " " + info.Com + (cfg.OnDemand ? " — 연결 대기(on_demand: /connect-uart 전까지 COM 을 열지 않음, 창·풍선 없음)" : " — 첫 연결 확인 대기(COM 을 열지 않음)"));
+                hlog.Write(L.T("케이블 등록 " + info.CableId + " → :" + port + (cc.Mode == "ignore" ? " (ignore)" : pending ? " (pending)" : ""), "Cable registered " + info.CableId + " → :" + port + (cc.Mode == "ignore" ? " (ignore)" : pending ? " (pending)" : "")));
+                if (pending) hlog.Write("cable pending " + info.CableId + " " + info.Com + (cfg.OnDemand ? L.T(" — 연결 대기(on_demand: /connect-uart 전까지 COM 을 열지 않음, 창·풍선 없음)", " — waiting to connect (on_demand: COM not opened until /connect-uart, no window or balloon)") : L.T(" — 첫 연결 확인 대기(COM 을 열지 않음)", " — waiting for first-connection answer (COM not opened)")));
                 return c;
             }
         }
@@ -155,7 +155,7 @@ namespace UartHub
             catch (Exception e)
             {
                 var st = e is UnauthorizedAccessException ? CableStatus.HeldByOther : CableStatus.OpenFailed;
-                if (c.Status != st || c.LastError != e.Message) hlog.Write("열기 실패 " + c.Id + " " + info.Com + ": " + e.GetType().Name + ": " + e.Message);
+                if (c.Status != st || c.LastError != e.Message) hlog.Write(L.T("열기 실패 " + c.Id + " " + info.Com + ": " + e.GetType().Name + ": " + e.Message, "open failed " + c.Id + " " + info.Com + ": " + e.GetType().Name + ": " + e.Message));
                 c.Status = st;
                 c.LastError = e.Message;
                 try { port?.Dispose(); } catch (Exception) { }
@@ -230,7 +230,7 @@ namespace UartHub
                 if (!board) state.SetReleased(c.Id, true);
                 cables.Remove(c.Id);
             }
-            hlog.Write("cable decide " + c.Id + " " + (board ? "board" : "ignore") + " → :" + port + (board ? "" : " (released, COM 미개방)"));
+            hlog.Write("cable decide " + c.Id + " " + (board ? "board" : "ignore") + " → :" + port + (board ? "" : L.T(" (released, COM 미개방)", " (released, COM not opened)")));
             return true;
         }
 
@@ -264,7 +264,7 @@ namespace UartHub
                 TestBeforeDetachFire?.Invoke(c);
                 Fire(CableDetached, c, seq);
             }
-            hlog.Write("cable exclude " + c.Id + " :" + c.TcpPort + (was ? " (COM 닫음)" : ""));
+            hlog.Write("cable exclude " + c.Id + " :" + c.TcpPort + (was ? L.T(" (COM 닫음)", " (COM closed)") : ""));
             return true;
         }
 
@@ -305,7 +305,7 @@ namespace UartHub
             }
             string text = "baud " + old.ToString(System.Globalization.CultureInfo.InvariantCulture) + " -> " + baud.ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (old != baud) lock (baudNotes) baudNotes[cableId] = "*** " + text + " ***";
-            if (c == null) { hlog.Write("cable baud " + cableId + " " + text + " (케이블 객체 없음 — 다음에 만들 때)"); return true; }
+            if (c == null) { hlog.Write(L.T("cable baud " + cableId + " " + text + " (케이블 객체 없음 — 다음에 만들 때)", "cable baud " + cableId + " " + text + " (no cable object — applied when it is created)")); return true; }
             PortReader r = null;
             long seq = 0;
             lock (c.Sync)
@@ -327,7 +327,7 @@ namespace UartHub
                 TestBeforeDetachFire?.Invoke(c);
                 Fire(CableDetached, c, seq);
             }
-            hlog.Write("cable baud " + c.Id + " " + c.Com + " " + text + (reopened ? " — COM 닫음, 다음 스캔에서 새 보오로 다시 엶" : ""));
+            hlog.Write("cable baud " + c.Id + " " + c.Com + " " + text + (reopened ? L.T(" — COM 닫음, 다음 스캔에서 새 보오로 다시 엶", " — COM closed, reopened at the new baud on the next scan") : ""));
             return true;
         }
 
@@ -369,7 +369,7 @@ namespace UartHub
             }
             foreach (var c in all)
             {
-                if (c.Writer != null && !c.Writer.Join(10000)) hlog.Write("writer 종료 대기 초과: " + c.Id);
+                if (c.Writer != null && !c.Writer.Join(10000)) hlog.Write(L.T("writer 종료 대기 초과: " + c.Id, "writer exit wait timed out: " + c.Id));
                 c.Ring?.Close();
             }
         }
@@ -398,25 +398,25 @@ namespace UartHub
         /// 꽂혀 있으면(붙음·pending·held_by_other·open_failed·bind_failed·제외 …) false + 이유. 이번 실행에서 분리된 객체는 목록에서 빼 두어
         /// 다시 꽂히면 새 케이블로 만든다(새 번호 — 지운 번호는 retired_ports 로 다시 주지 않음). hub.log 에 한 줄.
         /// </summary>
-        public bool Forget(string cableId, out int port, out string why)
+        public bool Forget(string cableId, out int port, out string why, out bool noRecord)
         {
-            port = -1; why = null;
+            port = -1; why = null; noRecord = false;
             lock (sync)
             {
-                if (PresentLocked(cableId, out string st)) { why = "지금 꽂혀 있음(" + st + ")"; port = cables.TryGetValue(cableId, out var pc) ? pc.TcpPort : -1; return false; }
+                if (PresentLocked(cableId, out string st)) { why = L.T("지금 꽂혀 있음(" + st + ")", "currently plugged in (" + st + ")"); port = cables.TryGetValue(cableId, out var pc) ? pc.TcpPort : -1; return false; }
                 bool known = state.HasAssign(cableId) || state.IsReleased(cableId) || state.GetBoard(cableId) != null || cables.ContainsKey(cableId);
-                if (!known) { why = "기록 없음"; return false; }
+                if (!known) { why = L.T("기록 없음", "no record"); noRecord = true; return false; }
                 port = state.Forget(cableId);
                 if (cables.TryGetValue(cableId, out var c)) { if (port < 0) port = c.TcpPort; cables.Remove(cableId); retiredObjs.Add(c); }
             }
-            hlog.Write("cable forget " + cableId + " :" + port + " — 미연결 UART 기록 지움(다시 꽂으면 새 번호)");
+            hlog.Write(L.T("cable forget " + cableId + " :" + port + " — 미연결 UART 기록 지움(다시 꽂으면 새 번호)", "cable forget " + cableId + " :" + port + " — disconnected UART record deleted (a new number if plugged in again)"));
             return true;
         }
 
         void Fire(Action<Cable, long> ev, Cable c, long seq)
         {
             if (ev == null) return;
-            try { ev(c, seq); } catch (Exception e) { hlog.Write("이벤트 처리기 예외: " + e.GetType().Name + ": " + e.Message); }
+            try { ev(c, seq); } catch (Exception e) { hlog.Write(L.T("이벤트 처리기 예외: " + e.GetType().Name + ": " + e.Message, "event handler exception: " + e.GetType().Name + ": " + e.Message)); }
         }
     }
 }

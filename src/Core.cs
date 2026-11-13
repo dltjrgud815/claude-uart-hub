@@ -186,7 +186,7 @@ namespace UartHub
                 if (throttle.Count > 256) throttle.Clear();
                 throttle[key] = (now, 0);
             }
-            Write(skipped > 0 ? msg + " (그 사이 같은 오류 " + skipped + "건 생략)" : msg);
+            Write(skipped > 0 ? L.T(msg + " (그 사이 같은 오류 " + skipped + "건 생략)", msg + " (" + skipped + " identical errors skipped meanwhile)") : msg);
         }
     }
 

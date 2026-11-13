@@ -181,7 +181,7 @@ namespace UartHub
                     if (replugClearSeq != AttachSeq) replugClearSeq = 0;                              // 지난 세션의 예약
                     else if (source == TxSource.Probe)
                         probeKill = Array.IndexOf(data, (byte)0x15, offset, count) >= 0;              // probe 는 스스로 ^E^U: ^U 를 실제로 보낸 쓰기에서만 예약을 쓴다(^E 뒤 중단이면 남김)
-                    else if (ClearBlocked(AttachSeq)) { replugClearSeq = 0; hlog?.Write("replug clear 해제 " + Id + " — 재연결 뒤 부팅·전체화면(보내지 않음)"); }
+                    else if (ClearBlocked(AttachSeq)) { replugClearSeq = 0; hlog?.Write(L.T("replug clear 해제 " + Id + " — 재연결 뒤 부팅·전체화면(보내지 않음)", "replug clear cancelled " + Id + " — boot or full-screen after reconnect (not sent)")); }
                     else clear = true;
                 }
                 if (clear)
@@ -214,7 +214,7 @@ namespace UartHub
                             // 관측 실패는 송신을 막지 않는다. 다만 침묵하지 않는다(P1): 같은 처리기·예외는 10초에 한 줄.
                             string who = (one.Method.DeclaringType?.Name ?? "?") + "." + one.Method.Name;
                             hlog?.WriteThrottled("tx-handler|" + Id + "|" + who + "|" + e.GetType().Name,
-                                                 "Transmitted 처리기 예외 " + Id + " (" + who + "): " + e.GetType().Name + ": " + e.Message);
+                                                 L.T("Transmitted 처리기 예외 " + Id + " (" + who + "): " + e.GetType().Name + ": " + e.Message, "Transmitted handler exception " + Id + " (" + who + "): " + e.GetType().Name + ": " + e.Message));
                         }
                     }
                 }
@@ -236,7 +236,7 @@ namespace UartHub
         bool ClearBlocked(long seq)
         {
             try { return ReplugClearBlocked?.Invoke(seq) == true; }
-            catch (Exception e) { hlog?.WriteThrottled("replug-clear|" + Id, "ReplugClearBlocked 예외 " + Id + ": " + e.GetType().Name + ": " + e.Message); return true; }
+            catch (Exception e) { hlog?.WriteThrottled("replug-clear|" + Id, L.T("ReplugClearBlocked 예외 " + Id + ": " + e.GetType().Name + ": " + e.Message, "ReplugClearBlocked exception " + Id + ": " + e.GetType().Name + ": " + e.Message)); return true; }
         }
 
         /// <summary>

@@ -25,8 +25,10 @@
 ```text
 UartHub_<버전>/
 ├── INSTALL_UART_HUB.md   이 문서(사용자 요약 + Claude 가 따르는 등록·업데이트·제거 절차)
+├── INSTALL_UART_HUB.en.md 이 문서의 영어판
 ├── UartHub.exe           허브 본체(서명 없는 단일 exe). 이 자리에서 실행한다 — 복사·이동·이름 바꾸기 금지
 ├── USAGE_ONE_PAGE.md     사람용 사용법 한 장
+├── USAGE_ONE_PAGE.en.md  사람용 사용법 한 장(영어)
 ├── GUIDE.md              짧은 사용 가이드(목적·설치 한 줄·매일 쓰기·에이징·막힐 때)
 ├── SHA256SUMS            위 파일들의 SHA-256(sha256sum -c 형식) — 받는 중 깨졌는지만 확인한다(바꿔치기는 전달 메시지의 EXE_SHA256 으로)
 └── UartHub.profile.json  (선택) 제품 프로필 — 보드·펌웨어별 로더 표시·앱 오류 패턴 등. 있는 배포에서만 들어 있다.

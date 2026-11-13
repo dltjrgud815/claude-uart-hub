@@ -317,7 +317,7 @@ namespace UartHub
         /// </summary>
         public void BeginRun(string id, long rxPos, long ms, bool sealedRun = true)
         {
-            if (string.IsNullOrEmpty(id)) throw new ArgumentException("run id 비어 있음");
+            if (string.IsNullOrEmpty(id)) throw new ArgumentException(L.T("run id 비어 있음", "run id is empty"));
             lock (sync)
             {
                 // 플래그는 즉시(다음 요청이 바로 직렬화를 본다). 구간 시작·해제 기준은 송신 위치에서(그 전에 도착한 바이트와 섞이지 않게).
@@ -927,7 +927,7 @@ namespace UartHub
             kernelPhase = drop;
             lastKts = -1;
             lastKernelMs = chunkMs;
-            UpdateState(chunkMs, "boot(run 중 재부팅): " + (drop ? "커널 시각 " + kv.ToString("0.000000", CultureInfo.InvariantCulture) : "로더 표시"));
+            UpdateState(chunkMs, L.T("boot(run 중 재부팅): " + (drop ? "커널 시각 " + kv.ToString("0.000000", CultureInfo.InvariantCulture) : "로더 표시"), "boot (reboot during run): " + (drop ? "kernel time " + kv.ToString("0.000000", CultureInfo.InvariantCulture) : "loader marker")));
         }
 
         void OnBootMatch(string m)
@@ -1174,6 +1174,6 @@ namespace UartHub
         /// <summary>구독자 예외 기록(P1 침묵 실패 금지). 같은 구독자·예외는 10초에 한 줄.</summary>
         void Fault(string who, Exception e)
             => Log?.WriteThrottled("tracker-sub|" + board + "|" + who + "|" + e.GetType().Name,
-                                   "PromptTracker 구독자 예외 " + (board ?? "") + " (" + who + "): " + e.GetType().Name + ": " + e.Message);
+                                   L.T("PromptTracker 구독자 예외 " + (board ?? "") + " (" + who + "): " + e.GetType().Name + ": " + e.Message, "PromptTracker subscriber exception " + (board ?? "") + " (" + who + "): " + e.GetType().Name + ": " + e.Message));
     }
 }

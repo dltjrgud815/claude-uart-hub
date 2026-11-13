@@ -46,14 +46,15 @@ namespace UartHub
             {
                 if (a[i] == "--from") { balloon = i + 1 < a.Length && a[++i] == "balloon"; continue; }
                 if (port == 0 && int.TryParse(a[i], NumberStyles.None, CultureInfo.InvariantCulture, out int p) && p >= 1 && p <= 65535) { port = p; continue; }
-                Out("open: E106 인자 오류 '" + a[i] + "' — open <포트> [--from balloon]");
+                Out(L.T("open: E106 인자 오류 '" + a[i] + "' — open <포트> [--from balloon]", "open: E106 bad argument '" + a[i] + "' — open <port> [--from balloon]"));
                 return 106;
             }
-            if (port == 0) { Out("open: E106 포트가 없음 — open <포트> [--from balloon]"); return 106; }
+            if (port == 0) { Out(L.T("open: E106 포트가 없음 — open <포트> [--from balloon]", "open: E106 no port — open <port> [--from balloon]")); return 106; }
             NativeHandles.DontInheritStd();                              // 띄우는 감독·터미널이 호출 쪽 파이프를 물고 남지 않게
 
             string hubDir = InstallInfo.ResolveHubDir(out bool fromInstall);
-            if (string.IsNullOrEmpty(hubDir)) { Out("open: E103 설치되지 않음(UART_HUB_DIR·" + InstallInfo.DefaultPath + " 없음)"); return 103; }
+            if (string.IsNullOrEmpty(hubDir)) { Out(L.T("open: E103 설치되지 않음(UART_HUB_DIR·" + InstallInfo.DefaultPath + " 없음)", "open: E103 not installed (no UART_HUB_DIR or " + InstallInfo.DefaultPath + ")")); return 103; }
+            L.ConfigureFromFile(HubFiles.ConfigPath(hubDir));
             var log = new HubLog(Path.Combine(hubDir, "hub.log"), SystemClock.Instance, "open");
             SystemAccess.ExternalLog = s => log.Write(s);
             string head = "open " + port.ToString(CultureInfo.InvariantCulture) + (balloon ? " (from balloon)" : "");
@@ -69,12 +70,12 @@ namespace UartHub
                     {
                         string exe = CoreMain.RespawnExe(out _);
                         var sp = SystemAccess.StartDetached(exe, new[] { "sup" });
-                        log.Write(head + ": 자가 복구(C-9) — 코어 미응답·감독 없음 → 감독 다시 띄움 pid=" + sp.Pid + ", 코어를 ≤10초 기다림");
+                        log.Write(L.T(head + ": 자가 복구(C-9) — 코어 미응답·감독 없음 → 감독 다시 띄움 pid=" + sp.Pid + ", 코어를 ≤10초 기다림", head + ": self-heal (C-9) — core not responding, no supervisor → started supervisor pid=" + sp.Pid + ", waiting ≤10 s for the core"));
                         var sw = Stopwatch.StartNew();
                         while ((rows == null || !rows.Any(r => r.Port == port)) && sw.ElapsedMilliseconds < 10000) { Thread.Sleep(300); rows = Ls(hubDir) ?? rows; }
-                        log.Write(head + ": 코어 " + (rows != null ? "응답(" + sw.ElapsedMilliseconds + "ms)" : "10초 안에 응답 없음 — 터미널은 그대로 연다"));
+                        log.Write(L.T(head + ": 코어 " + (rows != null ? "응답(" + sw.ElapsedMilliseconds + "ms)" : "10초 안에 응답 없음 — 터미널은 그대로 연다"), head + ": core " + (rows != null ? "responded (" + sw.ElapsedMilliseconds + "ms)" : "no response within 10 s — opening the terminal anyway")));
                     }
-                    else log.Write(head + ": 코어 미응답 — 감독을 띄우지 않음(" + why + "), 터미널은 그대로 연다");
+                    else log.Write(L.T(head + ": 코어 미응답 — 감독을 띄우지 않음(" + why + "), 터미널은 그대로 연다", head + ": core not responding — not starting the supervisor (" + why + "), opening the terminal anyway"));
                 }
                 var row = rows?.FirstOrDefault(r => r.Port == port);
                 string board = row?.Board, com = row?.Com;
@@ -104,10 +105,12 @@ namespace UartHub
             if (pickNote != null) info(pickNote);
             if (t == null)
             {
-                result(note ? "터미널 없음(안내 창)" : "터미널 없음");
+                result(note ? L.T("터미널 없음(안내 창)", "no terminal (notice shown)") : L.T("터미널 없음", "no terminal"));
                 if (note)
-                    SystemAccess.ShowNote("UART 허브", "터미널(TeraTerm·PuTTY·MobaXterm)을 찾지 못했습니다.\n\n127.0.0.1:" + port + " 로 telnet 접속하세요.\n"
-                                                  + "터미널을 설치했다면 트레이 아이콘 → 터미널 변경 → 찾아보기 로 지정하세요.");
+                    SystemAccess.ShowNote(L.T("UART 허브", "UART Hub"), L.T("터미널(TeraTerm·PuTTY·MobaXterm)을 찾지 못했습니다.\n\n127.0.0.1:" + port + " 로 telnet 접속하세요.\n"
+                                                  + "터미널을 설치했다면 트레이 아이콘 → 터미널 변경 → 찾아보기 로 지정하세요.",
+                                                  "No terminal found (TeraTerm, PuTTY, MobaXterm).\n\nConnect with telnet to 127.0.0.1:" + port + ".\n"
+                                                  + "If you have a terminal installed, choose it in the tray icon → Settings → Terminal program → Browse…."));
                 return "none";
             }
             var names = Terminals.ProcessNames(t.Kind);
@@ -119,10 +122,10 @@ namespace UartHub
                 string fr = SystemAccess.FrontWindow(hit);
                 if (fr != null)
                 {
-                    result("front pid=" + hit.Pid + " (" + t.Kind + (fr == "flash" ? ", 전면 거부 → FlashWindowEx" : "") + ")");
+                    result("front pid=" + hit.Pid + " (" + t.Kind + (fr == "flash" ? L.T(", 전면 거부 → FlashWindowEx", ", foreground refused → FlashWindowEx") : "") + ")");
                     return "focused";
                 }
-                info("pid=" + hit.Pid + " 의 창이 없음 — 새로 실행");
+                info(L.T("pid=" + hit.Pid + " 의 창이 없음 — 새로 실행", "pid=" + hit.Pid + " has no window — launching a new one"));
             }
             string title = Terminals.Title(board, com, port);
             string args = Terminals.Args(t.Kind, port, title);
@@ -131,8 +134,8 @@ namespace UartHub
             catch (TestIsolationViolation) { throw; }
             catch (Exception e)
             {
-                result("실행 실패 " + t.Kind + " " + t.Path + ": " + e.Message);
-                if (note) SystemAccess.ShowNote("UART 허브", Terminals.Label(t.Kind) + " 를 실행하지 못했습니다: " + e.Message + "\n\n127.0.0.1:" + port + " 로 telnet 접속하세요.");
+                result(L.T("실행 실패 " + t.Kind + " " + t.Path + ": " + e.Message, "launch failed " + t.Kind + " " + t.Path + ": " + e.Message));
+                if (note) SystemAccess.ShowNote(L.T("UART 허브", "UART Hub"), L.T(Terminals.Label(t.Kind) + " 를 실행하지 못했습니다: " + e.Message + "\n\n127.0.0.1:" + port + " 로 telnet 접속하세요.", "Could not start " + Terminals.Label(t.Kind) + ": " + e.Message + "\n\nConnect with telnet to 127.0.0.1:" + port + "."));
                 return "none";
             }
             launched?.Invoke(pid);
@@ -145,10 +148,10 @@ namespace UartHub
         /// <summary>C-9 자가 복구를 막는 이유(null = 감독을 띄운다). Cli.HubDown 과 같은 조건.</summary>
         static string SelfHealBlock(string hubDir, bool fromInstall)
         {
-            if (!fromInstall) return "UART_HUB_DIR 로 허브 폴더를 정함(운영 설치가 아님)";
-            if (HubFiles.IsStopped(hubDir)) return "정지 상태(control.json stopped)";
-            if (CoreMain.MutexExists(SystemAccess.MutexName("sup"))) return "감독 실행 중(코어 재시작 대기)";
-            if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) return "업데이트 중(update mutex)";
+            if (!fromInstall) return L.T("UART_HUB_DIR 로 허브 폴더를 정함(운영 설치가 아님)", "hub folder set by UART_HUB_DIR (not a production install)");
+            if (HubFiles.IsStopped(hubDir)) return L.T("정지 상태(control.json stopped)", "stopped (control.json stopped)");
+            if (CoreMain.MutexExists(SystemAccess.MutexName("sup"))) return L.T("감독 실행 중(코어 재시작 대기)", "supervisor running (waiting for core restart)");
+            if (CoreMain.MutexExists(SystemAccess.MutexName("update"))) return L.T("업데이트 중(update mutex)", "updating (update mutex)");
             return CoreMain.RespawnExe(out string why) == null ? why : null;
         }
 
